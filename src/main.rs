@@ -3,16 +3,11 @@
 // Esqueleto inicial: renderer wgpu y errores de trading se integran en
 // etapas futuras. Se irá quitando a medida que cada módulo se active.
 
-mod domain;
-mod errors;
-mod logging;
-mod renderer;
-
-use crate::domain::candle::Candle;
-use crate::domain::chart_state::ChartState;
-use crate::logging::init as init_logging;
-use crate::renderer::ChartRenderer;
-use crate::renderer::create_renderer;
+use apex_trader::domain::candle::Candle;
+use apex_trader::domain::chart_state::ChartState;
+use apex_trader::logging::init as init_logging;
+use apex_trader::renderer::ChartRenderer;
+use apex_trader::renderer::create_renderer;
 use eframe::egui;
 
 /// Aplicación de escritorio con egui.

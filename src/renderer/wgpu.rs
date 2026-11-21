@@ -94,12 +94,14 @@ impl WgpuChartRenderer {
     }
     pub fn resize(&mut self, width: u32, height: u32) {
         if let (Some(ref mut config), Some(surface)) = (self.config.as_mut(), self.surface.as_ref())
-            && width > 0 && height > 0 {
-                config.width = width;
-                config.height = height;
-                surface.configure(&self.device, config);
-                info!("Surface redimensionada: {}x{}", width, height);
-            }
+            && width > 0
+            && height > 0
+        {
+            config.width = width;
+            config.height = height;
+            surface.configure(&self.device, config);
+            info!("Surface redimensionada: {}x{}", width, height);
+        }
     }
 
     /// Presenta el frame actual (swap chain).

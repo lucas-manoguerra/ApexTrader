@@ -43,3 +43,7 @@ jobs:
 
       - name: Run tests
         run: cargo test --workspace
+
+      - name: Verify architecture boundaries
+        shell: pwsh
+        run: pwsh -File scripts/verify_architecture.ps1

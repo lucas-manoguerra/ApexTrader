@@ -15,6 +15,12 @@ impl GlowChartRenderer {
     }
 }
 
+impl Default for GlowChartRenderer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ChartRenderer for GlowChartRenderer {
     fn draw(
         &mut self,
