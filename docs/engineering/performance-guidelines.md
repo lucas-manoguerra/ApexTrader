@@ -2,7 +2,7 @@
 
 ## Filosofía
 
-**No optimizaremos por intuición. Mediremos, identificaremos el cuello de botella y optimizaremos.**
+**No optimizaremos por intuición. Mediremos, identificamos el cuello de botella y optimizamos.**
 
 ## Tres principios
 
@@ -22,6 +22,20 @@
 | Chart Engine | Cantidad de datos y geometría procesada |
 | Indicadores | Cálculo incremental y reutilización de resultados |
 
+## Benchmarks y línea base
+
+Existe un benchmark de línea base en `benches/chart_transform_benchmark.rs` que mide el costo de transformar coordenadas de datos a pantalla para N velas.
+
+- Ejecutar con: `cargo bench --bench chart_transform_benchmark`
+- Este benchmark es la **evidencia de referencia**. Cualquier cambio en `domain/viewport.rs` o `renderer/` debe mantener o mejorar estos números.
+- Si un cambio degrada el tiempo por vela, no se integra hasta entender por qué y corregirlo.
+
+## Profiling
+
+- Usar `cargo flamegraph` o el profiler de Windows (PerfView / Visual Studio Profiler) para identificar puntos calientes reales.
+- El profiling se ejecuta sobre builds de release (`--release`) para que los números sean representativos.
+- Nunca perfilar en debug: el código no optimizado distorsiona los resultados.
+
 ## Ejemplo
 
 Si queremos representar cientos de miles de velas, no redibujamos innecesariamente toda la geometría cada vez que se mueve el cursor. Eso se resuelve con arquitectura, estructuras de datos y estrategias de renderizado, no solo escribiendo código más rápido.
@@ -31,3 +45,4 @@ Si queremos representar cientos de miles de velas, no redibujamos innecesariamen
 - Antes de cualquier cambio que afirme mejorar el rendimiento.
 - Cuando un usuario reporta lentitud.
 - Cuando se añade una nueva fuente de datos o indicador.
+- Antes y después de cambiar el backend de renderizado (glow → wgpu).
