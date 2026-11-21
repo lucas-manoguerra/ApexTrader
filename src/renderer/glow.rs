@@ -1,7 +1,7 @@
 use crate::domain::candle::Candle;
 use crate::domain::price::Price;
 use crate::domain::price_range::PriceRange;
-use crate::domain::transforms;
+use crate::domain::transforms::{self, screen_to_chart_point, ScreenPoint};
 use crate::domain::viewport::Viewport;
 use crate::errors::RendererError;
 use crate::renderer::ChartRenderer;
@@ -150,7 +150,7 @@ impl ChartRenderer for GlowChartRenderer {
         rect: egui::Rect,
         candles: &[Candle],
         viewport: &Viewport,
-        crosshair_pos: Option<(f64, f64)>,
+        crosshair_pos: Option<ScreenPoint>,
     ) -> Result<(), RendererError> {
         if rect.width() <= 0.0 || rect.height() <= 0.0 {
             tracing::warn!("Rectángulo de dibujo vacío, no se puede renderizar");
@@ -280,26 +280,27 @@ impl ChartRenderer for GlowChartRenderer {
         );
 
         // --- Crosshair: líneas vertical y horizontal en la posición del cursor ---
-        if let Some((crosshair_x, crosshair_y)) = crosshair_pos {
-            // Convertir rect de egui (f32) a f64 para comparar con crosshair_pos.
+        if let Some(crosshair) = crosshair_pos {
             let left_f64 = left as f64;
             let right_f64 = right as f64;
             let top_f64 = top as f64;
             let bottom_f64 = bottom as f64;
 
             // Solo dibujar si el cursor está dentro del área de dibujo útil.
-            if crosshair_x >= left_f64
-                && crosshair_x <= right_f64
-                && crosshair_y >= top_f64
-                && crosshair_y <= bottom_f64
+            // crosshair está en ScreenPoint (relativo al rect completo), mismo espacio
+            // que left/right/top/bottom, así que la comparación es consistente.
+            if crosshair.x >= left_f64
+                && crosshair.x <= right_f64
+                && crosshair.y >= top_f64
+                && crosshair.y <= bottom_f64
             {
                 let crosshair_color = egui::Color32::from_rgb(255, 165, 0);
 
                 // Línea vertical.
                 painter.line_segment(
                     [
-                        egui::pos2(crosshair_x as f32, top),
-                        egui::pos2(crosshair_x as f32, bottom),
+                        egui::pos2(crosshair.x as f32, top),
+                        egui::pos2(crosshair.x as f32, bottom),
                     ],
                     egui::Stroke::new(1.0, crosshair_color),
                 );
@@ -307,43 +308,52 @@ impl ChartRenderer for GlowChartRenderer {
                 // Línea horizontal.
                 painter.line_segment(
                     [
-                        egui::pos2(left, crosshair_y as f32),
-                        egui::pos2(right, crosshair_y as f32),
+                        egui::pos2(left, crosshair.y as f32),
+                        egui::pos2(right, crosshair.y as f32),
                     ],
                     egui::Stroke::new(1.0, crosshair_color),
                 );
 
                 // Calcular precio y índice bajo el cursor.
-                let screen_height_drawing = bottom_f64 - top_f64;
                 let screen_width_drawing = right_f64 - left_f64;
+                let screen_height_drawing = bottom_f64 - top_f64;
 
-                let relative_y = crosshair_y - top_f64;
-                let relative_x = crosshair_x - left_f64;
+                // Convertir ScreenPoint (rect completo) a ChartPoint (área útil),
+                // restando los márgenes de ejes (left/top).
+                let chart_point = screen_to_chart_point(crosshair, left_f64, top_f64);
 
                 // Construir PriceRange y center_price desde los datos de velas.
-                // min_price, max_price, center_price son f64; convertirlos a Decimal.
-                let price_min_decimal = Decimal::from_f64(min_price).unwrap_or(Decimal::ZERO);
-                let price_max_decimal = Decimal::from_f64(max_price).unwrap_or(Decimal::ZERO);
-                let center_price_decimal = Decimal::from_f64(center_price).unwrap_or(Decimal::ZERO);
+                let price_min_decimal =
+                    Decimal::from_f64(min_price).unwrap_or(Decimal::ZERO);
+                let price_max_decimal =
+                    Decimal::from_f64(max_price).unwrap_or(Decimal::ZERO);
+                let center_price_decimal =
+                    Decimal::from_f64(center_price).unwrap_or(Decimal::ZERO);
 
-                let price_min = Price::new(price_min_decimal).expect("precio mínimo válido");
-                let price_max = Price::new(price_max_decimal).expect("precio máximo válido");
-                let price_range = PriceRange::new(price_min, price_max).expect("rango válido");
+                let price_min =
+                    Price::new(price_min_decimal).expect("precio mínimo válido");
+                let price_max =
+                    Price::new(price_max_decimal).expect("precio máximo válido");
+                let price_range_typed =
+                    PriceRange::new(price_min, price_max).expect("rango válido");
                 let center_price_typed =
                     Price::new(center_price_decimal).expect("precio central válido");
 
                 let price_at_cursor = viewport.screen_y_to_price(
-                    relative_y,
+                    chart_point.y,
                     screen_height_drawing,
-                    price_range,
+                    price_range_typed,
                     center_price_typed,
                 );
-                let index_at_cursor = viewport.screen_x_to_data(relative_x, screen_width_drawing);
+                let index_at_cursor = viewport.screen_x_to_data(
+                    chart_point.x,
+                    screen_width_drawing,
+                );
 
                 // Etiqueta de precio (lado izquierdo, alineada con la línea horizontal).
                 let price_label = format!("{:.2}", price_at_cursor.value());
                 painter.text(
-                    egui::pos2(left - 6.0, crosshair_y as f32),
+                    egui::pos2(left - 6.0, crosshair.y as f32),
                     egui::Align2::RIGHT_CENTER,
                     price_label,
                     egui::FontId::proportional(11.0),
@@ -353,7 +363,7 @@ impl ChartRenderer for GlowChartRenderer {
                 // Etiqueta de índice de vela (fondo, alineada con la línea vertical).
                 let index_label = format!("{}", index_at_cursor);
                 painter.text(
-                    egui::pos2(crosshair_x as f32, bottom + 4.0),
+                    egui::pos2(crosshair.x as f32, bottom + 4.0),
                     egui::Align2::CENTER_TOP,
                     index_label,
                     egui::FontId::proportional(11.0),

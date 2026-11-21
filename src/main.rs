@@ -5,6 +5,7 @@
 
 use apex_trader::domain::candle::Candle;
 use apex_trader::domain::chart_state::ChartState;
+use apex_trader::domain::transforms::ScreenPoint;
 use apex_trader::logging::init as init_logging;
 use apex_trader::renderer::ChartRenderer;
 use apex_trader::renderer::create_renderer;
@@ -20,7 +21,7 @@ use eframe::egui;
 struct ApexTraderApp {
     chart: ChartState,
     renderer: Box<dyn ChartRenderer>,
-    crosshair_pos: Option<(f64, f64)>,
+    crosshair_pos: Option<ScreenPoint>,
 }
 
 impl eframe::App for ApexTraderApp {
@@ -94,10 +95,15 @@ impl eframe::App for ApexTraderApp {
                 if response.hovered()
                     && let Some(pos) = ui.input(|i| i.pointer.hover_pos())
                 {
-                    // Coordenadas relativas al área de interacción (0..=width, 0..=height).
+                    // Coordenadas relativas al área de interacción (0..=width, 0..=height),
+                    // en el mismo espacio que el renderer usa para comparar contra el
+                    // área de dibujo útil.
                     let rel_x = pos.x - interaction_rect.left();
                     let rel_y = pos.y - interaction_rect.top();
-                    self.crosshair_pos = Some((rel_x as f64, rel_y as f64));
+                    self.crosshair_pos = Some(ScreenPoint {
+                        x: rel_x as f64,
+                        y: rel_y as f64,
+                    });
                 }
             }
 

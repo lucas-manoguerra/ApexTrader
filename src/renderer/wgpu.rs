@@ -1,4 +1,5 @@
 use crate::domain::candle::Candle;
+use crate::domain::transforms::ScreenPoint;
 use crate::domain::viewport::Viewport;
 use crate::errors::RendererError;
 use crate::renderer::ChartRenderer;
@@ -120,7 +121,7 @@ impl ChartRenderer for WgpuChartRenderer {
         _rect: egui::Rect,
         _candles: &[Candle],
         _viewport: &Viewport,
-        _crosshair_pos: Option<(f64, f64)>,
+        _crosshair_pos: Option<ScreenPoint>,
     ) -> Result<(), RendererError> {
         // Si no hay surface, no podemos dibujar con wgpu.
         // Devolvemos Err para que el caller sepa que wgpu no está listo

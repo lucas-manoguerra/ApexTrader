@@ -115,3 +115,65 @@ pub fn validate_price_range(min: f64, max: f64) -> Option<f64> {
     }
     Some(range)
 }
+
+// ---------------------------------------------------------------------------
+// Espacios de coordenadas y conversiones (S4)
+// ---------------------------------------------------------------------------
+
+/// Punto en coordenadas de pantalla: píxeles desde la esquina superior
+/// izquierda del rect de dibujo recibido por el renderer (incluye márgenes
+/// de ejes).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ScreenPoint {
+    pub x: f64,
+    pub y: f64,
+}
+
+/// Punto en coordenadas del área útil de chart: píxeles desde el inicio del
+/// área de dibujo útil (sin los márgenes de ejes de precios y tiempo).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ChartPoint {
+    pub x: f64,
+    pub y: f64,
+}
+
+/// Punto en coordenadas de datos: índice de vela (como f64) y precio.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DataPoint {
+    pub index: f64,
+    pub price: f64,
+}
+
+/// Convierte un `ScreenPoint` (rect completo) a `ChartPoint` (área útil),
+/// restando los márgenes de ejes `left` y `top`.
+pub fn screen_to_chart_point(screen: ScreenPoint, left: f64, top: f64) -> ChartPoint {
+    ChartPoint {
+        x: screen.x - left,
+        y: screen.y - top,
+    }
+}
+
+/// Convierte un `ChartPoint` a un `DataPoint` (índice de vela y precio)
+/// usando el estado del viewport y las dimensiones del área de dibujo.
+pub fn chart_point_to_data_point(
+    chart: ChartPoint,
+    screen_width: f64,
+    screen_height: f64,
+    zoom_level: f64,
+    offset_x: f64,
+    offset_y: f64,
+    price_range: f64,
+    center_price: f64,
+) -> DataPoint {
+    let index = screen_x_to_data(chart.x, screen_width, zoom_level, offset_x) as f64;
+    let price = screen_y_to_price(
+        chart.y,
+        screen_height,
+        price_range,
+        zoom_level,
+        offset_y,
+        center_price,
+    );
+    DataPoint { index, price }
+}
+

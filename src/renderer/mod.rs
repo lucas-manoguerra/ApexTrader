@@ -1,4 +1,5 @@
 use crate::domain::candle::Candle;
+use crate::domain::transforms::ScreenPoint;
 use crate::domain::viewport::Viewport;
 use crate::errors::RendererError;
 use eframe::egui;
@@ -16,13 +17,15 @@ pub trait ChartRenderer {
     /// `rect` es el área disponible en pantalla.
     /// `candles` son los datos prestados por `ChartState` (`&[Candle]`).
     /// `viewport` es el estado de zoom y pan prestado por `ChartState` (`&Viewport`).
+    /// `crosshair_pos` es la posición del cursor en `ScreenPoint` (coordenadas
+    /// relativas al rect de dibujo recibido por el renderer).
     fn draw(
         &mut self,
         painter: &egui::Painter,
         rect: egui::Rect,
         candles: &[Candle],
         viewport: &Viewport,
-        crosshair_pos: Option<(f64, f64)>,
+        crosshair_pos: Option<ScreenPoint>,
     ) -> Result<(), RendererError>;
 
     /// Nombre legible del renderer (para logs y depuración).
