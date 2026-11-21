@@ -95,7 +95,7 @@ impl ChartRenderer for GlowChartRenderer {
         // Dibujamos cada vela.
         for (i, candle) in candles.iter().enumerate() {
             // Posición X ajustada por zoom y pan del viewport.
-            let screen_x = viewport.data_x_to_screen(i as f64, (right - left) as f64) + left as f64;
+            let screen_x = viewport.data_x_to_screen(i, (right - left) as f64) + left as f64;
 
             let y_high = price_to_y(candle.high);
             let y_low = price_to_y(candle.low);

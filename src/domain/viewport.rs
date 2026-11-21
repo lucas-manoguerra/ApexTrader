@@ -2,10 +2,15 @@
 ///
 /// `Viewport` **posee** el estado de la cámara del chart.
 /// Es responsable de calcular cómo se transforman las coordenadas de datos
-/// (precio, tiempo) a coordenadas de pantalla.
+/// (precio, tiempo) a coordenadas de pantalla y viceversa.
 ///
 /// Ningún otro módulo puede modificar el viewport directamente;
 /// solo a través de sus métodos públicos.
+use crate::domain::price::Price;
+use crate::domain::price_range::PriceRange;
+use rust_decimal::Decimal;
+use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
+
 #[derive(Debug, Clone, Copy)]
 pub struct Viewport {
     /// Nivel de zoom. 1.0 = sin zoom (1 unidad de precio = 1 píxel base).
@@ -102,30 +107,96 @@ impl Viewport {
 
     /// Convierte un índice de vela (coordenada de datos X) a coordenada de pantalla.
     ///
-    /// `index` es el índice de la vela en el array.
+    /// `index` es el índice de la vela en el array (basado en 0).
     /// `screen_width` es el ancho del área de dibujo en píxeles.
-    pub fn data_x_to_screen(&self, index: f64, screen_width: f64) -> f64 {
+    ///
+    /// Devuelve la coordenada X en píxeles de pantalla.
+    pub fn data_x_to_screen(&self, index: usize, screen_width: f64) -> f64 {
         let candle_spacing = 20.0 / self.zoom_level; // píxeles por vela
         let center_x = screen_width / 2.0;
-        center_x + (index * candle_spacing) + self.offset_x * candle_spacing
+        center_x + (index as f64 * candle_spacing) + self.offset_x * candle_spacing
+    }
+
+    /// Convierte una coordenada de pantalla X a un índice de vela (coordenada de datos X).
+    ///
+    /// `screen_x` es la posición en píxeles de pantalla.
+    /// `screen_width` es el ancho del área de dibujo en píxeles.
+    ///
+    /// Devuelve el índice de vela más cercano (basado en 0).
+    pub fn screen_x_to_data(&self, screen_x: f64, screen_width: f64) -> usize {
+        let candle_spacing = 20.0 / self.zoom_level;
+        let center_x = screen_width / 2.0;
+        let index = (screen_x - center_x - self.offset_x * candle_spacing) / candle_spacing;
+        index.round() as usize
     }
 
     /// Convierte un precio (coordenada de datos Y) a coordenada de pantalla.
     ///
-    /// `price` es el valor del precio.
+    /// `price` es el precio a convertir.
     /// `screen_height` es el alto del área de dibujo en píxeles.
-    /// `price_range` es el rango de precios visible (max - min).
+    /// `price_range` es el rango de precios visible (mínimo y máximo).
+    /// `center_price` es el precio central alrededor del cual se hace zoom.
+    ///
+    /// Devuelve la coordenada Y en píxeles de pantalla (eje Y invertido: 0 es arriba).
     pub fn price_to_screen(
         &self,
-        price: f64,
+        price: Price,
         screen_height: f64,
-        price_range: f64,
-        center_price: f64,
+        price_range: PriceRange,
+        center_price: Price,
     ) -> f64 {
         let center_y = screen_height / 2.0;
-        let pixels_per_unit = screen_height / price_range * self.zoom_level;
-        let relative_price = price - center_price - self.offset_y * price_range;
+        let range_value = price_range.max().value() - price_range.min().value();
+        let range_value_f64 = range_value
+            .to_f64()
+            .expect("el rango de precios debe ser convertible a f64 para renderizado");
+        let pixels_per_unit = screen_height / range_value_f64 * self.zoom_level;
+        let price_f64 = price
+            .value()
+            .to_f64()
+            .expect("el precio debe ser convertible a f64 para renderizado");
+        let center_price_f64 = center_price
+            .value()
+            .to_f64()
+            .expect("el precio central debe ser convertible a f64 para renderizado");
+        let relative_price = price_f64 - center_price_f64 - self.offset_y * range_value_f64;
         center_y - relative_price * pixels_per_unit
+    }
+
+    /// Convierte una coordenada de pantalla Y a un precio (coordenada de datos Y).
+    ///
+    /// `screen_y` es la posición en píxeles de pantalla.
+    /// `screen_height` es el alto del área de dibujo en píxeles.
+    /// `price_range` es el rango de precios visible (mínimo y máximo).
+    /// `center_price` es el precio central alrededor del cual se hace zoom.
+    ///
+    /// Devuelve el `Price` calculado. Si el resultado no es un precio válido
+    /// (negativo o no convertible), devuelve `center_price` como fallback.
+    pub fn screen_y_to_price(
+        &self,
+        screen_y: f64,
+        screen_height: f64,
+        price_range: PriceRange,
+        center_price: Price,
+    ) -> Price {
+        let center_y = screen_height / 2.0;
+        let range_value = price_range.max().value() - price_range.min().value();
+        let range_value_f64 = range_value
+            .to_f64()
+            .expect("el rango de precios debe ser convertible a f64 para renderizado");
+        let pixels_per_unit = screen_height / range_value_f64 * self.zoom_level;
+        let relative_price = (center_y - screen_y) / pixels_per_unit;
+        let center_price_f64 = center_price
+            .value()
+            .to_f64()
+            .expect("el precio central debe ser convertible a f64 para renderizado");
+        let price_value = center_price_f64 + self.offset_y * range_value_f64 + relative_price;
+
+        let decimal = Decimal::from_f64(price_value);
+        match decimal {
+            Some(d) => Price::new(d).unwrap_or(center_price),
+            None => center_price,
+        }
     }
 }
 
