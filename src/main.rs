@@ -86,7 +86,7 @@ impl eframe::App for ApexTraderApp {
                     let screen_width = available.width() as f64;
 
                     let vp = self.chart.viewport_mut();
-                    vp.pan(delta.x as f64, delta.y as f64);
+                    vp.pan(delta.x as f64, delta.y as f64, available.height() as f64);
                     vp.clamp_pan_to_candles(candle_count, screen_width);
                 }
 

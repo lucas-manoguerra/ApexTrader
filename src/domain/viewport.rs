@@ -310,10 +310,16 @@ impl Viewport {
     /// Aplica un desplazamiento (pan) al viewport.
     ///
     /// `dx` y `dy` son el cambio en píxeles de pantalla.
+    /// `screen_height` es la altura real del área de dibujo en píxeles.
     ///
-    /// Si alguno de los parámetros no es finito, no se modifica el estado.
-    pub fn pan(&mut self, dx: f64, dy: f64) {
-        if !dx.is_finite() || !dy.is_finite() {
+    /// Si alguno de los parámetros no es finito, o la altura no es positiva,
+    /// no se modifica el estado.
+    pub fn pan(&mut self, dx: f64, dy: f64, screen_height: f64) {
+        if !dx.is_finite()
+            || !dy.is_finite()
+            || !screen_height.is_finite()
+            || screen_height <= 0.0
+        {
             return;
         }
 
@@ -323,7 +329,7 @@ impl Viewport {
         self.offset_x += dx / self.candle_spacing();
         // offset_y está en unidades de precio, no de pantalla. Para simplicidad
         // y consistencia con price_to_screen, usamos el mismo factor que el eje Y.
-        self.offset_y += dy * self.zoom_level / self.screen_height_for_pan();
+        self.offset_y += dy * self.zoom_level / screen_height;
 
         tracing::trace!(
             "Pan: offset=({:.2}, {:.2}), zoom={:.2}",
@@ -331,14 +337,6 @@ impl Viewport {
             self.offset_y,
             self.zoom_level
         );
-    }
-
-    /// Altura de pantalla por defecto para conversión de pan vertical.
-    /// En una implementación completa, esto vendría del estado de la ventana.
-    fn screen_height_for_pan(&self) -> f64 {
-        // Valor por defecto razonable para cálculos internos.
-        // En producción, esto debería venir del tamaño real del área de dibujo.
-        720.0
     }
 
     /// Ajusta automáticamente el zoom y los offsets para que todas las velas
