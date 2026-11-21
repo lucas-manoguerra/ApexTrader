@@ -1,7 +1,9 @@
+pub mod candle;
 pub mod chart;
 pub mod price;
 pub mod renderer;
 
+pub use candle::CandleError;
 pub use chart::ChartError;
 pub use price::PriceError;
 pub use renderer::RendererError;

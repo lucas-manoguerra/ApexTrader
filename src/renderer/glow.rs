@@ -174,10 +174,13 @@ impl ChartRenderer for GlowChartRenderer {
         let bottom = rect.bottom() - 40.0; // espacio para el eje de tiempo
 
         // Calculamos rangos de precio para escalar (usamos f64 para precisión).
-        let min_price = candles.iter().map(|c| c.low).fold(f64::INFINITY, f64::min);
+        let min_price = candles
+            .iter()
+            .map(|c| c.low())
+            .fold(f64::INFINITY, f64::min);
         let max_price = candles
             .iter()
-            .map(|c| c.high)
+            .map(|c| c.high())
             .fold(f64::NEG_INFINITY, f64::max);
         let mut price_range = max_price - min_price;
         if price_range == 0.0 {
@@ -219,13 +222,13 @@ impl ChartRenderer for GlowChartRenderer {
             // Posición X ajustada por zoom y pan del viewport.
             let screen_x = viewport.data_x_to_screen(i, (right - left) as f64) + left as f64;
 
-            let y_high = price_to_y(candle.high);
-            let y_low = price_to_y(candle.low);
-            let y_open = price_to_y(candle.open);
-            let y_close = price_to_y(candle.close);
+            let y_high = price_to_y(candle.high());
+            let y_low = price_to_y(candle.low());
+            let y_open = price_to_y(candle.open());
+            let y_close = price_to_y(candle.close());
 
             // Color del cuerpo: verde si subió, rojo si bajó.
-            let color = if candle.close >= candle.open {
+            let color = if candle.close() >= candle.open() {
                 egui::Color32::GREEN
             } else {
                 egui::Color32::RED

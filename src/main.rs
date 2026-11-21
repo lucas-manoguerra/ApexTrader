@@ -139,13 +139,12 @@ fn main() -> eframe::Result {
                 let high = open.max(close) + change.abs() * 0.3;
                 let low = open.min(close) - change.abs() * 0.3;
 
-                if let Err(e) = chart.add_candle(Candle {
-                    open,
-                    high,
-                    low,
-                    close,
-                }) {
-                    tracing::error!("No se pudo agregar vela {}: {}", i, e);
+                if let Ok(candle) = Candle::new(open, high, low, close) {
+                    if let Err(e) = chart.add_candle(candle) {
+                        tracing::error!("No se pudo agregar vela {}: {}", i, e);
+                    }
+                } else {
+                    tracing::error!("No se pudo crear vela {}: precios inválidos", i);
                 }
                 price = close; // la siguiente vela abre donde cerró la anterior
             }
