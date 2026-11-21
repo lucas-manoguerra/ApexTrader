@@ -26,14 +26,19 @@
 
 | ID | Spec | Route | Status | Commit |
 |----|------|-------|--------|--------|
-| T1 | S1 | inline | done | |
-| T2 | S2 | inline | done | |
-| T3 | S3 | inline | done | |
-| T4 | S4 | inline | done | |
+| T1 | S1 | inline | done | 97a06da |
+| T2 | S2 | inline | done | 97a06da |
+| T3 | S3 | inline | done | 97a06da |
+| T4 | S4 | inline | done | 97a06da |
+
+## Librerías consultadas
+
+| Crate | Versión | docs.rs | APIs usadas |
+|-------|---------|---------|-------------|
+| egui | 0.37 | https://docs.rs/egui/0.37/ | `egui::Ui`, `egui::Painter`, `egui::Rect`, `egui::Sense::click_and_drag`, `egui::Color32`, `egui::FontId`, `egui::Align2`, `egui::Stroke`, `egui::pos2`, `egui::vec2` |
+| eframe | 0.37 | https://docs.rs/eframe/0.37/ | `eframe::run_native`, `eframe::NativeOptions`, `eframe::App`, `eframe::Result`, `eframe::Frame` |
 
 ## Log
-
-**L1** (verbatim): User wants to add zoom and pan to the chart, maintaining separation of responsibilities, modularity, and extensibility.
 
 **L2**: Created `Viewport` in `src/domain/viewport.rs` — posee `zoom_level`, `offset_x`, `offset_y`. Métodos: `zoom_at()`, `pan()`, `reset()`, `data_x_to_screen()`, `price_to_screen()`.
 

@@ -23,13 +23,21 @@
 
 | ID | Spec | Route | Status | Commit |
 |----|------|-------|--------|--------|
-| T1 | S1 | inline | done | |
-| T2 | S2 | inline | done | |
-| T3 | S3 | inline | done | |
+| T1 | S1 | inline | done | 97a06da |
+| T2 | S2 | inline | done | 97a06da |
+| T3 | S3 | inline | done | 97a06da |
+
+## Librerías consultadas
+
+| Crate | Versión | docs.rs | APIs usadas |
+|-------|---------|---------|-------------|
+| wgpu | 30.0.2 | https://docs.rs/wgpu/30.0.2/ | `wgpu::Instance`, `wgpu::InstanceDescriptor`, `wgpu::RequestAdapterOptions`, `wgpu::RequestAdapterOptions`, `wgpu::DeviceDescriptor`, `wgpu::Surface`, `wgpu::SurfaceConfiguration`, `wgpu::RenderPipeline`, `wgpu::Buffer`, `wgpu::util::DeviceExt` |
+| bytemuck | 1.25.2 | https://docs.rs/bytemuck/1.25.2/ | `bytemuck::cast_slice`, `bytemuck::Pod`, `bytemuck::Zeroable` |
+| pollster | 1.0.3 | https://docs.rs/pollster/1.0.3/ | `pollster::block_on` |
+| eframe | 0.37 | https://docs.rs/eframe/0.37/ | `eframe::run_native`, `eframe::NativeOptions`, `eframe::App` |
+| egui | 0.37 | https://docs.rs/egui/0.37/ | `egui::Painter`, `egui::Rect`, `egui::Color32`, `egui::Stroke` |
 
 ## Log
-
-**L1** (verbatim): User wants to migrate to wgpu (option 4) while maintaining separation of responsibilities, modularity, and extensibility.
 
 **L2**: wgpu/DirectX 12 previously crashed with STATUS_ACCESS_VIOLATION on Intel UHD 630. Strategy: trait-based renderer with glow fallback.
 

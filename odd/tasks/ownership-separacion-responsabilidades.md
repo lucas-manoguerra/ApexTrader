@@ -23,13 +23,18 @@
 
 | ID | Spec | Route | Status | Commit |
 |----|------|-------|--------|--------|
-| T1 | S1 | inline | done | |
-| T2 | S2 | inline | done | |
-| T3 | S3 | inline | done | |
+| T1 | S1 | inline | done | 97a06da |
+| T2 | S2 | inline | done | 97a06da |
+| T3 | S3 | inline | done | 97a06da |
+
+## Librerías consultadas
+
+| Crate | Versión | docs.rs | APIs usadas |
+|-------|---------|---------|-------------|
+| egui | 0.37 | https://docs.rs/egui/0.37/ | `egui::Painter`, `egui::Rect` |
+| eframe | 0.37 | https://docs.rs/eframe/0.37/ | `eframe::run_native`, `eframe::NativeOptions`, `eframe::App`, `eframe::Frame` |
 
 ## Log
-
-**L1** (verbatim): User wants to continue with ownership/borrowing and build separation of responsibilities from the start.
 
 **L2**: Current state: `src/main.rs` has `Candle`, `ChartState`, `draw_chart`, and `ApexTraderApp` all in one file. Backend is `glow` (OpenGL) because `wgpu`/DirectX 12 crashes on Intel UHD 630. Fonts fixed with `configure_fonts()`.
 
