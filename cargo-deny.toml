@@ -30,22 +30,22 @@ default = "allow"
 
 [vulnerabilities]
 # The advisory database to use.
-advisories = { 
-  db = { 
+advisories = {
+  db = {
     # Cache the advisory database for one day to avoid re-downloading on every CI run.
     cached-until = "2026-12-01T00:00:00Z" 
-  } 
+  }
 }
 
 # Unmaintained crates are a supply-chain risk for a long-lived trading terminal.
 # Warn when a dependency hasn't been updated in over 2 years.
-unmaintained = { 
+unmaintained = {
   threshold = "2y" 
 }
 
 [yanked]
 # Deny using yanked versions of crates.
-deny = { 
+deny = {
   # Allow yanked versions that were yanked for non-security reasons (e.g. accidental publish).
   allow = [ 
     # Example: "serde_json" 

@@ -25,6 +25,123 @@ impl Default for GlowChartRenderer {
     }
 }
 
+fn nice_tick_step(range: f64, target_ticks: usize) -> f64 {
+    if range <= 0.0 {
+        return 1.0;
+    }
+    let raw_step = range / target_ticks as f64;
+    let magnitude = 10.0f64.powi(raw_step.log10().floor() as i32);
+    let residual = raw_step / magnitude;
+    if residual < 1.5 {
+        1.0 * magnitude
+    } else if residual < 3.0 {
+        2.0 * magnitude
+    } else if residual < 7.0 {
+        5.0 * magnitude
+    } else {
+        10.0 * magnitude
+    }
+}
+
+struct PriceAxisParams {
+    center_price: f64,
+    offset_y: f64,
+    price_range: f64,
+    zoom_level: f64,
+}
+
+fn draw_price_axis(
+    painter: &egui::Painter,
+    left: f64,
+    top: f64,
+    bottom: f64,
+    params: PriceAxisParams,
+    font_id: egui::FontId,
+) {
+    let screen_height = bottom - top;
+
+    // Rango de precios visible en el área de dibujo.
+    let half_range_visible = params.price_range / (2.0 * params.zoom_level);
+    let min_visible =
+        params.center_price + params.offset_y * params.price_range - half_range_visible;
+    let max_visible =
+        params.center_price + params.offset_y * params.price_range + half_range_visible;
+
+    let tick_step = nice_tick_step(max_visible - min_visible, 6);
+
+    // Primer tick >= min_visible.
+    let mut tick = (min_visible / tick_step).ceil() * tick_step;
+
+    while tick <= max_visible {
+        let relative_price = tick - params.center_price - params.offset_y * params.price_range;
+        let pixels_per_unit = screen_height / params.price_range * params.zoom_level;
+        let y = bottom - relative_price * pixels_per_unit;
+
+        // Formatear precio con 2 decimales fijos.
+        let price_decimal =
+            rust_decimal::Decimal::from_f64(tick).unwrap_or(rust_decimal::Decimal::ZERO);
+        let price = crate::domain::price::Price::new(price_decimal).unwrap_or_else(|_| {
+            crate::domain::price::Price::new(rust_decimal::Decimal::ZERO).unwrap()
+        });
+        let label = format!("{:.2}", price.value());
+
+        painter.text(
+            egui::pos2((left - 8.0) as f32, y as f32),
+            egui::Align2::RIGHT_CENTER,
+            label,
+            font_id.clone(),
+            egui::Color32::GRAY,
+        );
+
+        tick += tick_step;
+    }
+}
+
+fn draw_time_axis(
+    painter: &egui::Painter,
+    left: f64,
+    right: f64,
+    bottom: f64,
+    viewport: &crate::domain::viewport::Viewport,
+    candles_count: usize,
+    font_id: egui::FontId,
+) {
+    let screen_width = right - left;
+    let base_candle_width = 12.0;
+
+    let first_visible = (-viewport.offset_x).max(0.0) as i32;
+    let last_visible = ((-viewport.offset_x)
+        + screen_width / (base_candle_width * viewport.zoom_level))
+        .min(candles_count as f64 - 1.0) as i32;
+
+    if first_visible > last_visible {
+        return;
+    }
+
+    let visible_range = last_visible - first_visible;
+    let index_step = if visible_range > 0 {
+        ((visible_range as f64) / 6.0).ceil() as i32
+    } else {
+        1
+    };
+
+    let mut idx = first_visible;
+    while idx <= last_visible {
+        let screen_x = viewport.data_x_to_screen(idx as usize, screen_width) + left;
+        let label = format!("{}", idx);
+
+        painter.text(
+            egui::pos2(screen_x as f32, (bottom + 6.0) as f32),
+            egui::Align2::CENTER_TOP,
+            label,
+            font_id.clone(),
+            egui::Color32::GRAY,
+        );
+
+        idx += index_step;
+    }
+}
+
 impl ChartRenderer for GlowChartRenderer {
     fn draw(
         &mut self,
@@ -134,48 +251,29 @@ impl ChartRenderer for GlowChartRenderer {
             painter.rect_filled(body_rect, 1.0, color);
         }
 
-        // Eje de precios (Y): mostramos mínimo y máximo ajustados por viewport.
-        let font_id = egui::FontId::proportional(12.0);
-        let min_visible = center_price + viewport.offset_y * price_range
-            - price_range / (2.0 * viewport.zoom_level);
-        let max_visible = center_price
-            + viewport.offset_y * price_range
-            + price_range / (2.0 * viewport.zoom_level);
-
-        painter.text(
-            egui::pos2(left - 30.0, top),
-            egui::Align2::RIGHT_TOP,
-            format!("{:.2}", max_visible),
+        // Eje de precios (Y): ticks dinámicos ajustados al zoom.
+        let font_id = egui::FontId::proportional(11.0);
+        let left_f64 = left as f64;
+        let right_f64 = right as f64;
+        let top_f64 = top as f64;
+        let bottom_f64 = bottom as f64;
+        draw_price_axis(
+            painter,
+            left_f64,
+            top_f64,
+            bottom_f64,
+            PriceAxisParams {
+                center_price,
+                offset_y: viewport.offset_y,
+                price_range,
+                zoom_level: viewport.zoom_level,
+            },
             font_id.clone(),
-            egui::Color32::GRAY,
-        );
-        painter.text(
-            egui::pos2(left - 30.0, bottom),
-            egui::Align2::RIGHT_BOTTOM,
-            format!("{:.2}", min_visible),
-            font_id.clone(),
-            egui::Color32::GRAY,
         );
 
-        // Eje de tiempo (X): mostramos rango de índices visibles.
-        let first_visible = (-viewport.offset_x).max(0.0) as i32;
-        let last_visible = ((-viewport.offset_x)
-            + (right - left) as f64 / (base_candle_width as f64 * viewport.zoom_level))
-            .min(n as f64 - 1.0) as i32;
-
-        painter.text(
-            egui::pos2(left, bottom + 20.0),
-            egui::Align2::LEFT_TOP,
-            format!("{}", first_visible.max(0)),
-            font_id.clone(),
-            egui::Color32::GRAY,
-        );
-        painter.text(
-            egui::pos2(right, bottom + 20.0),
-            egui::Align2::RIGHT_TOP,
-            format!("{}", last_visible.min(n as i32 - 1).max(0)),
-            font_id,
-            egui::Color32::GRAY,
+        // Eje de tiempo (X): ticks dinámicos de índice de vela ajustados al zoom.
+        draw_time_axis(
+            painter, left_f64, right_f64, bottom_f64, viewport, n, font_id,
         );
 
         // --- Crosshair: líneas vertical y horizontal en la posición del cursor ---

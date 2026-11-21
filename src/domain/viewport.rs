@@ -43,7 +43,7 @@ impl Viewport {
             zoom_level: 1.0,
             offset_x: 0.0,
             offset_y: 0.0,
-            zoom_step: 0.1,
+            zoom_step: 0.01,
             min_zoom: 0.1,
             max_zoom: 10.0,
         }
