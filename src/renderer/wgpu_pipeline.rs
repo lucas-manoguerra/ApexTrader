@@ -114,10 +114,22 @@ impl WgpuPipeline {
 
         // Geometría simple: un cuadrado (2 triángulos) como placeholder para el cuerpo de la vela.
         let vertices: Vec<Vertex> = vec![
-            Vertex { position: [-0.5, -0.5], color: [0.0, 1.0, 0.0, 1.0] },
-            Vertex { position: [0.5, -0.5], color: [0.0, 1.0, 0.0, 1.0] },
-            Vertex { position: [0.5, 0.5], color: [0.0, 1.0, 0.0, 1.0] },
-            Vertex { position: [-0.5, 0.5], color: [0.0, 1.0, 0.0, 1.0] },
+            Vertex {
+                position: [-0.5, -0.5],
+                color: [0.0, 1.0, 0.0, 1.0],
+            },
+            Vertex {
+                position: [0.5, -0.5],
+                color: [0.0, 1.0, 0.0, 1.0],
+            },
+            Vertex {
+                position: [0.5, 0.5],
+                color: [0.0, 1.0, 0.0, 1.0],
+            },
+            Vertex {
+                position: [-0.5, 0.5],
+                color: [0.0, 1.0, 0.0, 1.0],
+            },
         ];
 
         let indices: Vec<u16> = vec![0, 1, 2, 2, 3, 0];

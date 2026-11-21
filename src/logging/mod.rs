@@ -1,4 +1,4 @@
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt};
 
 /// Inicializa el sistema de logging con `tracing`.
 ///
@@ -7,9 +7,7 @@ use tracing_subscriber::{fmt, EnvFilter};
 ///   de entorno `RUST_LOG` (por defecto `info`).
 /// - `fmt`: formateo legible para consola.
 pub fn init() -> Result<(), tracing_subscriber::filter::ParseError> {
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        EnvFilter::new("info")
-    });
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     fmt::Subscriber::builder()
         .with_env_filter(filter)

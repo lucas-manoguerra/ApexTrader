@@ -56,8 +56,7 @@ impl Viewport {
             1.0 - self.zoom_step
         };
 
-        let new_zoom = (self.zoom_level * zoom_factor)
-            .clamp(self.min_zoom, self.max_zoom);
+        let new_zoom = (self.zoom_level * zoom_factor).clamp(self.min_zoom, self.max_zoom);
 
         // Ajustar offsets para que el zoom sea centrado en el punto dado.
         // Cuando hacemos zoom, el punto center debe quedarse fijo en pantalla.

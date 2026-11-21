@@ -1,13 +1,13 @@
 mod domain;
-mod renderer;
 mod errors;
 mod logging;
+mod renderer;
 
-use crate::domain::chart_state::ChartState;
 use crate::domain::candle::Candle;
-use crate::renderer::create_renderer;
-use crate::renderer::ChartRenderer;
+use crate::domain::chart_state::ChartState;
 use crate::logging::init as init_logging;
+use crate::renderer::ChartRenderer;
+use crate::renderer::create_renderer;
 use eframe::egui;
 
 /// Aplicación de escritorio con egui.
@@ -25,7 +25,8 @@ struct ApexTraderApp {
 impl eframe::App for ApexTraderApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         // Pedimos repintado continuo para que el chart se mantenga vivo.
-        ui.ctx().request_repaint_after(std::time::Duration::from_millis(16));
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_millis(16));
 
         egui::CentralPanel::default().show(ui, |ui| {
             ui.heading("ApexTrader — Chart de Velas");
@@ -124,7 +125,12 @@ fn main() -> eframe::Result {
                 let high = open.max(close) + change.abs() * 0.3;
                 let low = open.min(close) - change.abs() * 0.3;
 
-                if let Err(e) = chart.add_candle(Candle { open, high, low, close }) {
+                if let Err(e) = chart.add_candle(Candle {
+                    open,
+                    high,
+                    low,
+                    close,
+                }) {
                     tracing::error!("No se pudo agregar vela {}: {}", i, e);
                 }
                 price = close; // la siguiente vela abre donde cerró la anterior
@@ -158,9 +164,10 @@ fn configure_fonts(ctx: &egui::Context) {
 
     for path in windows_font_paths {
         if let Ok(font_data) = std::fs::read(path) {
-            font_defs
-                .font_data
-                .insert("system_font".to_owned(), egui::FontData::from_owned(font_data).into());
+            font_defs.font_data.insert(
+                "system_font".to_owned(),
+                egui::FontData::from_owned(font_data).into(),
+            );
 
             if let Some(family) = font_defs.families.get_mut(&egui::FontFamily::Proportional) {
                 family.insert(0, "system_font".to_owned());

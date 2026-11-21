@@ -46,21 +46,16 @@ impl WgpuChartRenderer {
         }))
         .map_err(|_| RendererError::BackendInitFailed("No se encontró adapter wgpu".to_string()))?;
 
-        info!(
-            "Adapter wgpu encontrado: {:?}",
-            adapter.get_info().name
-        );
+        info!("Adapter wgpu encontrado: {:?}", adapter.get_info().name);
 
-        let (device, queue) = pollster::block_on(adapter.request_device(
-            &wgpu::DeviceDescriptor {
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
-                label: Some("apex-trader-device"),
-                trace: wgpu::Trace::Off,
-                memory_hints: wgpu::MemoryHints::default(),
-                experimental_features: wgpu::ExperimentalFeatures::disabled(),
-            },
-        ))
+        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+            required_features: wgpu::Features::empty(),
+            required_limits: wgpu::Limits::default(),
+            label: Some("apex-trader-device"),
+            trace: wgpu::Trace::Off,
+            memory_hints: wgpu::MemoryHints::default(),
+            experimental_features: wgpu::ExperimentalFeatures::disabled(),
+        }))
         .map_err(|e| RendererError::BackendInitFailed(format!("No se pudo crear device: {}", e)))?;
 
         info!("Device y queue de wgpu creados correctamente");
@@ -98,7 +93,8 @@ impl WgpuChartRenderer {
         self.surface.is_some() && self.pipeline.is_some()
     }
     pub fn resize(&mut self, width: u32, height: u32) {
-        if let (Some(ref mut config), Some(surface)) = (self.config.as_mut(), self.surface.as_ref()) {
+        if let (Some(ref mut config), Some(surface)) = (self.config.as_mut(), self.surface.as_ref())
+        {
             if width > 0 && height > 0 {
                 config.width = width;
                 config.height = height;

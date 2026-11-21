@@ -28,20 +28,13 @@ impl ChartState {
             || !candle.low.is_finite()
             || !candle.close.is_finite()
         {
-            tracing::warn!(
-                "Rechazando vela con precios no finitos: {:?}",
-                candle
-            );
+            tracing::warn!("Rechazando vela con precios no finitos: {:?}", candle);
             return Err(ChartError::NonFiniteCandle { candle });
         }
 
         // Validar invariante: low <= open, close <= high, etc.
         if candle.low > candle.high {
-            tracing::warn!(
-                "Rechazando vela: low {} > high {}",
-                candle.low,
-                candle.high
-            );
+            tracing::warn!("Rechazando vela: low {} > high {}", candle.low, candle.high);
             return Err(ChartError::InvalidPriceRange {
                 min: candle.low,
                 max: candle.high,

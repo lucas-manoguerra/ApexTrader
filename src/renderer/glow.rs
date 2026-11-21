@@ -40,14 +40,17 @@ impl ChartRenderer for GlowChartRenderer {
             return Ok(());
         }
 
-        let left = rect.left() + 40.0;  // espacio para el eje de precios
+        let left = rect.left() + 40.0; // espacio para el eje de precios
         let right = rect.right() - 20.0;
-        let top = rect.top() + 40.0;    // espacio para título
+        let top = rect.top() + 40.0; // espacio para título
         let bottom = rect.bottom() - 40.0; // espacio para el eje de tiempo
 
         // Calculamos rangos de precio para escalar (usamos f64 para precisión).
         let min_price = candles.iter().map(|c| c.low).fold(f64::INFINITY, f64::min);
-        let max_price = candles.iter().map(|c| c.high).fold(f64::NEG_INFINITY, f64::max);
+        let max_price = candles
+            .iter()
+            .map(|c| c.high)
+            .fold(f64::NEG_INFINITY, f64::max);
         let mut price_range = max_price - min_price;
         if price_range == 0.0 {
             price_range = 1.0;
@@ -102,7 +105,10 @@ impl ChartRenderer for GlowChartRenderer {
 
             // Mécho (wick): línea vertical del mínimo al máximo.
             painter.line_segment(
-                [egui::pos2(screen_x as f32, y_high), egui::pos2(screen_x as f32, y_low)],
+                [
+                    egui::pos2(screen_x as f32, y_high),
+                    egui::pos2(screen_x as f32, y_low),
+                ],
                 egui::Stroke::new(1.0, color),
             );
 
@@ -119,8 +125,11 @@ impl ChartRenderer for GlowChartRenderer {
 
         // Eje de precios (Y): mostramos mínimo y máximo ajustados por viewport.
         let font_id = egui::FontId::proportional(12.0);
-        let min_visible = center_price + viewport.offset_y * price_range - price_range / (2.0 * viewport.zoom_level);
-        let max_visible = center_price + viewport.offset_y * price_range + price_range / (2.0 * viewport.zoom_level);
+        let min_visible = center_price + viewport.offset_y * price_range
+            - price_range / (2.0 * viewport.zoom_level);
+        let max_visible = center_price
+            + viewport.offset_y * price_range
+            + price_range / (2.0 * viewport.zoom_level);
 
         painter.text(
             egui::pos2(left - 30.0, top),
@@ -139,7 +148,9 @@ impl ChartRenderer for GlowChartRenderer {
 
         // Eje de tiempo (X): mostramos rango de índices visibles.
         let first_visible = (-viewport.offset_x).max(0.0) as i32;
-        let last_visible = ((-viewport.offset_x) + (right - left) as f64 / (base_candle_width as f64 * viewport.zoom_level)).min(n as f64 - 1.0) as i32;
+        let last_visible = ((-viewport.offset_x)
+            + (right - left) as f64 / (base_candle_width as f64 * viewport.zoom_level))
+            .min(n as f64 - 1.0) as i32;
 
         painter.text(
             egui::pos2(left, bottom + 20.0),
