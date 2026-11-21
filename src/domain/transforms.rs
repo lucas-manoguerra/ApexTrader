@@ -177,3 +177,29 @@ pub fn chart_point_to_data_point(
     DataPoint { index, price }
 }
 
+/// Rango de velas visibles en el área de dibujo.
+///
+/// El renderer debe iterar solo `first..=last`, de modo que el trabajo por
+/// frame sea O(N_visible) en lugar de O(N_total).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VisibleRange {
+    pub first: usize,
+    pub last: usize,
+}
+
+impl VisibleRange {
+    /// Devuelve `true` si no hay velas visibles.
+    pub fn is_empty(&self) -> bool {
+        self.first > self.last
+    }
+
+    /// Devuelve la cantidad de velas visibles.
+    pub fn len(&self) -> usize {
+        if self.is_empty() {
+            0
+        } else {
+            self.last - self.first + 1
+        }
+    }
+}
+

@@ -507,6 +507,38 @@ impl Viewport {
             None => center_price,
         }
     }
+
+    /// Calcula el rango de velas visibles en el área de dibujo.
+    ///
+    /// Una vela se considera visible si su centro cae dentro de
+    /// `[0, screen_width]` según `data_x_to_screen`. El renderer debe
+    /// iterar solo `first..=last` para lograr O(N_visible) por frame.
+    pub fn visible_range(&self, candle_count: usize, screen_width: f64) -> transforms::VisibleRange {
+        if candle_count == 0 {
+            return transforms::VisibleRange { first: 0, last: 0 };
+        }
+
+        let spacing = self.candle_spacing();
+        let center_x = screen_width / 2.0;
+
+        // data_x_to_screen(i) = center_x + i * spacing + offset_x * spacing
+        // Visible si 0 <= data_x_to_screen(i) <= screen_width.
+        let first = ((-center_x - self.offset_x * spacing) / spacing)
+            .ceil()
+            .max(0.0) as usize;
+        let last = ((center_x - self.offset_x * spacing) / spacing)
+            .floor()
+            .min(candle_count as f64 - 1.0) as usize;
+
+        if first > last {
+            return transforms::VisibleRange { first: 0, last: 0 };
+        }
+
+        transforms::VisibleRange {
+            first: first.min(candle_count.saturating_sub(1)),
+            last,
+        }
+    }
 }
 
 impl Default for Viewport {

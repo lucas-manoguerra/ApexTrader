@@ -199,7 +199,8 @@ impl ChartRenderer for GlowChartRenderer {
             center_price
         );
 
-        let n = candles.len();
+        let drawing_width = (right - left) as f64;
+        let visible = viewport.visible_range(candles.len(), drawing_width);
 
         // Espaciamiento entre velas ajustado por zoom.
         let candle_width = transforms::candle_body_width(viewport.zoom_level()) as f32;
@@ -217,10 +218,13 @@ impl ChartRenderer for GlowChartRenderer {
             (bottom - relative_price * pixels_per_unit) as f32
         };
 
-        // Dibujamos cada vela.
-        for (i, candle) in candles.iter().enumerate() {
+        // Dibujamos solo las velas visibles: O(N_visible) por frame en lugar
+        // de O(N_total).
+        for i in visible.first..=visible.last {
+            let candle = &candles[i];
+
             // Posición X ajustada por zoom y pan del viewport.
-            let screen_x = viewport.data_x_to_screen(i, (right - left) as f64) + left as f64;
+            let screen_x = viewport.data_x_to_screen(i, drawing_width) + left as f64;
 
             let y_high = price_to_y(candle.high());
             let y_low = price_to_y(candle.low());
@@ -256,6 +260,7 @@ impl ChartRenderer for GlowChartRenderer {
 
         // Eje de precios (Y): ticks dinámicos ajustados al zoom.
         let font_id = egui::FontId::proportional(11.0);
+        let n = candles.len();
         let left_f64 = left as f64;
         let right_f64 = right as f64;
         let top_f64 = top as f64;
