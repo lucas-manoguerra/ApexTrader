@@ -19,6 +19,9 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 bytemuck = "1"
 bytemuck_derive = "1"
 
+# Tipos decimal para precios y cantidades (punto decimal base 10, sin errores de punto flotante)
+rust_decimal = { version = "1.43", features = ["maths", "serde"] }
+
 # Ejecutar futuros async de forma bloqueante (útil para wgpu)
 pollster = "1"
 

@@ -1,7 +1,9 @@
 pub mod chart;
+pub mod price;
 pub mod renderer;
 
 pub use chart::ChartError;
+pub use price::PriceError;
 pub use renderer::RendererError;
 
 /// Error general de la aplicación.
