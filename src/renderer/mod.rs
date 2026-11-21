@@ -29,28 +29,22 @@ pub trait ChartRenderer {
     fn name(&self) -> &str;
 }
 
-/// Factory que intenta crear el mejor renderer disponible.
+/// Factory que crea el renderer con capacidad efectiva para dibujar.
 ///
-/// Intenta wgpu primero; si falla (por ejemplo, GPU no compatible) o si no
-/// hay surface para dibujar, cae a glow.
+/// wgpu requiere una `Surface` real vinculada a un window handle (winit / HWND)
+/// antes de poder renderizar. Hoy `init_surface()` es un stub y no hay
+/// integración de wgpu con la ventana administrada por eframe, así que
+/// inicializar wgpu solo pagaría el costo de `Instance`/`Adapter`/`Device`/
+/// `Queue` sin obtener renderizado GPU.
+///
+/// Seleccionamos el backend por capacidad efectiva, no por mera creación de
+/// `Device`. Mientras no exista una surface real vinculada a la ventana, se
+/// usa Glow (egui Painter), que es el único backend que puede dibujar hoy.
 pub fn create_renderer() -> Box<dyn ChartRenderer> {
-    match WgpuChartRenderer::new() {
-        Ok(renderer) => {
-            // wgpu se inicializó, pero sin surface no puede dibujar.
-            // Verificamos si tiene surface disponible.
-            if renderer.has_surface() {
-                tracing::info!("Usando renderer: wgpu");
-                Box::new(renderer)
-            } else {
-                tracing::warn!("wgpu inicializado sin surface, usando glow como fallback");
-                Box::new(GlowChartRenderer::new())
-            }
-        }
-        Err(e) => {
-            tracing::warn!("wgpu no disponible ({}), usando glow como fallback", e);
-            Box::new(GlowChartRenderer::new())
-        }
-    }
+    tracing::info!(
+        "Usando renderer: glow (egui Painter). wgpu requiere integración real de surface con la ventana antes de poder renderizar."
+    );
+    Box::new(GlowChartRenderer::new())
 }
 
 mod glow;
