@@ -62,9 +62,16 @@ impl eframe::App for ApexTraderApp {
 
                         let candle_count = self.chart.len();
                         let screen_width = available.width() as f64;
+                        let screen_height = available.height() as f64;
 
                         let vp = self.chart.viewport_mut();
-                        vp.zoom_at(scroll_delta.y as f64, center_x as f64, center_y as f64);
+                        vp.zoom_at(
+                            scroll_delta.y as f64,
+                            center_x as f64,
+                            center_y as f64,
+                            screen_width,
+                            screen_height,
+                        );
                         vp.clamp_zoom_to_candles(candle_count, screen_width);
                         vp.clamp_pan_to_candles(candle_count, screen_width);
                     }

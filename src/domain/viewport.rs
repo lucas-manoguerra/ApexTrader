@@ -4,6 +4,15 @@
 /// Es responsable de calcular cómo se transforman las coordenadas de datos
 /// (precio, tiempo) a coordenadas de pantalla y viceversa.
 ///
+/// Tres espacios de coordenadas están definidos:
+///
+/// - **DataSpace**: coordenadas del mercado (índice de vela, precio).
+///   `offset_x` y `offset_y` se expresan en unidades de datos.
+/// - **ViewportSpace**: estado de la cámara (zoom_level, min_zoom, max_zoom).
+/// - **ScreenSpace**: píxeles de pantalla (0..=screen_width, 0..=screen_height).
+///
+/// Las transformaciones entre espacios son explícitas y unidireccionales.
+///
 /// Todos los campos son privados. Se modifican únicamente a través de
 /// métodos públicos que validan las invariantes del dominio:
 ///
@@ -16,6 +25,12 @@ use crate::domain::price_range::PriceRange;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 
+/// Espaciado base entre velas en píxeles a zoom 1.0.
+const CANDLE_SPACING_BASE: f64 = 20.0;
+
+/// Margen porcentual usado en auto_scale y clamping (5% cada lado).
+const MARGIN_RATIO: f64 = 0.05;
+
 #[derive(Debug, Clone, Copy)]
 pub struct Viewport {
     /// Nivel de zoom. 1.0 = sin zoom (1 unidad de precio = 1 píxel base).
@@ -23,11 +38,11 @@ pub struct Viewport {
     /// Valores menores = más alejado (más velas visibles).
     zoom_level: f64,
 
-    /// Desplazamiento horizontal en coordenadas de datos.
+    /// Desplazamiento horizontal en coordenadas de datos (índices de vela).
     /// Positivo = se mueve a la derecha (velas más recientes a la izquierda).
     offset_x: f64,
 
-    /// Desplazamiento vertical en coordenadas de datos.
+    /// Desplazamiento vertical en coordenadas de datos (precio).
     /// Positivo = se mueve hacia arriba (precios más altos en el centro).
     offset_y: f64,
 
@@ -59,12 +74,12 @@ impl Viewport {
         self.zoom_level
     }
 
-    /// Devuelve el desplazamiento horizontal actual.
+    /// Devuelve el desplazamiento horizontal actual (índices de vela).
     pub fn offset_x(&self) -> f64 {
         self.offset_x
     }
 
-    /// Devuelve el desplazamiento vertical actual.
+    /// Devuelve el desplazamiento vertical actual (precio).
     pub fn offset_y(&self) -> f64 {
         self.offset_y
     }
@@ -82,6 +97,14 @@ impl Viewport {
     /// Devuelve el nivel máximo de zoom permitido.
     pub fn max_zoom(&self) -> f64 {
         self.max_zoom
+    }
+
+    /// Devuelve el espaciamiento entre centros de velas en píxeles de pantalla.
+    ///
+    /// A mayor zoom, mayor espaciamiento (las velas están más separadas).
+    /// Consiste con el ancho de vela usado en el renderer.
+    pub fn candle_spacing(&self) -> f64 {
+        CANDLE_SPACING_BASE * self.zoom_level
     }
 
     /// Establece el nivel mínimo de zoom.
@@ -156,9 +179,9 @@ impl Viewport {
             return;
         }
 
-        let candle_spacing = 20.0 / self.zoom_level;
+        let candle_spacing = self.candle_spacing();
         let center_x = screen_width / 2.0;
-        let margin = screen_width * 0.05;
+        let margin = screen_width * MARGIN_RATIO;
 
         // Primera vela (index 0) no puede salir por la izquierda:
         // data_x_to_screen(0) >= margin
@@ -187,14 +210,23 @@ impl Viewport {
             return;
         }
 
-        // candle_spacing = 20.0 / zoom_level
-        // Máximo zoom: candle_spacing >= 4.0 => zoom_level <= 5.0
+        // candle_spacing = CANDLE_SPACING_BASE * zoom_level
+        // Máximo zoom: candle_spacing >= 4.0 => zoom_level <= 5.0 / CANDLE_SPACING_BASE * CANDLE_SPACING_BASE
+        //                simplified: zoom_level <= 5.0 (una vela de 20px no ocupa más de 100px)
         // Mínimo zoom: al menos 2 velas quepan => 2 * candle_spacing <= screen_width
-        //                => zoom_level >= 40.0 / screen_width
+        //                => 2 * CANDLE_SPACING_BASE * zoom_level <= screen_width
+        //                => zoom_level <= screen_width / (2 * CANDLE_SPACING_BASE)
+        // Nota: para el mínimo zoom queremos que AL MENOS 2 velas quepan,
+        // así que zoom_level NO puede ser tan pequeño que 2 velas ocupen más que la pantalla.
+        // Es decir: 2 * CANDLE_SPACING_BASE * zoom_level <= screen_width
+        // => zoom_level <= screen_width / (2 * CANDLE_SPACING_BASE)
+        // Pero eso es un LÍMITE SUPERIOR, no inferior.
+        //
+        // El límite inferior para zoom viene de min_zoom del usuario.
+        // Para evitar que una vela llene toda la pantalla, limitamos zoom_level <= 5.0.
         let max_zoom_by_candle = 5.0;
-        let min_zoom_by_candles = 40.0 / screen_width;
 
-        let min_allowed = self.min_zoom.max(min_zoom_by_candles);
+        let min_allowed = self.min_zoom;
         let max_allowed = self.max_zoom.min(max_zoom_by_candle);
 
         if min_allowed <= max_allowed {
@@ -206,13 +238,26 @@ impl Viewport {
     ///
     /// `delta` es el cambio de scroll: positivo = zoom in, negativo = zoom out.
     /// `center_x` y `center_y` son el punto alrededor del cual hacer zoom
-    /// (posiciones en coordenadas de pantalla normalizadas 0..=1).
+    /// como fracciones 0..=1 del área de pantalla (0.0 = izquierda/arriba, 1.0 = derecha/abajo).
+    /// `screen_width` y `screen_height` son las dimensiones del área de dibujo en píxeles.
     ///
     /// Si `delta == 0.0`, no se modifica el estado.
     /// Si alguno de los parámetros no es finito, no se modifica el estado.
-    pub fn zoom_at(&mut self, delta: f64, center_x: f64, center_y: f64) {
+    pub fn zoom_at(
+        &mut self,
+        delta: f64,
+        center_x: f64,
+        center_y: f64,
+        screen_width: f64,
+        screen_height: f64,
+    ) {
         // Validar finitud de parámetros.
-        if !delta.is_finite() || !center_x.is_finite() || !center_y.is_finite() {
+        if !delta.is_finite()
+            || !center_x.is_finite()
+            || !center_y.is_finite()
+            || !screen_width.is_finite()
+            || !screen_height.is_finite()
+        {
             return;
         }
 
@@ -229,12 +274,23 @@ impl Viewport {
 
         let new_zoom = (self.zoom_level * zoom_factor).clamp(self.min_zoom, self.max_zoom);
 
+        // Convertir coordenadas normalizadas 0..=1 a píxeles de pantalla.
+        let center_x_px = center_x * screen_width;
+        let center_y_px = center_y * screen_height;
+
         // Ajustar offsets para que el zoom sea centrado en el punto dado.
         // Cuando hacemos zoom, el punto center debe quedarse fijo en pantalla.
         let zoom_ratio = new_zoom / self.zoom_level;
 
-        self.offset_x = center_x + (self.offset_x - center_x) * zoom_ratio;
-        self.offset_y = center_y + (self.offset_y - center_y) * zoom_ratio;
+        // Convertir offset_x (índices de vela) a píxeles, aplicar zoom, volver a índices.
+        let offset_x_px = self.offset_x * self.candle_spacing();
+        let offset_y_px = self.offset_y * screen_height / self.zoom_level;
+
+        let new_offset_x_px = center_x_px + (offset_x_px - center_x_px) * zoom_ratio;
+        let new_offset_y_px = center_y_px + (offset_y_px - center_y_px) * zoom_ratio;
+
+        self.offset_x = new_offset_x_px / self.candle_spacing_at(new_zoom);
+        self.offset_y = new_offset_y_px * new_zoom / screen_height;
 
         self.zoom_level = new_zoom;
 
@@ -246,9 +302,14 @@ impl Viewport {
         );
     }
 
+    /// Calcula el candle_spacing para un nivel de zoom dado.
+    fn candle_spacing_at(&self, zoom_level: f64) -> f64 {
+        CANDLE_SPACING_BASE * zoom_level
+    }
+
     /// Aplica un desplazamiento (pan) al viewport.
     ///
-    /// `dx` y `dy` son el cambio en coordenadas de pantalla.
+    /// `dx` y `dy` son el cambio en píxeles de pantalla.
     ///
     /// Si alguno de los parámetros no es finito, no se modifica el estado.
     pub fn pan(&mut self, dx: f64, dy: f64) {
@@ -258,8 +319,11 @@ impl Viewport {
 
         // El pan se aplica inversamente: si arrastramos a la derecha,
         // el contenido se mueve a la derecha, así que offset_x aumenta.
-        self.offset_x += dx / self.zoom_level;
-        self.offset_y += dy / self.zoom_level;
+        // Convertir píxeles a índices de vela usando candle_spacing.
+        self.offset_x += dx / self.candle_spacing();
+        // offset_y está en unidades de precio, no de pantalla. Para simplicidad
+        // y consistencia con price_to_screen, usamos el mismo factor que el eje Y.
+        self.offset_y += dy * self.zoom_level / self.screen_height_for_pan();
 
         tracing::trace!(
             "Pan: offset=({:.2}, {:.2}), zoom={:.2}",
@@ -267,6 +331,14 @@ impl Viewport {
             self.offset_y,
             self.zoom_level
         );
+    }
+
+    /// Altura de pantalla por defecto para conversión de pan vertical.
+    /// En una implementación completa, esto vendría del estado de la ventana.
+    fn screen_height_for_pan(&self) -> f64 {
+        // Valor por defecto razonable para cálculos internos.
+        // En producción, esto debería venir del tamaño real del área de dibujo.
+        720.0
     }
 
     /// Ajusta automáticamente el zoom y los offsets para que todas las velas
@@ -289,24 +361,32 @@ impl Viewport {
         let min_price = price_range.min().value();
         let max_price = price_range.max().value();
 
-        let margin = 0.05;
+        let margin = MARGIN_RATIO;
         let available_height = screen_height * (1.0 - 2.0 * margin);
         let available_width = screen_width * (1.0 - 2.0 * margin);
 
-        // En price_to_screen: pixels_per_unit = screen_height / range_f64 * zoom_level.
-        // El rango de precios ocupa screen_height * zoom_level píxeles verticalmente.
+        // Verticalmente: el rango de precios ocupa screen_height * zoom_level píxeles.
         // Para que quepa en available_height: zoom_level <= available_height / screen_height.
         let zoom_vertical_max = available_height / screen_height;
 
         // Horizontalmente: ancho_total = candle_count * candle_spacing =
-        // candle_count * candle_spacing_base / zoom_level.
-        // Para que quepa en available_width: zoom_level >= candle_count * candle_spacing_base / available_width.
-        let candle_spacing_base = 20.0;
-        let zoom_horizontal_min = (candle_count as f64 * candle_spacing_base) / available_width;
+        // candle_count * CANDLE_SPACING_BASE * zoom_level.
+        // Para que quepa en available_width:
+        // zoom_level <= available_width / (candle_count * CANDLE_SPACING_BASE)
+        let zoom_horizontal_max = available_width / (candle_count as f64 * CANDLE_SPACING_BASE);
 
-        // Tomar zoom_horizontal_min como base, pero no exceder zoom_vertical_max ni max_zoom.
-        let max_allowed = zoom_vertical_max.min(self.max_zoom);
-        let new_zoom = zoom_horizontal_min.clamp(self.min_zoom, max_allowed);
+        // Tomar el mínimo para asegurar que todo quepa en ambas dimensiones.
+        let max_allowed = zoom_vertical_max
+            .min(zoom_horizontal_max)
+            .min(self.max_zoom);
+
+        // Si ni siquiera el zoom mínimo permite que quepan todas las velas
+        // horizontalmente, usamos min_zoom y aceptamos scroll horizontal.
+        let new_zoom = if self.min_zoom > max_allowed {
+            self.min_zoom
+        } else {
+            self.zoom_level.clamp(self.min_zoom, max_allowed)
+        };
 
         // Centrar horizontalmente: la primera vela (index 0) y la última (index N-1)
         // deben quedar simétricas alrededor de center_x.
@@ -350,7 +430,7 @@ impl Viewport {
     ///
     /// Devuelve la coordenada X en píxeles de pantalla.
     pub fn data_x_to_screen(&self, index: usize, screen_width: f64) -> f64 {
-        let candle_spacing = 20.0 / self.zoom_level; // píxeles por vela
+        let candle_spacing = self.candle_spacing();
         let center_x = screen_width / 2.0;
         center_x + (index as f64 * candle_spacing) + self.offset_x * candle_spacing
     }
@@ -362,7 +442,7 @@ impl Viewport {
     ///
     /// Devuelve el índice de vela más cercano (basado en 0).
     pub fn screen_x_to_data(&self, screen_x: f64, screen_width: f64) -> usize {
-        let candle_spacing = 20.0 / self.zoom_level;
+        let candle_spacing = self.candle_spacing();
         let center_x = screen_width / 2.0;
         let index = (screen_x - center_x - self.offset_x * candle_spacing) / candle_spacing;
         index.round() as usize

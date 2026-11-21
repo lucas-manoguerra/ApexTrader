@@ -25,10 +25,10 @@ fn data_x_to_screen_respects_zoom_and_offset() {
     let x0 = viewport.data_x_to_screen(0, screen_width);
     let x1 = viewport.data_x_to_screen(1, screen_width);
 
-    // Con zoom 2.0, candle_spacing = 20.0 / 2.0 = 10.0. El offset_x se aplica
+    // Con zoom 2.0, candle_spacing = 20.0 * 2.0 = 40.0. El offset_x se aplica
     // por igual a ambas velas, por lo que la diferencia entre x1 y x0 es solo
     // candle_spacing (el offset se cancela al restar).
-    let expected_spacing = 20.0 / 2.0;
+    let expected_spacing = 20.0 * 2.0;
     assert!((x1 - x0 - expected_spacing).abs() < f64::EPSILON);
 }
 
