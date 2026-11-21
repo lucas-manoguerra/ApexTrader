@@ -7,6 +7,9 @@ use crate::errors::ChartError;
 /// `ChartState` **posee** las velas (`ownership`) y el `Viewport` (zoom/pan).
 /// Es el único responsable de crear, almacenar y modificar la colección de `Candle`.
 /// Ningún otro módulo puede tomar posesión de estas velas ni del viewport.
+///
+/// Como `Candle` valida sus propias invariantes al construirse, `ChartState`
+/// confía en que cualquier `Candle` recibido ya es válido.
 pub struct ChartState {
     candles: Vec<Candle>,
     viewport: Viewport,
@@ -21,32 +24,19 @@ impl ChartState {
         }
     }
 
+    /// Agrega una vela al estado del gráfico.
+    ///
+    /// La vela debe haber sido creada mediante `Candle::new()`, que ya valida
+    /// todas las invariantes del dominio (precios finitos, `low <= high`,
+    /// `low <= open <= high`, `low <= close <= high`). Por lo tanto, este
+    /// método no necesita repetir esas validaciones.
     pub fn add_candle(&mut self, candle: Candle) -> Result<(), ChartError> {
-        // Validar que los precios sean finitos
-        if !candle.open.is_finite()
-            || !candle.high.is_finite()
-            || !candle.low.is_finite()
-            || !candle.close.is_finite()
-        {
-            tracing::warn!("Rechazando vela con precios no finitos: {:?}", candle);
-            return Err(ChartError::NonFiniteCandle { candle });
-        }
-
-        // Validar invariante: low <= open, close <= high, etc.
-        if candle.low > candle.high {
-            tracing::warn!("Rechazando vela: low {} > high {}", candle.low, candle.high);
-            return Err(ChartError::InvalidPriceRange {
-                min: candle.low,
-                max: candle.high,
-            });
-        }
-
         tracing::debug!(
             "Agregando vela: open={:.2}, high={:.2}, low={:.2}, close={:.2}",
-            candle.open,
-            candle.high,
-            candle.low,
-            candle.close
+            candle.open(),
+            candle.high(),
+            candle.low(),
+            candle.close()
         );
 
         self.candles.push(candle);

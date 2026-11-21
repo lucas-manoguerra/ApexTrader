@@ -20,6 +20,7 @@ use eframe::egui;
 struct ApexTraderApp {
     chart: ChartState,
     renderer: Box<dyn ChartRenderer>,
+    crosshair_pos: Option<(f64, f64)>,
 }
 
 impl eframe::App for ApexTraderApp {
@@ -59,16 +60,44 @@ impl eframe::App for ApexTraderApp {
                         let center_x = (pos.x - interaction_rect.left()) / interaction_rect.width();
                         let center_y = (pos.y - interaction_rect.top()) / interaction_rect.height();
 
+                        let candle_count = self.chart.len();
+                        let screen_width = available.width() as f64;
+                        let screen_height = available.height() as f64;
+
                         let vp = self.chart.viewport_mut();
-                        vp.zoom_at(scroll_delta.y as f64, center_x as f64, center_y as f64);
+                        vp.zoom_at(
+                            scroll_delta.y as f64,
+                            center_x as f64,
+                            center_y as f64,
+                            screen_width,
+                            screen_height,
+                        );
+                        vp.clamp_zoom_to_candles(candle_count, screen_width);
+                        vp.clamp_pan_to_candles(candle_count, screen_width);
                     }
                 }
 
                 // --- Manejo de input: Pan con arrastre ---
                 if response.dragged() {
                     let delta = response.drag_delta();
+
+                    // Limitar pan al rango de velas cargadas.
+                    let candle_count = self.chart.len();
+                    let screen_width = available.width() as f64;
+
                     let vp = self.chart.viewport_mut();
                     vp.pan(delta.x as f64, delta.y as f64);
+                    vp.clamp_pan_to_candles(candle_count, screen_width);
+                }
+
+                // --- Manejo de input: Crosshair sigue el cursor ---
+                if response.hovered()
+                    && let Some(pos) = ui.input(|i| i.pointer.hover_pos())
+                {
+                    // Coordenadas relativas al área de interacción (0..=width, 0..=height).
+                    let rel_x = pos.x - interaction_rect.left();
+                    let rel_y = pos.y - interaction_rect.top();
+                    self.crosshair_pos = Some((rel_x as f64, rel_y as f64));
                 }
             }
 
@@ -78,7 +107,10 @@ impl eframe::App for ApexTraderApp {
             // Prestamos las velas del ChartState para dibujarlas.
             // El renderer no las posee ni las modifica.
             let candles = self.chart.candles();
-            if let Err(e) = self.renderer.draw(painter, available, candles, viewport) {
+            if let Err(e) =
+                self.renderer
+                    .draw(painter, available, candles, viewport, self.crosshair_pos)
+            {
                 tracing::error!("Error renderizando chart: {}", e);
                 ui.colored_label(egui::Color32::RED, format!("Error: {}", e));
             }
@@ -86,7 +118,9 @@ impl eframe::App for ApexTraderApp {
             // Mostrar estado del viewport (zoom/pan) para depuración.
             ui.label(format!(
                 "Zoom: {:.2}x | Offset: ({:.2}, {:.2})",
-                viewport.zoom_level, viewport.offset_x, viewport.offset_y
+                viewport.zoom_level(),
+                viewport.offset_x(),
+                viewport.offset_y()
             ));
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
@@ -125,13 +159,12 @@ fn main() -> eframe::Result {
                 let high = open.max(close) + change.abs() * 0.3;
                 let low = open.min(close) - change.abs() * 0.3;
 
-                if let Err(e) = chart.add_candle(Candle {
-                    open,
-                    high,
-                    low,
-                    close,
-                }) {
-                    tracing::error!("No se pudo agregar vela {}: {}", i, e);
+                if let Ok(candle) = Candle::new(open, high, low, close) {
+                    if let Err(e) = chart.add_candle(candle) {
+                        tracing::error!("No se pudo agregar vela {}: {}", i, e);
+                    }
+                } else {
+                    tracing::error!("No se pudo crear vela {}: precios inválidos", i);
                 }
                 price = close; // la siguiente vela abre donde cerró la anterior
             }
@@ -141,7 +174,11 @@ fn main() -> eframe::Result {
             // Crear renderer (intenta wgpu, cae a glow si falla)
             let renderer = create_renderer();
 
-            Ok(Box::new(ApexTraderApp { chart, renderer }))
+            Ok(Box::new(ApexTraderApp {
+                chart,
+                renderer,
+                crosshair_pos: None,
+            }))
         }),
     )
 }
