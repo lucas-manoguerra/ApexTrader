@@ -97,6 +97,72 @@ impl Viewport {
         );
     }
 
+    /// Ajusta automáticamente el zoom y los offsets para que todas las velas
+    /// quepan en el área de dibujo con un margen del 5% en cada lado.
+    ///
+    /// `price_range` es el rango de precios (mínimo y máximo) de las velas a mostrar.
+    /// `candle_count` es la cantidad total de velas.
+    /// `screen_width` y `screen_height` son las dimensiones del área de dibujo en píxeles.
+    ///
+    /// Después de llamar, `zoom_level`, `offset_x` y `offset_y` quedan configurados
+    /// para que todas las velas sean visibles. El llamante puede seguir ajustando
+    /// manualmente con `zoom_at` o `pan`.
+    pub fn auto_scale(
+        &mut self,
+        price_range: PriceRange,
+        candle_count: usize,
+        screen_width: f64,
+        screen_height: f64,
+    ) {
+        let min_price = price_range.min().value();
+        let max_price = price_range.max().value();
+
+        let margin = 0.05;
+        let available_height = screen_height * (1.0 - 2.0 * margin);
+        let available_width = screen_width * (1.0 - 2.0 * margin);
+
+        // En price_to_screen: pixels_per_unit = screen_height / range_f64 * zoom_level.
+        // El rango de precios ocupa screen_height * zoom_level píxeles verticalmente.
+        // Para que quepa en available_height: zoom_level <= available_height / screen_height.
+        let zoom_vertical_max = available_height / screen_height;
+
+        // Horizontalmente: ancho_total = candle_count * candle_spacing =
+        // candle_count * candle_spacing_base / zoom_level.
+        // Para que quepa en available_width: zoom_level >= candle_count * candle_spacing_base / available_width.
+        let candle_spacing_base = 20.0;
+        let zoom_horizontal_min = (candle_count as f64 * candle_spacing_base) / available_width;
+
+        // Tomar zoom_horizontal_min como base, pero no exceder zoom_vertical_max ni max_zoom.
+        let max_allowed = zoom_vertical_max.min(self.max_zoom);
+        let new_zoom = zoom_horizontal_min.clamp(self.min_zoom, max_allowed);
+
+        // Centrar horizontalmente: la primera vela (index 0) y la última (index N-1)
+        // deben quedar simétricas alrededor de center_x.
+        // data_x_to_screen(0) = center_x + offset_x * candle_spacing
+        // Queremos que quede en center_x - (N-1)/2 * candle_spacing.
+        // Entonces offset_x = -(N-1) / 2.
+        self.offset_x = -(candle_count as f64 - 1.0) / 2.0;
+
+        // offset_y se deja en 0: el llamante pasará center_price como el punto medio
+        // del rango de precios al llamar price_to_screen, lo cual centrará verticalmente.
+        self.offset_y = 0.0;
+
+        self.zoom_level = new_zoom;
+
+        tracing::debug!(
+            "Autoescala: zoom={:.4}, offset_x={:.4}, offset_y={:.4}, \
+             rango_precio={:.2}..{:.2}, velas={}, pantalla={:.0}x{:.0}",
+            self.zoom_level,
+            self.offset_x,
+            self.offset_y,
+            min_price,
+            max_price,
+            candle_count,
+            screen_width,
+            screen_height
+        );
+    }
+
     /// Restablece el viewport a valores por defecto.
     pub fn reset(&mut self) {
         self.zoom_level = 1.0;
