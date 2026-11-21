@@ -109,10 +109,10 @@ fn draw_time_axis(
     let screen_width = right - left;
     let base_candle_width = 12.0;
 
-    let first_visible = (-viewport.offset_x).max(0.0) as i32;
-    let last_visible = ((-viewport.offset_x)
-        + screen_width / (base_candle_width * viewport.zoom_level))
-        .min(candles_count as f64 - 1.0) as i32;
+    let first_visible = (-viewport.offset_x()).max(0.0) as i32;
+    let last_visible = ((-viewport.offset_x())
+        + screen_width / (base_candle_width * viewport.zoom_level()))
+    .min(candles_count as f64 - 1.0) as i32;
 
     if first_visible > last_visible {
         return;
@@ -160,7 +160,7 @@ impl ChartRenderer for GlowChartRenderer {
             "Renderizando {} velas con glow en rect {:?} (zoom={:.2})",
             candles.len(),
             rect,
-            viewport.zoom_level
+            viewport.zoom_level()
         );
 
         if candles.is_empty() {
@@ -202,7 +202,7 @@ impl ChartRenderer for GlowChartRenderer {
 
         // Espaciamiento entre velas ajustado por zoom.
         let base_candle_width = 12.0;
-        let candle_width = base_candle_width * viewport.zoom_level as f32;
+        let candle_width = base_candle_width * viewport.zoom_level() as f32;
         let candle_width = candle_width.clamp(4.0, 40.0);
         let _spacing = candle_width * 0.4;
 
@@ -212,8 +212,8 @@ impl ChartRenderer for GlowChartRenderer {
             let bottom = bottom as f64;
             let top = top as f64;
             let screen_height = bottom - top;
-            let pixels_per_unit = screen_height / price_range * viewport.zoom_level;
-            let relative_price = price - center_price - viewport.offset_y * price_range;
+            let pixels_per_unit = screen_height / price_range * viewport.zoom_level();
+            let relative_price = price - center_price - viewport.offset_y() * price_range;
             (bottom - relative_price * pixels_per_unit) as f32
         };
 
@@ -267,9 +267,9 @@ impl ChartRenderer for GlowChartRenderer {
             bottom_f64,
             PriceAxisParams {
                 center_price,
-                offset_y: viewport.offset_y,
+                offset_y: viewport.offset_y(),
                 price_range,
-                zoom_level: viewport.zoom_level,
+                zoom_level: viewport.zoom_level(),
             },
             font_id.clone(),
         );

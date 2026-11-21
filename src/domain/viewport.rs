@@ -4,8 +4,13 @@
 /// Es responsable de calcular cómo se transforman las coordenadas de datos
 /// (precio, tiempo) a coordenadas de pantalla y viceversa.
 ///
-/// Ningún otro módulo puede modificar el viewport directamente;
-/// solo a través de sus métodos públicos.
+/// Todos los campos son privados. Se modifican únicamente a través de
+/// métodos públicos que validan las invariantes del dominio:
+///
+/// - `zoom_level` debe estar siempre en `[min_zoom, max_zoom]`.
+/// - `min_zoom` debe ser siempre `<= max_zoom`.
+/// - `zoom_level`, `offset_x`, `offset_y` deben ser siempre finitos.
+/// - `delta == 0.0` en `zoom_at` no modifica el estado.
 use crate::domain::price::Price;
 use crate::domain::price_range::PriceRange;
 use rust_decimal::Decimal;
@@ -16,24 +21,24 @@ pub struct Viewport {
     /// Nivel de zoom. 1.0 = sin zoom (1 unidad de precio = 1 píxel base).
     /// Valores mayores = más cerca (más detalle).
     /// Valores menores = más alejado (más velas visibles).
-    pub zoom_level: f64,
+    zoom_level: f64,
 
     /// Desplazamiento horizontal en coordenadas de datos.
     /// Positivo = se mueve a la derecha (velas más recientes a la izquierda).
-    pub offset_x: f64,
+    offset_x: f64,
 
     /// Desplazamiento vertical en coordenadas de datos.
     /// Positivo = se mueve hacia arriba (precios más altos en el centro).
-    pub offset_y: f64,
+    offset_y: f64,
 
     /// Factor de zoom por cada "tick" de scroll del mouse.
-    pub zoom_step: f64,
+    zoom_step: f64,
 
     /// Nivel mínimo de zoom permitido.
-    pub min_zoom: f64,
+    min_zoom: f64,
 
     /// Nivel máximo de zoom permitido.
-    pub max_zoom: f64,
+    max_zoom: f64,
 }
 
 impl Viewport {
@@ -49,12 +54,115 @@ impl Viewport {
         }
     }
 
+    /// Devuelve el nivel de zoom actual.
+    pub fn zoom_level(&self) -> f64 {
+        self.zoom_level
+    }
+
+    /// Devuelve el desplazamiento horizontal actual.
+    pub fn offset_x(&self) -> f64 {
+        self.offset_x
+    }
+
+    /// Devuelve el desplazamiento vertical actual.
+    pub fn offset_y(&self) -> f64 {
+        self.offset_y
+    }
+
+    /// Devuelve el factor de zoom por tick de scroll.
+    pub fn zoom_step(&self) -> f64 {
+        self.zoom_step
+    }
+
+    /// Devuelve el nivel mínimo de zoom permitido.
+    pub fn min_zoom(&self) -> f64 {
+        self.min_zoom
+    }
+
+    /// Devuelve el nivel máximo de zoom permitido.
+    pub fn max_zoom(&self) -> f64 {
+        self.max_zoom
+    }
+
+    /// Establece el nivel mínimo de zoom.
+    ///
+    /// Si el nuevo valor es mayor que `max_zoom`, se ajusta `max_zoom`
+    /// para mantener `min_zoom <= max_zoom`.
+    pub fn set_min_zoom(&mut self, value: f64) {
+        if !value.is_finite() || value <= 0.0 {
+            return;
+        }
+        self.min_zoom = value;
+        if self.min_zoom > self.max_zoom {
+            self.max_zoom = self.min_zoom;
+        }
+        // Asegurar que zoom_level esté dentro del nuevo rango.
+        self.zoom_level = self.zoom_level.clamp(self.min_zoom, self.max_zoom);
+    }
+
+    /// Establece el nivel máximo de zoom permitido.
+    ///
+    /// Si el nuevo valor es menor que `min_zoom`, se ajusta `min_zoom`
+    /// para mantener `min_zoom <= max_zoom`.
+    pub fn set_max_zoom(&mut self, value: f64) {
+        if !value.is_finite() || value <= 0.0 {
+            return;
+        }
+        self.max_zoom = value;
+        if self.max_zoom < self.min_zoom {
+            self.min_zoom = self.max_zoom;
+        }
+        // Asegurar que zoom_level esté dentro del nuevo rango.
+        self.zoom_level = self.zoom_level.clamp(self.min_zoom, self.max_zoom);
+    }
+
+    /// Establece el nivel de zoom directamente.
+    ///
+    /// El valor se clampea a `[min_zoom, max_zoom]`. Si no es finito, se ignora.
+    pub fn set_zoom_level(&mut self, value: f64) {
+        if !value.is_finite() || value <= 0.0 {
+            return;
+        }
+        self.zoom_level = value.clamp(self.min_zoom, self.max_zoom);
+    }
+
+    /// Establece el desplazamiento horizontal directamente.
+    ///
+    /// Si no es finito, se ignora.
+    pub fn set_offset_x(&mut self, value: f64) {
+        if value.is_finite() {
+            self.offset_x = value;
+        }
+    }
+
+    /// Establece el desplazamiento vertical directamente.
+    ///
+    /// Si no es finito, se ignora.
+    pub fn set_offset_y(&mut self, value: f64) {
+        if value.is_finite() {
+            self.offset_y = value;
+        }
+    }
+
     /// Aplica un zoom alrededor de un punto dado (coordenadas de pantalla).
     ///
     /// `delta` es el cambio de scroll: positivo = zoom in, negativo = zoom out.
     /// `center_x` y `center_y` son el punto alrededor del cual hacer zoom
     /// (posiciones en coordenadas de pantalla normalizadas 0..=1).
+    ///
+    /// Si `delta == 0.0`, no se modifica el estado.
+    /// Si alguno de los parámetros no es finito, no se modifica el estado.
     pub fn zoom_at(&mut self, delta: f64, center_x: f64, center_y: f64) {
+        // Validar finitud de parámetros.
+        if !delta.is_finite() || !center_x.is_finite() || !center_y.is_finite() {
+            return;
+        }
+
+        // Ignorar eventos sin movimiento.
+        if delta == 0.0 {
+            return;
+        }
+
         let zoom_factor = if delta > 0.0 {
             1.0 + self.zoom_step
         } else {
@@ -83,7 +191,13 @@ impl Viewport {
     /// Aplica un desplazamiento (pan) al viewport.
     ///
     /// `dx` y `dy` son el cambio en coordenadas de pantalla.
+    ///
+    /// Si alguno de los parámetros no es finito, no se modifica el estado.
     pub fn pan(&mut self, dx: f64, dy: f64) {
+        if !dx.is_finite() || !dy.is_finite() {
+            return;
+        }
+
         // El pan se aplica inversamente: si arrastramos a la derecha,
         // el contenido se mueve a la derecha, así que offset_x aumenta.
         self.offset_x += dx / self.zoom_level;

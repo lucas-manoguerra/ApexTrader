@@ -18,8 +18,8 @@ fn data_x_to_screen_returns_pixel_x() {
 #[test]
 fn data_x_to_screen_respects_zoom_and_offset() {
     let mut viewport = Viewport::new();
-    viewport.zoom_level = 2.0;
-    viewport.offset_x = 5.0;
+    viewport.set_zoom_level(2.0);
+    viewport.set_offset_x(5.0);
 
     let screen_width = 1920.0;
     let x0 = viewport.data_x_to_screen(0, screen_width);

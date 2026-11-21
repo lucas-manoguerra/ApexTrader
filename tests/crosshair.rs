@@ -53,7 +53,7 @@ fn crosshair_index_at_cursor() {
     assert_eq!(idx, 0);
 
     // Una vela a la derecha.
-    let spacing = 20.0 / viewport.zoom_level;
+    let spacing = 20.0 / viewport.zoom_level();
     let x_one = x_center + spacing;
     let idx_one = viewport.screen_x_to_data(x_one, screen_width);
     assert_eq!(idx_one, 1);

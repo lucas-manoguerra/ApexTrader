@@ -13,8 +13,8 @@ fn auto_scale_zoom_within_limits() {
 
     viewport.auto_scale(range, 100, 1920.0, 1080.0);
 
-    assert!(viewport.zoom_level >= viewport.min_zoom);
-    assert!(viewport.zoom_level <= viewport.max_zoom);
+    assert!(viewport.zoom_level() >= viewport.min_zoom());
+    assert!(viewport.zoom_level() <= viewport.max_zoom());
 }
 
 /// S4: Con una sola vela, el zoom no es extremo (no se acerca a max_zoom innecesariamente).
@@ -28,8 +28,8 @@ fn auto_scale_single_candle_reasonable_zoom() {
     viewport.auto_scale(range, 1, 1920.0, 1080.0);
 
     // Con un solo precio, el rango es 0 → se usa $0.01 mínimo, zoom debería ser moderado.
-    assert!(viewport.zoom_level > 0.0);
-    assert!(viewport.zoom_level <= viewport.max_zoom);
+    assert!(viewport.zoom_level() > 0.0);
+    assert!(viewport.zoom_level() <= viewport.max_zoom());
 }
 
 /// S4: Después de auto_scale, el precio mínimo y máximo mapean dentro de la pantalla.
@@ -95,10 +95,10 @@ fn auto_scale_more_candles_higher_zoom() {
     let range = PriceRange::new(min, max).expect("rango válido");
 
     viewport.auto_scale(range, 10, 1920.0, 1080.0);
-    let zoom_10 = viewport.zoom_level;
+    let zoom_10 = viewport.zoom_level();
 
     viewport.auto_scale(range, 1000, 1920.0, 1080.0);
-    let zoom_1000 = viewport.zoom_level;
+    let zoom_1000 = viewport.zoom_level();
 
     assert!(
         zoom_1000 > zoom_10,
@@ -149,10 +149,10 @@ fn auto_scale_idempotent() {
     let range = PriceRange::new(min, max).expect("rango válido");
 
     viewport.auto_scale(range, 50, 1920.0, 1080.0);
-    let zoom1 = viewport.zoom_level;
+    let zoom1 = viewport.zoom_level();
 
     viewport.auto_scale(range, 50, 1920.0, 1080.0);
-    let zoom2 = viewport.zoom_level;
+    let zoom2 = viewport.zoom_level();
 
     assert!((zoom1 - zoom2).abs() < f64::EPSILON);
 }

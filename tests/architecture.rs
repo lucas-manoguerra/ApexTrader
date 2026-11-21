@@ -27,7 +27,7 @@ fn chart_state_lends_candles_and_viewport() {
 
     let viewport = chart.viewport();
     // El viewport sigue accesible tras prestar velas (ninguna se movió).
-    assert_eq!(viewport.zoom_level, 1.0);
+    assert_eq!(viewport.zoom_level(), 1.0);
 }
 
 /// Regla 3: Viewport es un tipo de valor (Copy), no depende de GPU ni ventana.
@@ -35,8 +35,8 @@ fn chart_state_lends_candles_and_viewport() {
 fn viewport_is_copy_value_type() {
     let v1 = Viewport::new();
     let v2 = v1; // Copy: v1 sigue válido
-    assert_eq!(v1.zoom_level, v2.zoom_level);
-    assert_eq!(v1.zoom_level, 1.0);
+    assert_eq!(v1.zoom_level(), v2.zoom_level());
+    assert_eq!(v1.zoom_level(), 1.0);
 }
 
 /// Regla 4: ChartState rechaza velas con precios no finitos (integridad de datos).
