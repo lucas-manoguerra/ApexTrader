@@ -1,0 +1,34 @@
+[workspace]
+name = "apex-trader"
+
+[skills]
+# Skills registradas para este proyecto. OpenCode las detecta y carga
+# automáticamente cuando el contexto del task coincida con su descripción.
+ids = [
+    "wgpu-rust-engineering",
+    "winit-gtk-rust-engineering",
+    "glyphon-gpu-text-rendering",
+    "eframe-app-framework",
+    "egui-immediate-mode-ui",
+    "bytemuck-derive-layout-contracts",
+    "bytemuck-memory-casting",
+    "pollster-async-bridge",
+    "thiserror-error-design",
+    "tracing-instrumentation",
+    "tracing-subscriber-observability",
+    "protest-property-testing",
+]
+
+[rust]
+# Versiones fuente de verdad alineadas con .opencode/skills/VERSION_MATRIX.md
+wgpu = "30"
+winit = "0.30"
+glyphon = "0.12"
+egui = "0.37"
+eframe = "0.37"
+thiserror = "2.0"
+pollster = "1.0"
+bytemuck = "1.25"
+bytemuck_derive = "1.12"
+tracing = "0.1"
+tracing_subscriber = "0.3"

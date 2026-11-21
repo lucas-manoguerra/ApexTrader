@@ -1,0 +1,18 @@
+/target
+
+# Rust
+*.rs.bak
+Cargo.lock.old
+
+# Windows / IDE
+*.pdb
+*.idb
+*.dll
+*.exe
+.vscode/
+.idea/
+*.log
+.env
+.DS_Store
+Thumbs.db
+run-output.txt
