@@ -1,6 +1,7 @@
 use crate::domain::candle::Candle;
 use crate::domain::price::Price;
 use crate::domain::price_range::PriceRange;
+use crate::domain::transforms;
 use crate::domain::viewport::Viewport;
 use crate::errors::RendererError;
 use crate::renderer::ChartRenderer;
@@ -107,11 +108,11 @@ fn draw_time_axis(
     font_id: egui::FontId,
 ) {
     let screen_width = right - left;
-    let base_candle_width = 12.0;
+    let candle_spacing = transforms::candle_spacing(viewport.zoom_level());
 
     let first_visible = (-viewport.offset_x()).max(0.0) as i32;
     let last_visible = ((-viewport.offset_x())
-        + screen_width / (base_candle_width * viewport.zoom_level()))
+        + screen_width / candle_spacing)
     .min(candles_count as f64 - 1.0) as i32;
 
     if first_visible > last_visible {
@@ -201,8 +202,7 @@ impl ChartRenderer for GlowChartRenderer {
         let n = candles.len();
 
         // Espaciamiento entre velas ajustado por zoom.
-        let base_candle_width = 12.0;
-        let candle_width = base_candle_width * viewport.zoom_level() as f32;
+        let candle_width = transforms::candle_body_width(viewport.zoom_level()) as f32;
         let candle_width = candle_width.clamp(4.0, 40.0);
         let _spacing = candle_width * 0.4;
 

@@ -22,11 +22,9 @@
 /// - `delta == 0.0` en `zoom_at` no modifica el estado.
 use crate::domain::price::Price;
 use crate::domain::price_range::PriceRange;
+use crate::domain::transforms;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
-
-/// Espaciado base entre velas en píxeles a zoom 1.0.
-const CANDLE_SPACING_BASE: f64 = 20.0;
 
 /// Margen porcentual usado en auto_scale y clamping (5% cada lado).
 const MARGIN_RATIO: f64 = 0.05;
@@ -104,7 +102,7 @@ impl Viewport {
     /// A mayor zoom, mayor espaciamiento (las velas están más separadas).
     /// Consiste con el ancho de vela usado en el renderer.
     pub fn candle_spacing(&self) -> f64 {
-        CANDLE_SPACING_BASE * self.zoom_level
+        transforms::candle_spacing(self.zoom_level)
     }
 
     /// Establece el nivel mínimo de zoom.
@@ -304,7 +302,7 @@ impl Viewport {
 
     /// Calcula el candle_spacing para un nivel de zoom dado.
     fn candle_spacing_at(&self, zoom_level: f64) -> f64 {
-        CANDLE_SPACING_BASE * zoom_level
+        transforms::candle_spacing(zoom_level)
     }
 
     /// Aplica un desplazamiento (pan) al viewport.
@@ -367,11 +365,11 @@ impl Viewport {
         // Para que quepa en available_height: zoom_level <= available_height / screen_height.
         let zoom_vertical_max = available_height / screen_height;
 
-        // Horizontalmente: ancho_total = candle_count * candle_spacing =
-        // candle_count * CANDLE_SPACING_BASE * zoom_level.
-        // Para que quepa en available_width:
+        // Horizontalmente: ancho_total = candle_count * candle_spacing = candle_count *
+        // CANDLE_SPACING_BASE * zoom_level. Para que quepa en available_width:
         // zoom_level <= available_width / (candle_count * CANDLE_SPACING_BASE)
-        let zoom_horizontal_max = available_width / (candle_count as f64 * CANDLE_SPACING_BASE);
+        let zoom_horizontal_max =
+            available_width / (candle_count as f64 * transforms::CANDLE_SPACING_BASE);
 
         // Tomar el mínimo para asegurar que todo quepa en ambas dimensiones.
         let max_allowed = zoom_vertical_max
@@ -428,9 +426,7 @@ impl Viewport {
     ///
     /// Devuelve la coordenada X en píxeles de pantalla.
     pub fn data_x_to_screen(&self, index: usize, screen_width: f64) -> f64 {
-        let candle_spacing = self.candle_spacing();
-        let center_x = screen_width / 2.0;
-        center_x + (index as f64 * candle_spacing) + self.offset_x * candle_spacing
+        transforms::data_x_to_screen(index, screen_width, self.zoom_level, self.offset_x)
     }
 
     /// Convierte una coordenada de pantalla X a un índice de vela (coordenada de datos X).
@@ -440,10 +436,7 @@ impl Viewport {
     ///
     /// Devuelve el índice de vela más cercano (basado en 0).
     pub fn screen_x_to_data(&self, screen_x: f64, screen_width: f64) -> usize {
-        let candle_spacing = self.candle_spacing();
-        let center_x = screen_width / 2.0;
-        let index = (screen_x - center_x - self.offset_x * candle_spacing) / candle_spacing;
-        index.round() as usize
+        transforms::screen_x_to_data(screen_x, screen_width, self.zoom_level, self.offset_x)
     }
 
     /// Convierte un precio (coordenada de datos Y) a coordenada de pantalla.
