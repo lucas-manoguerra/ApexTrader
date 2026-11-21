@@ -199,3 +199,14 @@ jobs:
       - name: Audit dependencies
         shell: pwsh
         run: pwsh -File scripts/audit_dependencies.ps1
+
+  lib-docs:
+    name: Verify library docs referenced
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify library documentation references
+        shell: pwsh
+        run: pwsh -File scripts/verify_lib_docs.ps1

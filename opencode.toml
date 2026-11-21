@@ -20,15 +20,16 @@ ids = [
 ]
 
 [rust]
-# Versiones fuente de verdad alineadas con .opencode/skills/VERSION_MATRIX.md
+# Versiones fuente de verdad — deben coincidir exactamente con Cargo.toml.
+# glyphon está planificado para renderizado de texto avanzado (Etapa 4+)
+# pero aún no se agregó como dependencia; se incorporará cuando se implemente.
 wgpu = "30"
-winit = "0.30"
-glyphon = "0.12"
+winit = "0.30.13"
 egui = "0.37"
 eframe = "0.37"
-thiserror = "2.0"
-pollster = "1.0"
-bytemuck = "1.25"
-bytemuck_derive = "1.12"
+thiserror = "2"
+pollster = "1"
+bytemuck = "1"
+bytemuck_derive = "1"
 tracing = "0.1"
 tracing_subscriber = "0.3"

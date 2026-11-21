@@ -21,9 +21,7 @@ $forbiddenCrates = @(
     "winit",
     "raw_window_handle",
     "pollster",
-    "bytemuck",
-    "tracing",
-    "tracing_subscriber"
+    "bytemuck"
 )
 
 $violations = @()

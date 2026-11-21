@@ -72,7 +72,29 @@ Además, el script `scripts/verify_architecture.ps1` verifica que `src/domain/` 
 - **No** `Co-Authored-By` ni atribución de IA.
 - Sin `unwrap`/`panic` en producción.
 
-## 8. Skills de OpenCode
+## 8. Documentación obligatoria de librerías antes de cualquier código (CRÍTICO)
+
+Antes de escribir una sola línea de código o planificar una implementación que use una librería externa, el agente **debe** leer la documentación oficial de esa librería en su versión exacta declarada en `Cargo.toml`.
+
+**Prohibido usar implementaciones anteriores, viejas o asumidas de cualquier librería.** La versión fuente de verdad es la resuelta en `Cargo.lock`.
+
+### Procedimiento obligatorio
+
+1. Identificar qué crates externos se van a usar (ej. `wgpu`, `egui`, `eframe`, `winit`, `bytemuck`, `pollster`, `thiserror`, `tracing`).
+2. Verificar la versión exacta en `Cargo.toml` y `Cargo.lock`.
+3. Leer la documentación oficial en `docs.rs/crate/version` para esa versión exacta.
+4. Confirmar que las APIs, traits, structs y métodos que se van a usar existen en esa versión.
+5. Registrar en el comentario del código o en el `## Log` de la tarea ODD qué versión se consultó y qué APIs se usaron.
+
+### Ejemplo de entrada requerida en el código o log
+
+```
+// Librerías consultadas: wgpu 30.0.2 (docs.rs/wgpu/30.0.2)
+// APIs usadas: Instance::new, request_adapter, request_device
+// Justificación: wgpu 30 cambió la API de Surface y DeviceDescriptor vs 0.x
+```
+
+## 9. Skills de OpenCode
 
 Antes de lanzar un subagente, cargar las skills relevantes del registro (`.atl/skill-registry.md`):
 - `wgpu-rust-engineering` — para renderers, pipelines, shaders WGSL.
@@ -84,7 +106,7 @@ Antes de lanzar un subagente, cargar las skills relevantes del registro (`.atl/s
 - `pollster-async-bridge` — para futuros bloqueantes con wgpu.
 - `protest-property-testing` — para pruebas basadas en propiedades.
 
-## 9. Regla de oro
+## 10. Regla de oro
 
 La simplicidad es una propiedad arquitectónica, no una excusa para evitar diseñar correctamente. Cada módulo tiene una responsabilidad. Las dependencias son explícitas y controladas. Ningún cambio se integra si rompe los gates de calidad.
 
