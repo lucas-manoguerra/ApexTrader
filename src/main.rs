@@ -60,16 +60,27 @@ impl eframe::App for ApexTraderApp {
                         let center_x = (pos.x - interaction_rect.left()) / interaction_rect.width();
                         let center_y = (pos.y - interaction_rect.top()) / interaction_rect.height();
 
+                        let candle_count = self.chart.len();
+                        let screen_width = available.width() as f64;
+
                         let vp = self.chart.viewport_mut();
                         vp.zoom_at(scroll_delta.y as f64, center_x as f64, center_y as f64);
+                        vp.clamp_zoom_to_candles(candle_count, screen_width);
+                        vp.clamp_pan_to_candles(candle_count, screen_width);
                     }
                 }
 
                 // --- Manejo de input: Pan con arrastre ---
                 if response.dragged() {
                     let delta = response.drag_delta();
+
+                    // Limitar pan al rango de velas cargadas.
+                    let candle_count = self.chart.len();
+                    let screen_width = available.width() as f64;
+
                     let vp = self.chart.viewport_mut();
                     vp.pan(delta.x as f64, delta.y as f64);
+                    vp.clamp_pan_to_candles(candle_count, screen_width);
                 }
 
                 // --- Manejo de input: Crosshair sigue el cursor ---

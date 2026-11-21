@@ -144,6 +144,64 @@ impl Viewport {
         }
     }
 
+    /// Limita el pan horizontal para que la primera y última vela
+    /// permanezcan visibles dentro de la pantalla.
+    ///
+    /// `candle_count` es el número total de velas cargadas.
+    /// `screen_width` es el ancho del área de dibujo en píxeles.
+    ///
+    /// Se deja un margen del 5% en cada lado.
+    pub fn clamp_pan_to_candles(&mut self, candle_count: usize, screen_width: f64) {
+        if candle_count == 0 || !screen_width.is_finite() || screen_width <= 0.0 {
+            return;
+        }
+
+        let candle_spacing = 20.0 / self.zoom_level;
+        let center_x = screen_width / 2.0;
+        let margin = screen_width * 0.05;
+
+        // Primera vela (index 0) no puede salir por la izquierda:
+        // data_x_to_screen(0) >= margin
+        // center_x + offset_x * candle_spacing >= margin
+        // offset_x >= (margin - center_x) / candle_spacing
+        let min_offset_x = (margin - center_x) / candle_spacing;
+
+        // Última vela (index N-1) no puede salir por la derecha:
+        // data_x_to_screen(N-1) <= screen_width - margin
+        // center_x + (N-1) * candle_spacing + offset_x * candle_spacing <= screen_width - margin
+        // offset_x <= (screen_width - margin - center_x - (N-1) * candle_spacing) / candle_spacing
+        let max_offset_x =
+            (screen_width - margin - center_x - (candle_count as f64 - 1.0) * candle_spacing)
+                / candle_spacing;
+
+        self.offset_x = self.offset_x.clamp(min_offset_x, max_offset_x);
+    }
+
+    /// Limita el zoom para que una sola vela no llene toda la pantalla
+    /// y para que al menos dos velas quepan simultáneamente.
+    ///
+    /// `candle_count` es el número total de velas cargadas.
+    /// `screen_width` es el ancho del área de dibujo en píxeles.
+    pub fn clamp_zoom_to_candles(&mut self, candle_count: usize, screen_width: f64) {
+        if candle_count == 0 || !screen_width.is_finite() || screen_width <= 0.0 {
+            return;
+        }
+
+        // candle_spacing = 20.0 / zoom_level
+        // Máximo zoom: candle_spacing >= 4.0 => zoom_level <= 5.0
+        // Mínimo zoom: al menos 2 velas quepan => 2 * candle_spacing <= screen_width
+        //                => zoom_level >= 40.0 / screen_width
+        let max_zoom_by_candle = 5.0;
+        let min_zoom_by_candles = 40.0 / screen_width;
+
+        let min_allowed = self.min_zoom.max(min_zoom_by_candles);
+        let max_allowed = self.max_zoom.min(max_zoom_by_candle);
+
+        if min_allowed <= max_allowed {
+            self.zoom_level = self.zoom_level.clamp(min_allowed, max_allowed);
+        }
+    }
+
     /// Aplica un zoom alrededor de un punto dado (coordenadas de pantalla).
     ///
     /// `delta` es el cambio de scroll: positivo = zoom in, negativo = zoom out.
