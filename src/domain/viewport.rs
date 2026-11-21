@@ -354,6 +354,16 @@ impl Viewport {
         screen_width: f64,
         screen_height: f64,
     ) {
+        // Rechazar dimensiones cero, negativas o no finitas antes de dividir.
+        if candle_count == 0
+            || !screen_width.is_finite()
+            || !screen_height.is_finite()
+            || screen_width <= 0.0
+            || screen_height <= 0.0
+        {
+            return;
+        }
+
         let min_price = price_range.min().value();
         let max_price = price_range.max().value();
 
@@ -434,9 +444,16 @@ impl Viewport {
     /// `screen_x` es la posición en píxeles de pantalla.
     /// `screen_width` es el ancho del área de dibujo en píxeles.
     ///
-    /// Devuelve el índice de vela más cercano (basado en 0).
-    pub fn screen_x_to_data(&self, screen_x: f64, screen_width: f64) -> usize {
-        transforms::screen_x_to_data(screen_x, screen_width, self.zoom_level, self.offset_x)
+    /// Devuelve el índice de vela más cercano (basado en 0), clampado a
+    /// `[0, candle_count - 1]`.
+    pub fn screen_x_to_data(&self, screen_x: f64, screen_width: f64, candle_count: usize) -> usize {
+        transforms::screen_x_to_data(
+            screen_x,
+            screen_width,
+            self.zoom_level,
+            self.offset_x,
+            candle_count,
+        )
     }
 
     /// Convierte un precio (coordenada de datos Y) a coordenada de pantalla.
@@ -454,11 +471,31 @@ impl Viewport {
         price_range: PriceRange,
         center_price: Price,
     ) -> f64 {
+        // Validar dimensiones antes de dividir: evita división por cero o
+        // coordenadas no finitas (rango degenerado, pantalla vacía).
+        if !screen_height.is_finite() || screen_height <= 0.0 {
+            return screen_height / 2.0;
+        }
+
         let center_y = screen_height / 2.0;
-        let range_value = price_range.max().value() - price_range.min().value();
-        let range_value_f64 = range_value
+
+        let min_price_f64 = price_range
+            .min()
+            .value()
             .to_f64()
-            .expect("el rango de precios debe ser convertible a f64 para renderizado");
+            .expect("el precio mínimo debe ser convertible a f64 para renderizado");
+        let max_price_f64 = price_range
+            .max()
+            .value()
+            .to_f64()
+            .expect("el precio máximo debe ser convertible a f64 para renderizado");
+        let Some(range_value_f64) = transforms::validate_price_range(min_price_f64, max_price_f64)
+        else {
+            // Rango degenerado (min == max): no hay escala visual posible.
+            // Devolver el centro del área como posición neutra.
+            return center_y;
+        };
+
         let pixels_per_unit = screen_height / range_value_f64 * self.zoom_level;
         let price_f64 = price
             .value()

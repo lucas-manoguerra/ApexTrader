@@ -53,16 +53,36 @@ pub fn data_x_to_screen(
 }
 
 /// Convierte un píxel de pantalla X al índice de vela más cercano.
+///
+/// `candle_count` limita el resultado a `[0, candle_count - 1]`.
 pub fn screen_x_to_data(
     screen_x: f64,
     screen_width: f64,
     zoom_level: f64,
     offset_x: f64,
+    candle_count: usize,
 ) -> usize {
+    if candle_count == 0
+        || !screen_x.is_finite()
+        || !screen_width.is_finite()
+        || screen_width <= 0.0
+    {
+        return 0;
+    }
+
     let spacing = candle_spacing(zoom_level);
+    if spacing <= 0.0 || !spacing.is_finite() {
+        return 0;
+    }
+
     let center_x = screen_width / 2.0;
     let index = (screen_x - center_x - offset_x * spacing) / spacing;
-    index.round() as usize
+    let index = index.round();
+
+    if index < 0.0 {
+        return 0;
+    }
+    (index as usize).min(candle_count.saturating_sub(1))
 }
 
 /// Convierte un precio (coordenada de datos Y) a píxel de pantalla Y.
@@ -164,8 +184,9 @@ pub fn chart_point_to_data_point(
     offset_y: f64,
     price_range: f64,
     center_price: f64,
+    candle_count: usize,
 ) -> DataPoint {
-    let index = screen_x_to_data(chart.x, screen_width, zoom_level, offset_x) as f64;
+    let index = screen_x_to_data(chart.x, screen_width, zoom_level, offset_x, candle_count) as f64;
     let price = screen_y_to_price(
         chart.y,
         screen_height,

@@ -40,7 +40,7 @@ fn screen_x_to_data_is_inverse_of_data_x_to_screen() {
 
     for i in 0..100 {
         let screen_x = viewport.data_x_to_screen(i, screen_width);
-        let recovered = viewport.screen_x_to_data(screen_x, screen_width);
+        let recovered = viewport.screen_x_to_data(screen_x, screen_width, 100);
         assert_eq!(
             recovered, i,
             "screen_x_to_data(data_x_to_screen({})) should be {}",

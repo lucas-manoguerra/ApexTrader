@@ -1,12 +1,9 @@
 use crate::domain::candle::Candle;
-use crate::domain::price::Price;
-use crate::domain::price_range::PriceRange;
 use crate::domain::transforms::{self, screen_to_chart_point, ScreenPoint};
 use crate::domain::viewport::Viewport;
 use crate::errors::RendererError;
 use crate::renderer::ChartRenderer;
 use eframe::egui;
-use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 
 /// Renderizador de chart usando el Painter de egui (backend glow/OpenGL).
@@ -327,36 +324,25 @@ impl ChartRenderer for GlowChartRenderer {
                 // restando los márgenes de ejes (left/top).
                 let chart_point = screen_to_chart_point(crosshair, left_f64, top_f64);
 
-                // Construir PriceRange y center_price desde los datos de velas.
-                let price_min_decimal =
-                    Decimal::from_f64(min_price).unwrap_or(Decimal::ZERO);
-                let price_max_decimal =
-                    Decimal::from_f64(max_price).unwrap_or(Decimal::ZERO);
-                let center_price_decimal =
-                    Decimal::from_f64(center_price).unwrap_or(Decimal::ZERO);
-
-                let price_min =
-                    Price::new(price_min_decimal).expect("precio mínimo válido");
-                let price_max =
-                    Price::new(price_max_decimal).expect("precio máximo válido");
-                let price_range_typed =
-                    PriceRange::new(price_min, price_max).expect("rango válido");
-                let center_price_typed =
-                    Price::new(center_price_decimal).expect("precio central válido");
-
-                let price_at_cursor = viewport.screen_y_to_price(
+                // Precio y índice bajo el cursor, usando transformaciones con f64
+                // sin reconstruir objetos de dominio por frame (evita expect() en el
+                // camino de renderizado).
+                let price_at_cursor = transforms::screen_y_to_price(
                     chart_point.y,
                     screen_height_drawing,
-                    price_range_typed,
-                    center_price_typed,
+                    price_range,
+                    viewport.zoom_level(),
+                    viewport.offset_y(),
+                    center_price,
                 );
                 let index_at_cursor = viewport.screen_x_to_data(
                     chart_point.x,
                     screen_width_drawing,
+                    candles.len(),
                 );
 
                 // Etiqueta de precio (lado izquierdo, alineada con la línea horizontal).
-                let price_label = format!("{:.2}", price_at_cursor.value());
+                let price_label = format!("{:.2}", price_at_cursor);
                 painter.text(
                     egui::pos2(left - 6.0, crosshair.y as f32),
                     egui::Align2::RIGHT_CENTER,
