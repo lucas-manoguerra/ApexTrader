@@ -22,6 +22,7 @@ pub trait ChartRenderer {
         rect: egui::Rect,
         candles: &[Candle],
         viewport: &Viewport,
+        crosshair_pos: Option<(f64, f64)>,
     ) -> Result<(), RendererError>;
 
     /// Nombre legible del renderer (para logs y depuración).

@@ -20,6 +20,7 @@ use eframe::egui;
 struct ApexTraderApp {
     chart: ChartState,
     renderer: Box<dyn ChartRenderer>,
+    crosshair_pos: Option<(f64, f64)>,
 }
 
 impl eframe::App for ApexTraderApp {
@@ -70,6 +71,16 @@ impl eframe::App for ApexTraderApp {
                     let vp = self.chart.viewport_mut();
                     vp.pan(delta.x as f64, delta.y as f64);
                 }
+
+                // --- Manejo de input: Crosshair sigue el cursor ---
+                if response.hovered()
+                    && let Some(pos) = ui.input(|i| i.pointer.hover_pos())
+                {
+                    // Coordenadas relativas al área de interacción (0..=width, 0..=height).
+                    let rel_x = pos.x - interaction_rect.left();
+                    let rel_y = pos.y - interaction_rect.top();
+                    self.crosshair_pos = Some((rel_x as f64, rel_y as f64));
+                }
             }
 
             // Después de manejar input, obtenemos el viewport inmutable para dibujar.
@@ -78,7 +89,10 @@ impl eframe::App for ApexTraderApp {
             // Prestamos las velas del ChartState para dibujarlas.
             // El renderer no las posee ni las modifica.
             let candles = self.chart.candles();
-            if let Err(e) = self.renderer.draw(painter, available, candles, viewport) {
+            if let Err(e) =
+                self.renderer
+                    .draw(painter, available, candles, viewport, self.crosshair_pos)
+            {
                 tracing::error!("Error renderizando chart: {}", e);
                 ui.colored_label(egui::Color32::RED, format!("Error: {}", e));
             }
@@ -141,7 +155,11 @@ fn main() -> eframe::Result {
             // Crear renderer (intenta wgpu, cae a glow si falla)
             let renderer = create_renderer();
 
-            Ok(Box::new(ApexTraderApp { chart, renderer }))
+            Ok(Box::new(ApexTraderApp {
+                chart,
+                renderer,
+                crosshair_pos: None,
+            }))
         }),
     )
 }
