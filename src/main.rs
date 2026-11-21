@@ -1,3 +1,8 @@
+#![allow(dead_code)]
+
+// Esqueleto inicial: renderer wgpu y errores de trading se integran en
+// etapas futuras. Se irá quitando a medida que cada módulo se active.
+
 mod domain;
 mod errors;
 mod logging;
@@ -51,7 +56,7 @@ impl eframe::App for ApexTraderApp {
 
             // --- Manejo de input: Zoom con scroll ---
             if response.hovered() {
-                let scroll_delta = ui.input(|i| i.smooth_scroll_delta.clone());
+                let scroll_delta = ui.input(|i| i.smooth_scroll_delta);
                 if scroll_delta.y != 0.0 {
                     // El centro del zoom es la posición actual del mouse.
                     if let Some(pos) = ui.input(|i| i.pointer.hover_pos()) {
@@ -59,7 +64,7 @@ impl eframe::App for ApexTraderApp {
                         let center_x = (pos.x - interaction_rect.left()) / interaction_rect.width();
                         let center_y = (pos.y - interaction_rect.top()) / interaction_rect.height();
 
-                        let mut vp = self.chart.viewport_mut();
+                        let vp = self.chart.viewport_mut();
                         vp.zoom_at(scroll_delta.y as f64, center_x as f64, center_y as f64);
                     }
                 }
@@ -67,7 +72,7 @@ impl eframe::App for ApexTraderApp {
                 // --- Manejo de input: Pan con arrastre ---
                 if response.dragged() {
                     let delta = response.drag_delta();
-                    let mut vp = self.chart.viewport_mut();
+                    let vp = self.chart.viewport_mut();
                     vp.pan(delta.x as f64, delta.y as f64);
                 }
             }

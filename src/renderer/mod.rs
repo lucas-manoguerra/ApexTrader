@@ -34,7 +34,7 @@ pub trait ChartRenderer {
 /// hay surface para dibujar, cae a glow.
 pub fn create_renderer() -> Box<dyn ChartRenderer> {
     match WgpuChartRenderer::new() {
-        Ok(mut renderer) => {
+        Ok(renderer) => {
             // wgpu se inicializó, pero sin surface no puede dibujar.
             // Verificamos si tiene surface disponible.
             if renderer.has_surface() {

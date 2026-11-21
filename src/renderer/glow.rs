@@ -72,8 +72,8 @@ impl ChartRenderer for GlowChartRenderer {
         // Espaciamiento entre velas ajustado por zoom.
         let base_candle_width = 12.0;
         let candle_width = base_candle_width * viewport.zoom_level as f32;
-        let candle_width = candle_width.max(4.0).min(40.0);
-        let spacing = candle_width * 0.4;
+        let candle_width = candle_width.clamp(4.0, 40.0);
+        let _spacing = candle_width * 0.4;
 
         // Helpers: convierte precio f64 → píxel f32 en el eje Y invertido.
         // Aplica zoom_level y offset_y del viewport.
@@ -81,7 +81,7 @@ impl ChartRenderer for GlowChartRenderer {
             let bottom = bottom as f64;
             let top = top as f64;
             let screen_height = bottom - top;
-            let pixels_per_unit = screen_height / price_range as f64 * viewport.zoom_level;
+            let pixels_per_unit = screen_height / price_range * viewport.zoom_level;
             let relative_price = price - center_price - viewport.offset_y * price_range;
             (bottom - relative_price * pixels_per_unit) as f32
         };

@@ -78,9 +78,9 @@ impl WgpuChartRenderer {
     /// de la ventana (por ejemplo, el `HWND` de Windows).
     pub fn init_surface(
         &mut self,
-        raw_handle: raw_window_handle::RawWindowHandle,
-        width: u32,
-        height: u32,
+        _raw_handle: raw_window_handle::RawWindowHandle,
+        _width: u32,
+        _height: u32,
     ) -> Result<(), RendererError> {
         // Stub: surface no creada todavía. Cuando dispongamos del window handle
         // de winit, se implementará con la API correcta de wgpu 30.
@@ -94,14 +94,12 @@ impl WgpuChartRenderer {
     }
     pub fn resize(&mut self, width: u32, height: u32) {
         if let (Some(ref mut config), Some(surface)) = (self.config.as_mut(), self.surface.as_ref())
-        {
-            if width > 0 && height > 0 {
+            && width > 0 && height > 0 {
                 config.width = width;
                 config.height = height;
                 surface.configure(&self.device, config);
                 info!("Surface redimensionada: {}x{}", width, height);
             }
-        }
     }
 
     /// Presenta el frame actual (swap chain).
