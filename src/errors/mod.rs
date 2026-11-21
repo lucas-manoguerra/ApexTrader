@@ -1,11 +1,13 @@
 pub mod candle;
 pub mod chart;
 pub mod price;
+pub mod quantity;
 pub mod renderer;
 
 pub use candle::CandleError;
 pub use chart::ChartError;
 pub use price::PriceError;
+pub use quantity::QuantityError;
 pub use renderer::RendererError;
 
 /// Error general de la aplicación.

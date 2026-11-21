@@ -2,6 +2,7 @@ use apex_trader::domain::price::Price;
 use apex_trader::domain::price_range::PriceRange;
 use apex_trader::domain::quantity::Quantity;
 use apex_trader::errors::PriceError;
+use apex_trader::errors::QuantityError;
 use rust_decimal::Decimal;
 
 /// Precio es un tipo puro de dominio: acepta valores finitos y no negativos.
@@ -58,7 +59,7 @@ fn quantity_rejects_zero() {
     assert!(result.is_err());
     assert!(matches!(
         result.unwrap_err(),
-        PriceError::NonPositiveQuantity { .. }
+        QuantityError::NonPositiveQuantity { .. }
     ));
 }
 
