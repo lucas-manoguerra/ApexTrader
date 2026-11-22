@@ -49,7 +49,9 @@ mostrar estado de carga en la UI.
   de un `MarketDataProvider`, las convierte a `domain::Candle` y las devuelve
   ordenadas, listas para `ChartState::add_candles`.
 - T6: Pruebas de propiedades para ordenamiento, dedup y validación de
-  MarketCandle. Route: inline. Status: pending.
+  MarketCandle. Route: inline. Status: done. Commit: (pendiente).
+  `tests/market_proptest.rs` con 4 pruebas de propiedades (is_valid,
+  to_domain_candle, ordenamiento, dedup de timestamps).
 - T7: Verificación final: cargo test --workspace, clippy -D warnings, cargo
   fmt, verify_architecture. Route: inline. Status: pending.
 
