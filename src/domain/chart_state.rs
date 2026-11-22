@@ -106,8 +106,8 @@ mod tests {
     fn add_candles_stores_all() {
         let mut state = ChartState::new();
         let candles = [
-            Candle::new(100.0, 105.0, 99.0, 103.0).unwrap(),
-            Candle::new(103.0, 108.0, 102.0, 106.0).unwrap(),
+            Candle::new(100.0, 105.0, 99.0, 103.0, 1000.0).unwrap(),
+            Candle::new(103.0, 108.0, 102.0, 106.0, 1200.0).unwrap(),
         ];
 
         assert!(state.add_candles(&candles).is_ok());

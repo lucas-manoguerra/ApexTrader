@@ -31,7 +31,7 @@ pub struct MarketCandle {
 impl MarketCandle {
     /// Convierte a `domain::Candle` (solo OHLC, sin metadatos).
     pub fn to_domain_candle(&self) -> Result<Candle, MarketError> {
-        Candle::new(self.open, self.high, self.low, self.close)
+        Candle::new(self.open, self.high, self.low, self.close, self.volume)
             .map_err(|e| MarketError::InvalidResponse(format!("vela inválida: {e}")))
     }
 

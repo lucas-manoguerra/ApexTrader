@@ -21,6 +21,9 @@ pub enum CandleError {
         "El precio de cierre (close) está fuera del rango [low, high]: close={close}, low={low}, high={high}"
     )]
     InvalidClose { close: f64, low: f64, high: f64 },
+
+    #[error("El volumen es inválido: volume={volume} (debe ser finito y >= 0.0)")]
+    InvalidVolume { volume: f64 },
 }
 
 /// Volcado de una vela para mensajes de error (sin campos privados).
@@ -30,4 +33,5 @@ pub struct CandleDump {
     pub high: f64,
     pub low: f64,
     pub close: f64,
+    pub volume: f64,
 }

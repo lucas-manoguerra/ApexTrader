@@ -1,7 +1,7 @@
 use crate::errors::candle::CandleDump;
 use crate::errors::candle::CandleError;
 
-/// Una vela japonesa con los cuatro precios OHLC.
+/// Una vela japonesa con los cuatro precios OHLC y volumen.
 ///
 /// `Candle` es un tipo de dominio: representa un dato de mercado.
 /// No sabe nada de dibujo, ventanas ni GPU.
@@ -13,6 +13,7 @@ use crate::errors::candle::CandleError;
 /// - `low <= high`.
 /// - `low <= open <= high`.
 /// - `low <= close <= high`.
+/// - `volume` debe ser finito y `>= 0.0`.
 ///
 /// Así es imposible crear una vela financieramente inválida desde fuera
 /// del módulo.
@@ -22,6 +23,7 @@ pub struct Candle {
     high: f64,
     low: f64,
     close: f64,
+    volume: f64,
 }
 
 impl Candle {
@@ -33,7 +35,14 @@ impl Candle {
     /// Devuelve `CandleError::InvalidLowHigh` si `low > high`.
     /// Devuelve `CandleError::InvalidOpen` si `open` está fuera de `[low, high]`.
     /// Devuelve `CandleError::InvalidClose` si `close` está fuera de `[low, high]`.
-    pub fn new(open: f64, high: f64, low: f64, close: f64) -> Result<Self, CandleError> {
+    /// Devuelve `CandleError::InvalidVolume` si el volumen es negativo o no finito.
+    pub fn new(
+        open: f64,
+        high: f64,
+        low: f64,
+        close: f64,
+        volume: f64,
+    ) -> Result<Self, CandleError> {
         // Validar que todos los precios sean finitos
         if !open.is_finite() || !high.is_finite() || !low.is_finite() || !close.is_finite() {
             return Err(CandleError::NonFinitePrice(CandleDump {
@@ -41,7 +50,13 @@ impl Candle {
                 high,
                 low,
                 close,
+                volume,
             }));
+        }
+
+        // Validar que el volumen sea finito y no negativo
+        if !volume.is_finite() || volume < 0.0 {
+            return Err(CandleError::InvalidVolume { volume });
         }
 
         // Validar que low <= high
@@ -64,6 +79,7 @@ impl Candle {
             high,
             low,
             close,
+            volume,
         })
     }
 
@@ -86,14 +102,19 @@ impl Candle {
     pub fn close(self) -> f64 {
         self.close
     }
+
+    /// Devuelve el volumen negociado en el período.
+    pub fn volume(self) -> f64 {
+        self.volume
+    }
 }
 
 impl std::fmt::Display for Candle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Candle {{ open={:.2}, high={:.2}, low={:.2}, close={:.2} }}",
-            self.open, self.high, self.low, self.close
+            "Candle {{ open={:.2}, high={:.2}, low={:.2}, close={:.2}, volume={:.2} }}",
+            self.open, self.high, self.low, self.close, self.volume
         )
     }
 }
