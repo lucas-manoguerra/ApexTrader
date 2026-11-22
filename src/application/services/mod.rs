@@ -4,13 +4,35 @@
 //! los datos de prueba de ejemplo. Aquí vive la `ApexTraderApp` que antes
 //! estaba en `main.rs`.
 
+use crate::application::commands::load_candles::LoadCandles;
 use crate::application::events::{self, InputHandler};
 use crate::domain::candle::Candle;
 use crate::domain::chart_state::ChartState;
+use crate::domain::price::Price;
+use crate::domain::price_range::PriceRange;
 use crate::logging::init as init_logging;
+use crate::market::mock::MockMarketDataProvider;
+use crate::market::provider::MarketDataProvider;
+use crate::market::symbol::Symbol;
 use crate::renderer::{ChartRenderer, create_renderer};
 use eframe::egui;
+use rust_decimal::Decimal;
+use rust_decimal::prelude::FromPrimitive;
+use std::str::FromStr;
 use tracing;
+
+/// Estado de carga de datos de mercado.
+#[derive(Debug, Clone, PartialEq)]
+enum LoadState {
+    /// Todavía no se inició la carga.
+    Idle,
+    /// Los datos se están cargando.
+    Loading,
+    /// Se cargaron `count` velas correctamente.
+    Loaded { count: usize },
+    /// La carga falló con el mensaje dado.
+    Error(String),
+}
 
 /// Aplicación de escritorio con egui.
 ///
@@ -22,6 +44,9 @@ use tracing;
 struct ApexTraderApp {
     chart: ChartState,
     renderer: Box<dyn ChartRenderer>,
+    load_state: LoadState,
+    /// Símbolo ingresado por el usuario para cargar datos de mercado.
+    symbol_input: String,
 }
 
 impl eframe::App for ApexTraderApp {
@@ -36,6 +61,36 @@ impl eframe::App for ApexTraderApp {
 
             // Mostrar qué renderer está activo
             ui.label(format!("Renderer: {}", self.renderer.name()));
+
+            ui.separator();
+
+            // Controles para cambiar el símbolo y recargar datos de mercado.
+            ui.horizontal(|ui| {
+                ui.label("Símbolo:");
+                let response = ui.text_edit_singleline(&mut self.symbol_input);
+                let recargar = response.lost_focus()
+                    && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                    || ui.button("Recargar").clicked();
+                if recargar {
+                    match Symbol::from_str(&self.symbol_input) {
+                        Ok(symbol) => {
+                            let provider = MockMarketDataProvider::new(50000.0);
+                            let to_ms = 0;
+                            let from_ms = -(200i64 * 60_000);
+                            self.load_state = load_symbol_into_chart(
+                                &mut self.chart,
+                                &provider,
+                                symbol,
+                                from_ms,
+                                to_ms,
+                            );
+                        }
+                        Err(e) => {
+                            self.load_state = LoadState::Error(format!("Símbolo inválido: {e}"));
+                        }
+                    }
+                }
+            });
 
             ui.separator();
 
@@ -85,6 +140,9 @@ impl eframe::App for ApexTraderApp {
                 viewport.offset_y()
             ));
 
+            // Mostrar estado de carga de datos de mercado.
+            ui.label(format!("Carga de mercado: {:?}", self.load_state));
+
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
                 ui.label(format!("Velas: {}", candles.len()));
                 ui.label("Scroll: zoom | Arrastre: pan");
@@ -115,35 +173,92 @@ pub fn run() -> eframe::Result {
             configure_fonts(&cc.egui_ctx);
 
             let mut chart = ChartState::new();
-            let mut price = 100.0;
 
-            for i in 0..20 {
-                let open = price;
-                let change = (i as f64 * 0.5).sin() * 3.0;
+            let provider = MockMarketDataProvider::new(50000.0);
+            let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
+            // 200 velas de 1 minuto, terminando en el momento actual.
+            let to_ms = 0;
+            let from_ms = -(200i64 * 60_000);
 
-                // high debe ser >= max(open, close), low debe ser <= min(open, close)
-                let close = open + change * 0.7;
-                let high = open.max(close) + change.abs() * 0.3;
-                let low = open.min(close) - change.abs() * 0.3;
-
-                if let Ok(candle) = Candle::new(open, high, low, close) {
-                    if let Err(e) = chart.add_candle(candle) {
-                        tracing::error!("No se pudo agregar vela {}: {}", i, e);
-                    }
-                } else {
-                    tracing::error!("No se pudo crear vela {}: precios inválidos", i);
-                }
-                price = close; // la siguiente vela abre donde cerró la anterior
-            }
-
-            tracing::info!("ChartState inicializado con {} velas", chart.len());
+            let load_state = load_symbol_into_chart(&mut chart, &provider, symbol, from_ms, to_ms);
 
             // Crear renderer (intenta wgpu, cae a glow si falla)
             let renderer = create_renderer();
 
-            Ok(Box::new(ApexTraderApp { chart, renderer }))
+            Ok(Box::new(ApexTraderApp {
+                chart,
+                renderer,
+                load_state,
+                symbol_input: "BTC/USDT".to_string(),
+            }))
         }),
     )
+}
+
+/// Carga velas de un símbolo desde un proveedor de mercado en el `ChartState`.
+///
+/// Limpia las velas previas, obtiene las nuevas del proveedor, las agrega al
+/// chart y aplica `auto_scale` para que quepan en pantalla.
+/// En caso de error, hace fallback a velas sintéticas y retorna
+/// `LoadState::Error`.
+fn load_symbol_into_chart(
+    chart: &mut ChartState,
+    provider: &dyn MarketDataProvider,
+    symbol: Symbol,
+    from_ms: i64,
+    to_ms: i64,
+) -> LoadState {
+    match LoadCandles::execute(provider, symbol, from_ms, to_ms) {
+        Ok(result) => {
+            chart.clear();
+            for c in &result.candles {
+                if let Err(e) = chart.add_candle(*c) {
+                    tracing::error!("No se pudo agregar vela: {}", e);
+                }
+            }
+            tracing::info!(
+                "ChartState inicializado con {} velas del mercado ({})",
+                chart.len(),
+                result.symbol
+            );
+
+            // Autoescala para que todas las velas quepan en pantalla.
+            if let Some(range) = price_range_from_candles(chart) {
+                let candle_count = chart.len();
+                let screen_width = 1920.0;
+                let screen_height = 1080.0;
+                chart
+                    .viewport_mut()
+                    .auto_scale(range, candle_count, screen_width, screen_height);
+            }
+
+            LoadState::Loaded { count: chart.len() }
+        }
+        Err(e) => {
+            tracing::error!("No se pudieron cargar datos de mercado: {e}");
+            // Fallback a velas sintéticas si falla el proveedor.
+            chart.clear();
+            let mut price = 100.0;
+            for i in 0..20 {
+                let open = price;
+                let change = (i as f64 * 0.5).sin() * 3.0;
+                let close = open + change * 0.7;
+                let high = open.max(close) + change.abs() * 0.3;
+                let low = open.min(close) - change.abs() * 0.3;
+                if let Ok(candle) = Candle::new(open, high, low, close)
+                    && let Err(e) = chart.add_candle(candle)
+                {
+                    tracing::error!("No se pudo agregar vela {}: {}", i, e);
+                }
+                price = close;
+            }
+            tracing::info!(
+                "ChartState inicializado con {} velas (fallback)",
+                chart.len()
+            );
+            LoadState::Error(e.to_string())
+        }
+    }
 }
 
 /// Intenta cargar una fuente del sistema Windows para que los caracteres
@@ -183,4 +298,29 @@ fn configure_fonts(ctx: &egui::Context) {
     }
 
     ctx.set_fonts(font_defs);
+}
+
+/// Calcula el `PriceRange` (mínimo/máximo) de las velas del chart.
+///
+/// Devuelve `None` si no hay velas.
+fn price_range_from_candles(chart: &ChartState) -> Option<PriceRange> {
+    let candles = chart.candles();
+    if candles.is_empty() {
+        return None;
+    }
+
+    let mut min_price = f64::INFINITY;
+    let mut max_price = f64::NEG_INFINITY;
+
+    for c in candles {
+        min_price = min_price.min(c.low());
+        max_price = max_price.max(c.high());
+    }
+
+    let min = Price::new(Decimal::from_f64(min_price).expect("precio mínimo convertible"))
+        .expect("precio mínimo válido");
+    let max = Price::new(Decimal::from_f64(max_price).expect("precio máximo convertible"))
+        .expect("precio máximo válido");
+
+    PriceRange::new(min, max).ok()
 }

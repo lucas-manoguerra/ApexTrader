@@ -1,6 +1,13 @@
+use apex_trader::application::commands::load_candles::LoadCandles;
+use apex_trader::domain::chart_state::ChartState;
+use apex_trader::domain::price::Price;
+use apex_trader::domain::price_range::PriceRange;
 use apex_trader::market::candle::MarketCandle;
+use apex_trader::market::mock::MockMarketDataProvider;
 use apex_trader::market::symbol::Symbol;
 use proptest::prelude::*;
+use rust_decimal::Decimal;
+use rust_decimal::prelude::FromPrimitive;
 use std::str::FromStr;
 
 // Estrategia que genera un Symbol válido (BASE/QUOTE, alfanumérico).
@@ -111,4 +118,77 @@ proptest! {
         let deduped_count = times.len();
         assert!(deduped_count <= original_count);
     }
+}
+
+// S1 + S4: carga end-to-end — proveedor mock → LoadCandles → ChartState →
+// auto_scale. Verifica que las velas del mercado llegan al chart y que el
+// viewport se configura para mostrarlas.
+#[test]
+fn test_carga_end_to_end_btc_usdt() {
+    let provider = MockMarketDataProvider::new(50000.0);
+    let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
+
+    let result =
+        LoadCandles::execute(&provider, symbol, 0, 300_000).expect("velas BTC/USDT cargadas");
+
+    assert!(!result.candles.is_empty());
+    assert_eq!(result.symbol.as_string(), "BTC/USDT");
+
+    let mut chart = ChartState::new();
+    chart
+        .add_candles(&result.candles)
+        .expect("velas agregadas al chart");
+    assert!(!chart.is_empty(), "el chart debe tener velas");
+
+    // Calcular PriceRange de las velas cargadas y aplicar auto_scale.
+    let candles = chart.candles();
+    let mut min_price = f64::INFINITY;
+    let mut max_price = f64::NEG_INFINITY;
+    for c in candles {
+        min_price = min_price.min(c.low());
+        max_price = max_price.max(c.high());
+    }
+    let min = Price::new(Decimal::from_f64(min_price).unwrap()).unwrap();
+    let max = Price::new(Decimal::from_f64(max_price).unwrap()).unwrap();
+    let range = PriceRange::new(min, max).expect("rango de precios válido");
+
+    let candle_count = chart.len();
+    chart
+        .viewport_mut()
+        .auto_scale(range, candle_count, 1920.0, 1080.0);
+
+    assert!(chart.viewport().zoom_y() > 0.0, "zoom_y debe ser positivo");
+    assert!(
+        chart.viewport().zoom_y().is_finite(),
+        "zoom_y debe ser finito"
+    );
+}
+
+// S2 + S3: cambiar de símbolo no acumula velas del anterior (clear + recarga).
+#[test]
+fn test_cambiar_simbolo_no_acumula_velas() {
+    let provider = MockMarketDataProvider::new(50000.0);
+    let symbol1 = Symbol::from_str("BTC/USDT").expect("símbolo válido");
+    let symbol2 = Symbol::from_str("ETH/USDT").expect("símbolo válido");
+
+    // Cargar símbolo 1.
+    let result1 = LoadCandles::execute(&provider, symbol1, 0, 60_000).expect("velas BTC cargadas");
+    let count1 = result1.candles.len();
+    assert!(count1 > 0);
+
+    let mut chart = ChartState::new();
+    chart.add_candles(&result1.candles).expect("BTC agregadas");
+    assert_eq!(chart.len(), count1);
+
+    // Recargar símbolo 2: limpiar y agregar.
+    chart.clear();
+    let result2 = LoadCandles::execute(&provider, symbol2, 0, 60_000).expect("velas ETH cargadas");
+    chart.add_candles(&result2.candles).expect("ETH agregadas");
+
+    assert_eq!(chart.len(), result2.candles.len());
+    assert_ne!(
+        chart.len(),
+        count1 + result2.candles.len(),
+        "las velas del símbolo anterior no deben acumularse"
+    );
 }
