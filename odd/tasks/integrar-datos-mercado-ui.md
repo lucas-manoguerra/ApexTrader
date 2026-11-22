@@ -31,11 +31,14 @@ auto_scale para que todas las velas quepan con margen 5%.
 
 - T1: Reemplazar las velas sintéticas hardcodeadas en `services/mod.rs` por una
   carga a través de `LoadCandles` + `MockMarketDataProvider` al iniciar.
-  Route: inline. Status: done. Commit: (pendiente).
+  Route: inline. Status: done. Commit: 0076717.
   `services/mod.rs` ahora crea un `MockMarketDataProvider`, llama
   `LoadCandles::execute`, agrega las velas a `ChartState` y aplica
   `auto_scale`. Incluye fallback a velas sintéticas si falla el proveedor.
-- T2: Mostrar estado de carga / error en la UI (S3). Route: inline. Status: pending.
+- T2: Mostrar estado de carga / error en la UI (S3). Route: inline. Status: done. Commit: (pendiente).
+  `ApexTraderApp` tiene un campo `load_state: LoadState` (Idle/Loading/Loaded/Error).
+  `services/mod.rs` lo establece al cargar (`Loaded` con count o `Error` con mensaje).
+  La UI muestra `Carga de mercado: {:?}` con el estado actual.
 - T3: Permitir cambiar el símbolo desde la UI y recargar (S2). Route: inline.
   Status: pending.
 - T4: Llamar `auto_scale` tras cargar velas para que quepan en pantalla (S5).
@@ -52,3 +55,6 @@ feature/conectar-datos-mercado mergeada vía PR #3).
 L2: T1 completado y commiteado. services/mod.rs ahora carga velas desde
 MockMarketDataProvider a través de LoadCandles, las agrega a ChartState y
 aplica auto_scale. Incluye fallback a velas sintéticas si falla el proveedor.
+L3: T2 completado y commiteado. ApexTraderApp tiene campo load_state: LoadState
+(Idle/Loading/Loaded/Error). La UI muestra "Carga de mercado: {:?}"
+con el estado actual. Fallback a velas sintéticas si falla el proveedor.

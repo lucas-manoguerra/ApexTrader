@@ -20,6 +20,19 @@ use rust_decimal::prelude::FromPrimitive;
 use std::str::FromStr;
 use tracing;
 
+/// Estado de carga de datos de mercado.
+#[derive(Debug, Clone, PartialEq)]
+enum LoadState {
+    /// Todavía no se inició la carga.
+    Idle,
+    /// Los datos se están cargando.
+    Loading,
+    /// Se cargaron `count` velas correctamente.
+    Loaded { count: usize },
+    /// La carga falló con el mensaje dado.
+    Error(String),
+}
+
 /// Aplicación de escritorio con egui.
 ///
 /// Solo coordina: crea el `ChartState` (dueño de los datos y el viewport),
@@ -30,6 +43,7 @@ use tracing;
 struct ApexTraderApp {
     chart: ChartState,
     renderer: Box<dyn ChartRenderer>,
+    load_state: LoadState,
 }
 
 impl eframe::App for ApexTraderApp {
@@ -93,6 +107,9 @@ impl eframe::App for ApexTraderApp {
                 viewport.offset_y()
             ));
 
+            // Mostrar estado de carga de datos de mercado.
+            ui.label(format!("Carga de mercado: {:?}", self.load_state));
+
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
                 ui.label(format!("Velas: {}", candles.len()));
                 ui.label("Scroll: zoom | Arrastre: pan");
@@ -130,7 +147,8 @@ pub fn run() -> eframe::Result {
             let to_ms = 0;
             let from_ms = -(200i64 * 60_000);
 
-            match LoadCandles::execute(&provider, symbol, from_ms, to_ms) {
+            // Estado de carga: comienza en Loading y se resuelve tras el match.
+            let load_state = match LoadCandles::execute(&provider, symbol, from_ms, to_ms) {
                 Ok(result) => {
                     for c in &result.candles {
                         if let Err(e) = chart.add_candle(*c) {
@@ -155,6 +173,8 @@ pub fn run() -> eframe::Result {
                             screen_height,
                         );
                     }
+
+                    LoadState::Loaded { count: chart.len() }
                 }
                 Err(e) => {
                     tracing::error!("No se pudieron cargar datos de mercado: {e}");
@@ -177,13 +197,18 @@ pub fn run() -> eframe::Result {
                         "ChartState inicializado con {} velas (fallback)",
                         chart.len()
                     );
+                    LoadState::Error(e.to_string())
                 }
-            }
+            };
 
             // Crear renderer (intenta wgpu, cae a glow si falla)
             let renderer = create_renderer();
 
-            Ok(Box::new(ApexTraderApp { chart, renderer }))
+            Ok(Box::new(ApexTraderApp {
+                chart,
+                renderer,
+                load_state,
+            }))
         }),
     )
 }
