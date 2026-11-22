@@ -4,12 +4,20 @@
 //! los datos de prueba de ejemplo. Aquí vive la `ApexTraderApp` que antes
 //! estaba en `main.rs`.
 
+use crate::application::commands::load_candles::LoadCandles;
 use crate::application::events::{self, InputHandler};
 use crate::domain::candle::Candle;
 use crate::domain::chart_state::ChartState;
+use crate::domain::price::Price;
+use crate::domain::price_range::PriceRange;
 use crate::logging::init as init_logging;
+use crate::market::mock::MockMarketDataProvider;
+use crate::market::symbol::Symbol;
 use crate::renderer::{ChartRenderer, create_renderer};
 use eframe::egui;
+use rust_decimal::Decimal;
+use rust_decimal::prelude::FromPrimitive;
+use std::str::FromStr;
 use tracing;
 
 /// Aplicación de escritorio con egui.
@@ -115,28 +123,62 @@ pub fn run() -> eframe::Result {
             configure_fonts(&cc.egui_ctx);
 
             let mut chart = ChartState::new();
-            let mut price = 100.0;
 
-            for i in 0..20 {
-                let open = price;
-                let change = (i as f64 * 0.5).sin() * 3.0;
+            let provider = MockMarketDataProvider::new(50000.0);
+            let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
+            // 200 velas de 1 minuto, terminando en el momento actual.
+            let to_ms = 0;
+            let from_ms = -(200i64 * 60_000);
 
-                // high debe ser >= max(open, close), low debe ser <= min(open, close)
-                let close = open + change * 0.7;
-                let high = open.max(close) + change.abs() * 0.3;
-                let low = open.min(close) - change.abs() * 0.3;
-
-                if let Ok(candle) = Candle::new(open, high, low, close) {
-                    if let Err(e) = chart.add_candle(candle) {
-                        tracing::error!("No se pudo agregar vela {}: {}", i, e);
+            match LoadCandles::execute(&provider, symbol, from_ms, to_ms) {
+                Ok(result) => {
+                    for c in &result.candles {
+                        if let Err(e) = chart.add_candle(*c) {
+                            tracing::error!("No se pudo agregar vela: {}", e);
+                        }
                     }
-                } else {
-                    tracing::error!("No se pudo crear vela {}: precios inválidos", i);
-                }
-                price = close; // la siguiente vela abre donde cerró la anterior
-            }
+                    tracing::info!(
+                        "ChartState inicializado con {} velas del mercado ({})",
+                        chart.len(),
+                        result.symbol
+                    );
 
-            tracing::info!("ChartState inicializado con {} velas", chart.len());
+                    // Autoescala para que todas las velas quepan en pantalla.
+                    if let Some(range) = price_range_from_candles(&chart) {
+                        let candle_count = chart.len();
+                        let screen_width = 1920.0;
+                        let screen_height = 1080.0;
+                        chart.viewport_mut().auto_scale(
+                            range,
+                            candle_count,
+                            screen_width,
+                            screen_height,
+                        );
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("No se pudieron cargar datos de mercado: {e}");
+                    // Fallback a velas sintéticas si falla el proveedor.
+                    let mut price = 100.0;
+                    for i in 0..20 {
+                        let open = price;
+                        let change = (i as f64 * 0.5).sin() * 3.0;
+                        let close = open + change * 0.7;
+                        let high = open.max(close) + change.abs() * 0.3;
+                        let low = open.min(close) - change.abs() * 0.3;
+                        if let Ok(candle) = Candle::new(open, high, low, close)
+                            && let Err(e) = chart.add_candle(candle)
+                        {
+                            tracing::error!("No se pudo agregar vela {}: {}", i, e);
+                        }
+                        price = close;
+                    }
+                    tracing::info!(
+                        "ChartState inicializado con {} velas (fallback)",
+                        chart.len()
+                    );
+                }
+            }
 
             // Crear renderer (intenta wgpu, cae a glow si falla)
             let renderer = create_renderer();
@@ -183,4 +225,29 @@ fn configure_fonts(ctx: &egui::Context) {
     }
 
     ctx.set_fonts(font_defs);
+}
+
+/// Calcula el `PriceRange` (mínimo/máximo) de las velas del chart.
+///
+/// Devuelve `None` si no hay velas.
+fn price_range_from_candles(chart: &ChartState) -> Option<PriceRange> {
+    let candles = chart.candles();
+    if candles.is_empty() {
+        return None;
+    }
+
+    let mut min_price = f64::INFINITY;
+    let mut max_price = f64::NEG_INFINITY;
+
+    for c in candles {
+        min_price = min_price.min(c.low());
+        max_price = max_price.max(c.high());
+    }
+
+    let min = Price::new(Decimal::from_f64(min_price).expect("precio mínimo convertible"))
+        .expect("precio mínimo válido");
+    let max = Price::new(Decimal::from_f64(max_price).expect("precio máximo convertible"))
+        .expect("precio máximo válido");
+
+    PriceRange::new(min, max).ok()
 }
