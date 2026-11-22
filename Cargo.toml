@@ -32,3 +32,11 @@ wgpu-types = "30"
 # Handle de ventana nativa para crear surface de wgpu
 raw-window-handle = "0.6"
 winit = "0.30.13"
+
+[[bench]]
+name = "chart_transform_benchmark"
+harness = false
+
+[dev-dependencies]
+# Pruebas de propiedades para el chart engine (zoom, pan, transformaciones, auto_scale).
+proptest = "1"

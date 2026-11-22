@@ -313,10 +313,7 @@ impl Viewport {
     /// Si alguno de los parámetros no es finito, o la altura no es positiva,
     /// no se modifica el estado.
     pub fn pan(&mut self, dx: f64, dy: f64, screen_height: f64) {
-        if !dx.is_finite()
-            || !dy.is_finite()
-            || !screen_height.is_finite()
-            || screen_height <= 0.0
+        if !dx.is_finite() || !dy.is_finite() || !screen_height.is_finite() || screen_height <= 0.0
         {
             return;
         }
@@ -550,9 +547,13 @@ impl Viewport {
     /// Una vela se considera visible si su centro cae dentro de
     /// `[0, screen_width]` según `data_x_to_screen`. El renderer debe
     /// iterar solo `first..=last` para lograr O(N_visible) por frame.
-    pub fn visible_range(&self, candle_count: usize, screen_width: f64) -> transforms::VisibleRange {
+    pub fn visible_range(
+        &self,
+        candle_count: usize,
+        screen_width: f64,
+    ) -> transforms::VisibleRange {
         if candle_count == 0 {
-            return transforms::VisibleRange { first: 0, last: 0 };
+            return transforms::VisibleRange { first: 1, last: 0 };
         }
 
         let spacing = self.candle_spacing();

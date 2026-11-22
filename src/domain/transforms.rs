@@ -41,12 +41,7 @@ pub fn candle_body_width(zoom_level: f64) -> f64 {
 }
 
 /// Convierte un índice de vela (coordenada de datos X) a píxel de pantalla X.
-pub fn data_x_to_screen(
-    index: usize,
-    screen_width: f64,
-    zoom_level: f64,
-    offset_x: f64,
-) -> f64 {
+pub fn data_x_to_screen(index: usize, screen_width: f64, zoom_level: f64, offset_x: f64) -> f64 {
     let spacing = candle_spacing(zoom_level);
     let center_x = screen_width / 2.0;
     center_x + (index as f64 * spacing) + offset_x * spacing
@@ -175,6 +170,7 @@ pub fn screen_to_chart_point(screen: ScreenPoint, left: f64, top: f64) -> ChartP
 
 /// Convierte un `ChartPoint` a un `DataPoint` (índice de vela y precio)
 /// usando el estado del viewport y las dimensiones del área de dibujo.
+#[allow(clippy::too_many_arguments)]
 pub fn chart_point_to_data_point(
     chart: ChartPoint,
     screen_width: f64,
@@ -223,4 +219,3 @@ impl VisibleRange {
         }
     }
 }
-

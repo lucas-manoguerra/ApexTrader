@@ -1,5 +1,5 @@
 use crate::domain::candle::Candle;
-use crate::domain::transforms::{self, screen_to_chart_point, ScreenPoint};
+use crate::domain::transforms::{self, ScreenPoint, screen_to_chart_point};
 use crate::domain::viewport::Viewport;
 use crate::errors::RendererError;
 use crate::renderer::ChartRenderer;
@@ -108,9 +108,8 @@ fn draw_time_axis(
     let candle_spacing = transforms::candle_spacing(viewport.zoom_level());
 
     let first_visible = (-viewport.offset_x()).max(0.0) as i32;
-    let last_visible = ((-viewport.offset_x())
-        + screen_width / candle_spacing)
-    .min(candles_count as f64 - 1.0) as i32;
+    let last_visible = ((-viewport.offset_x()) + screen_width / candle_spacing)
+        .min(candles_count as f64 - 1.0) as i32;
 
     if first_visible > last_visible {
         return;
@@ -217,9 +216,12 @@ impl ChartRenderer for GlowChartRenderer {
 
         // Dibujamos solo las velas visibles: O(N_visible) por frame en lugar
         // de O(N_total).
-        for i in visible.first..=visible.last {
-            let candle = &candles[i];
-
+        for (i, candle) in candles
+            .iter()
+            .enumerate()
+            .skip(visible.first)
+            .take(visible.last - visible.first + 1)
+        {
             // Posición X ajustada por zoom y pan del viewport.
             let screen_x = viewport.data_x_to_screen(i, drawing_width) + left as f64;
 
@@ -335,11 +337,8 @@ impl ChartRenderer for GlowChartRenderer {
                     viewport.offset_y(),
                     center_price,
                 );
-                let index_at_cursor = viewport.screen_x_to_data(
-                    chart_point.x,
-                    screen_width_drawing,
-                    candles.len(),
-                );
+                let index_at_cursor =
+                    viewport.screen_x_to_data(chart_point.x, screen_width_drawing, candles.len());
 
                 // Etiqueta de precio (lado izquierdo, alineada con la línea horizontal).
                 let price_label = format!("{:.2}", price_at_cursor);
