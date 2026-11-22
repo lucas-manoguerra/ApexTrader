@@ -361,24 +361,48 @@ impl Viewport {
             return;
         }
 
-        let min_price = price_range.min().value();
-        let max_price = price_range.max().value();
+        let min_price_f64 = price_range
+            .min()
+            .value()
+            .to_f64()
+            .expect("precio mínimo convertible");
+        let max_price_f64 = price_range
+            .max()
+            .value()
+            .to_f64()
+            .expect("precio máximo convertible");
+
+        // Rechazar rango degenerado (min == max) o no finito: no hay escala
+        // visual posible. Dejar el estado sin cambios.
+        let Some(price_range_value) =
+            transforms::validate_price_range(min_price_f64, max_price_f64)
+        else {
+            return;
+        };
 
         let margin = MARGIN_RATIO;
         let available_height = screen_height * (1.0 - 2.0 * margin);
         let available_width = screen_width * (1.0 - 2.0 * margin);
 
-        // Verticalmente: el rango de precios ocupa screen_height * zoom_level píxeles.
-        // Para que quepa en available_height: zoom_level <= available_height / screen_height.
+        // Verticalmente (eje Y - precio): el rango de precios ocupa
+        // screen_height * zoom_level píxeles (price_range se cancela en
+        // price_to_screen: price_range * pixels_per_unit = screen_height *
+        // zoom_level). Para que quepa en available_height:
+        // zoom_level <= available_height / screen_height = 1 - 2 * margin.
         let zoom_vertical_max = available_height / screen_height;
 
-        // Horizontalmente: ancho_total = candle_count * candle_spacing = candle_count *
-        // CANDLE_SPACING_BASE * zoom_level. Para que quepa en available_width:
-        // zoom_level <= available_width / (candle_count * CANDLE_SPACING_BASE)
+        // Horizontalmente (eje X - velas): ancho_total = candle_count *
+        // candle_spacing = candle_count * CANDLE_SPACING_BASE * zoom_level.
+        // Para que quepa en available_width:
+        // zoom_level <= available_width / (candle_count * CANDLE_SPACING_BASE).
+        // Se mantiene como referencia para el clamping horizontal, pero el
+        // zoom principal se determina por la escala de precio (eje Y).
         let zoom_horizontal_max =
             available_width / (candle_count as f64 * transforms::CANDLE_SPACING_BASE);
 
-        // Tomar el mínimo para asegurar que todo quepa en ambas dimensiones.
+        // El zoom se rige por la escala de precio (eje Y), clampeado al
+        // rango permitido y al máximo horizontal para evitar que una sola
+        // vela llene toda la pantalla.
         let max_allowed = zoom_vertical_max
             .min(zoom_horizontal_max)
             .min(self.max_zoom);
@@ -398,23 +422,28 @@ impl Viewport {
         // Entonces offset_x = -(N-1) / 2.
         self.offset_x = -(candle_count as f64 - 1.0) / 2.0;
 
-        // offset_y se deja en 0: el llamante pasará center_price como el punto medio
-        // del rango de precios al llamar price_to_screen, lo cual centrará verticalmente.
+        // Centrar verticalmente: dejar offset_y en 0 y que el llamante pase
+        // center_price = price_range.midpoint() al llamar price_to_screen.
+        // Con offset_y = 0 y center_price = midpoint, el precio medio del rango
+        // queda en el centro vertical del área de dibujo.
         self.offset_y = 0.0;
 
         self.zoom_level = new_zoom;
 
         tracing::debug!(
             "Autoescala: zoom={:.4}, offset_x={:.4}, offset_y={:.4}, \
-             rango_precio={:.2}..{:.2}, velas={}, pantalla={:.0}x{:.0}",
+             rango_precio={:.2}..{:.2}, centro_precio={:.2}, velas={}, \
+             pantalla={:.0}x{:.0}, rango_valor={:.2}",
             self.zoom_level,
             self.offset_x,
             self.offset_y,
-            min_price,
-            max_price,
+            min_price_f64,
+            max_price_f64,
+            price_range.midpoint().value(),
             candle_count,
             screen_width,
-            screen_height
+            screen_height,
+            price_range_value
         );
     }
 

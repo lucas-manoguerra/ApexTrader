@@ -99,8 +99,7 @@ impl ChartScales {
         let offset_x_px = self.x.offset * transforms::candle_spacing(self.x.zoom);
         let new_x_zoom = (self.x.zoom * x_zoom_factor).clamp(self.x.min_zoom, self.x.max_zoom);
         let x_zoom_ratio = new_x_zoom / self.x.zoom;
-        let new_offset_x_px =
-            center_x_px + (offset_x_px - center_x_px) * x_zoom_ratio;
+        let new_offset_x_px = center_x_px + (offset_x_px - center_x_px) * x_zoom_ratio;
         self.x.offset = new_offset_x_px / transforms::candle_spacing(new_x_zoom);
         self.x.zoom = new_x_zoom;
 
@@ -115,8 +114,7 @@ impl ChartScales {
         let offset_y_px = self.y.offset * screen_height / self.y.zoom;
         let new_y_zoom = (self.y.zoom * y_zoom_factor).clamp(self.y.min_zoom, self.y.max_zoom);
         let y_zoom_ratio = new_y_zoom / self.y.zoom;
-        let new_offset_y_px =
-            center_y_px + (offset_y_px - center_y_px) * y_zoom_ratio;
+        let new_offset_y_px = center_y_px + (offset_y_px - center_y_px) * y_zoom_ratio;
         self.y.offset = new_offset_y_px * new_y_zoom / screen_height;
         self.y.zoom = new_y_zoom;
     }

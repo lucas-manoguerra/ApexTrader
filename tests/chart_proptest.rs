@@ -45,6 +45,49 @@ proptest! {
     }
 }
 
+// S2: zoom anclado al cursor — hacer zoom in y luego zoom out en el mismo
+// punto debe dejar el punto bajo el cursor fijo en pantalla (misma vela).
+//
+// Nota: el zoom es multiplicativo (factor 1 ± zoom_step), así que
+// (1+s)·(1-s) = 1 - s² ≠ 1 en punto flotante y el estado no vuelve bit-a-bit
+// idéntico. No exigimos restauración exacta de offsets (sería imposible);
+// exigimos lo que realmente pide S2: el índice de vela bajo el cursor no se
+// mueve. El error acumulado es sub-píxel, muy inferior al espaciamiento entre
+// velas, así que el índice entero recuperado es estable.
+proptest! {
+    #[test]
+    fn prop_zoom_in_out_keeps_cursor_vela_fija(
+        zoom in 0.1f64..5.0f64,
+        center_x in 0.0f64..1.0f64,
+        center_y in 0.0f64..1.0f64,
+    ) {
+        let mut viewport = Viewport::new();
+        viewport.set_zoom_level(zoom);
+
+        let screen_width = 1920.0f64;
+        let screen_height = 1080.0f64;
+        let candle_count = 100usize;
+
+        let cursor_px = center_x * screen_width;
+
+        // Índice de vela bajo el cursor antes de cualquier zoom.
+        let before = viewport.screen_x_to_data(cursor_px, screen_width, candle_count);
+
+        // Zoom in alrededor del cursor.
+        viewport.zoom_at(1.0, center_x, center_y, screen_width, screen_height);
+        // Zoom out en el mismo punto.
+        viewport.zoom_at(-1.0, center_x, center_y, screen_width, screen_height);
+
+        // El cursor debe seguir apuntando a la misma vela.
+        let after = viewport.screen_x_to_data(cursor_px, screen_width, candle_count);
+        assert_eq!(
+            after, before,
+            "el cursor se movió de la vela {} a {} tras zoom in/out (center_x={}, zoom={})",
+            before, after, center_x, zoom
+        );
+    }
+}
+
 // S8: auto_scale no debe modificar el estado cuando recibe dimensiones
 // cero, negativas o no finitas.
 proptest! {

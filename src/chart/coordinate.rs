@@ -162,6 +162,7 @@ pub struct CoordinateConverter {
 }
 
 impl CoordinateConverter {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         screen_width: f64,
         screen_height: f64,
@@ -226,11 +227,7 @@ impl CoordinateConverter {
 
     /// Convierte un `ScreenPoint` (rect completo) a `DataPoint` (índice y precio).
     pub fn screen_to_data_point(&self, screen: ScreenPoint) -> DataPoint {
-        let chart = crate::chart::coordinate::screen_to_chart_point(
-            screen,
-            0.0,
-            0.0,
-        );
+        let chart = crate::chart::coordinate::screen_to_chart_point(screen, 0.0, 0.0);
         chart_point_to_data_point(
             chart,
             self.screen_width,
@@ -251,9 +248,8 @@ mod tests {
 
     #[test]
     fn round_trip_x_is_identity() {
-        let converter = CoordinateConverter::new(
-            1920.0, 1080.0, 2.0, 10.0, 5.0, 1000.0, 50000.0, 100,
-        );
+        let converter =
+            CoordinateConverter::new(1920.0, 1080.0, 2.0, 10.0, 5.0, 1000.0, 50000.0, 100);
         for i in 0..100usize {
             let sx = converter.data_x_to_screen(i);
             let recovered = converter.screen_x_to_data(sx);
@@ -263,9 +259,8 @@ mod tests {
 
     #[test]
     fn price_to_screen_and_back_is_identity() {
-        let converter = CoordinateConverter::new(
-            1920.0, 1080.0, 2.0, 10.0, 5.0, 1000.0, 50000.0, 100,
-        );
+        let converter =
+            CoordinateConverter::new(1920.0, 1080.0, 2.0, 10.0, 5.0, 1000.0, 50000.0, 100);
         for price in [49000.0, 50000.0, 51000.0] {
             let sy = converter.price_to_screen(price);
             let recovered = converter.screen_y_to_price(sy);
