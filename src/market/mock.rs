@@ -41,9 +41,9 @@ impl MarketDataProvider for MockMarketDataProvider {
         to_ms: i64,
     ) -> Result<Vec<MarketCandle>, MarketError> {
         if from_ms > to_ms {
-            return Err(MarketError::InvalidResponse {
-                reason: format!("from_ms ({from_ms}) > to_ms ({to_ms})"),
-            });
+            return Err(MarketError::InvalidResponse(format!(
+                "from_ms ({from_ms}) > to_ms ({to_ms})"
+            )));
         }
 
         let mut candles = Vec::new();
@@ -59,7 +59,7 @@ impl MarketDataProvider for MockMarketDataProvider {
             let volume = 10.0 + (i as f64 * 0.5).sin().abs() * 5.0;
 
             let candle = MarketCandle {
-                symbol,
+                symbol: symbol.clone(),
                 open_time_ms: t,
                 open,
                 high,
@@ -84,6 +84,7 @@ impl MarketDataProvider for MockMarketDataProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn mock_generates_ordered_candles() {
