@@ -7,12 +7,12 @@
 
 use crate::domain::transforms;
 
-/// Configuración de escala para un eje.
+/// Configuración de escala para el eje X (tiempo / índice de vela).
 #[derive(Debug, Clone, Copy)]
-pub struct AxisScale {
+pub struct TimeScale {
     /// Nivel de zoom del eje. 1.0 = escala base.
     pub zoom: f64,
-    /// Desplazamiento en unidades de datos del eje.
+    /// Desplazamiento en unidades de datos del eje (índices de vela).
     pub offset: f64,
     /// Nivel mínimo de zoom permitido.
     pub min_zoom: f64,
@@ -20,7 +20,7 @@ pub struct AxisScale {
     pub max_zoom: f64,
 }
 
-impl Default for AxisScale {
+impl Default for TimeScale {
     fn default() -> Self {
         Self {
             zoom: 1.0,
@@ -31,13 +31,37 @@ impl Default for AxisScale {
     }
 }
 
-/// Estado de escalas del chart: eje X y eje Y independientes.
+/// Configuración de escala para el eje Y (precio).
+#[derive(Debug, Clone, Copy)]
+pub struct PriceScale {
+    /// Nivel de zoom del eje. 1.0 = escala base.
+    pub zoom: f64,
+    /// Desplazamiento en unidades de datos del eje (precio).
+    pub offset: f64,
+    /// Nivel mínimo de zoom permitido.
+    pub min_zoom: f64,
+    /// Nivel máximo de zoom permitido.
+    pub max_zoom: f64,
+}
+
+impl Default for PriceScale {
+    fn default() -> Self {
+        Self {
+            zoom: 1.0,
+            offset: 0.0,
+            min_zoom: 0.1,
+            max_zoom: 10.0,
+        }
+    }
+}
+
+/// Estado de escalas del chart: eje X (tiempo) y eje Y (precio) independientes.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ChartScales {
     /// Escala del eje X (tiempo / índice de vela).
-    pub x: AxisScale,
+    pub x: TimeScale,
     /// Escala del eje Y (precio).
-    pub y: AxisScale,
+    pub y: PriceScale,
 }
 
 impl ChartScales {
@@ -94,7 +118,7 @@ impl ChartScales {
             return;
         }
 
-        // Eje X: ajusta offset para mantener center_x fijo.
+        // Eje X (tiempo): ajusta offset para mantener center_x fijo.
         let center_x_px = center_x * screen_width;
         let offset_x_px = self.x.offset * transforms::candle_spacing(self.x.zoom);
         let new_x_zoom = (self.x.zoom * x_zoom_factor).clamp(self.x.min_zoom, self.x.max_zoom);
@@ -103,7 +127,7 @@ impl ChartScales {
         self.x.offset = new_offset_x_px / transforms::candle_spacing(new_x_zoom);
         self.x.zoom = new_x_zoom;
 
-        // Eje Y: ajusta offset para mantener center_y fijo.
+        // Eje Y (precio): ajusta offset para mantener center_y fijo.
         let center_y_px = center_y * screen_height;
         // offset_y está en unidades de precio; para convertir a píxeles usamos
         // la relación del eje Y (screen_height / price_range * zoom).

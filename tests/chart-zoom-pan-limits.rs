@@ -4,7 +4,7 @@ use apex_trader::domain::viewport::Viewport;
 #[test]
 fn pan_limited_to_candle_range_left() {
     let mut viewport = Viewport::new();
-    viewport.set_zoom_level(1.0);
+    viewport.set_zoom(1.0, 1.0);
 
     let candle_count = 50;
     let screen_width = 1920.0;
@@ -28,7 +28,7 @@ fn pan_limited_to_candle_range_left() {
 #[test]
 fn pan_limited_to_candle_range_right() {
     let mut viewport = Viewport::new();
-    viewport.set_zoom_level(1.0);
+    viewport.set_zoom(1.0, 1.0);
 
     let candle_count = 50;
     let screen_width = 1920.0;
@@ -52,7 +52,7 @@ fn pan_limited_to_candle_range_right() {
 #[test]
 fn zoom_max_limited() {
     let mut viewport = Viewport::new();
-    viewport.set_zoom_level(100.0); // Intentar zoom extremo
+    viewport.set_zoom(100.0, 100.0); // Intentar zoom extremo
 
     let candle_count = 50;
     let screen_width = 1920.0;
@@ -60,9 +60,9 @@ fn zoom_max_limited() {
     viewport.clamp_zoom_to_candles(candle_count, screen_width);
 
     assert!(
-        viewport.zoom_level() <= 5.0,
+        viewport.zoom_x() <= 5.0,
         "Zoom máximo no debe exceder 5.0: zoom={}",
-        viewport.zoom_level()
+        viewport.zoom_x()
     );
 }
 
@@ -70,7 +70,7 @@ fn zoom_max_limited() {
 #[test]
 fn zoom_min_limited() {
     let mut viewport = Viewport::new();
-    viewport.set_zoom_level(0.001); // Zoom extremadamente bajo
+    viewport.set_zoom(0.001, 0.001); // Zoom extremadamente bajo
 
     let candle_count = 50;
     let screen_width = 1920.0;
@@ -80,9 +80,9 @@ fn zoom_min_limited() {
     // Con screen_width=1920, min_zoom_by_candles = 40.0 / 1920.0 ≈ 0.0208
     // Pero también está limitado por min_zoom=0.1 del Viewport.
     assert!(
-        viewport.zoom_level() >= 0.1,
+        viewport.zoom_x() >= 0.1,
         "Zoom mínimo debe ser al menos min_zoom (0.1): zoom={}",
-        viewport.zoom_level()
+        viewport.zoom_x()
     );
 }
 
@@ -99,9 +99,9 @@ fn zoom_min_limited_by_screen_width() {
 
     // 40.0 / 50.0 = 0.8, así que zoom mínimo debe ser al menos 0.8
     assert!(
-        viewport.zoom_level() >= 0.8,
+        viewport.zoom_x() >= 0.8,
         "Con pantalla pequeña, zoom mínimo debe ser mayor: zoom={}",
-        viewport.zoom_level()
+        viewport.zoom_x()
     );
 }
 
@@ -117,9 +117,9 @@ fn zoom_max_limited_by_candle_spacing() {
     viewport.clamp_zoom_to_candles(candle_count, screen_width);
 
     assert!(
-        viewport.zoom_level() <= 5.0,
+        viewport.zoom_x() <= 5.0,
         "Zoom máximo por espaciamiento de velas no debe exceder 5.0: zoom={}",
-        viewport.zoom_level()
+        viewport.zoom_x()
     );
 }
 
@@ -127,7 +127,7 @@ fn zoom_max_limited_by_candle_spacing() {
 #[test]
 fn pan_single_candle_keeps_visible() {
     let mut viewport = Viewport::new();
-    viewport.set_zoom_level(1.0);
+    viewport.set_zoom(1.0, 1.0);
 
     let candle_count = 1;
     let screen_width = 1920.0;
@@ -159,12 +159,12 @@ fn set_zoom_level_respects_candle_limits() {
     let screen_width = 1920.0;
 
     // Intentar zoom muy alto.
-    viewport.set_zoom_level(50.0);
+    viewport.set_zoom(50.0, 50.0);
     viewport.clamp_zoom_to_candles(candle_count, screen_width);
 
     assert!(
-        viewport.zoom_level() <= 5.0,
+        viewport.zoom_x() <= 5.0,
         "set_zoom_level + clamp_zoom_to_candles no debe exceder 5.0: zoom={}",
-        viewport.zoom_level()
+        viewport.zoom_x()
     );
 }

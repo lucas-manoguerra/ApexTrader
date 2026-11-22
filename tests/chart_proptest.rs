@@ -10,10 +10,10 @@ proptest! {
     #[test]
     fn prop_zoom_remains_within_limits(zoom in 0.0f64..1e6f64) {
         let mut viewport = Viewport::new();
-        viewport.set_zoom_level(zoom);
-        assert!(viewport.zoom_level() >= viewport.min_zoom());
-        assert!(viewport.zoom_level() <= viewport.max_zoom());
-        assert!(viewport.zoom_level().is_finite());
+        viewport.set_zoom(zoom, zoom);
+        assert!(viewport.zoom_x() >= viewport.min_zoom());
+        assert!(viewport.zoom_x() <= viewport.max_zoom());
+        assert!(viewport.zoom_x().is_finite());
     }
 }
 
@@ -62,7 +62,7 @@ proptest! {
         center_y in 0.0f64..1.0f64,
     ) {
         let mut viewport = Viewport::new();
-        viewport.set_zoom_level(zoom);
+        viewport.set_zoom(zoom, zoom);
 
         let screen_width = 1920.0f64;
         let screen_height = 1080.0f64;
@@ -73,10 +73,10 @@ proptest! {
         // Índice de vela bajo el cursor antes de cualquier zoom.
         let before = viewport.screen_x_to_data(cursor_px, screen_width, candle_count);
 
-        // Zoom in alrededor del cursor.
-        viewport.zoom_at(1.0, center_x, center_y, screen_width, screen_height);
+        // Zoom in alrededor del cursor (eje Y = precio; eje X sin cambio).
+        viewport.zoom_at(0.0, 1.0, center_x, center_y, screen_width, screen_height);
         // Zoom out en el mismo punto.
-        viewport.zoom_at(-1.0, center_x, center_y, screen_width, screen_height);
+        viewport.zoom_at(0.0, -1.0, center_x, center_y, screen_width, screen_height);
 
         // El cursor debe seguir apuntando a la misma vela.
         let after = viewport.screen_x_to_data(cursor_px, screen_width, candle_count);
@@ -97,12 +97,12 @@ proptest! {
         height in prop_oneof![Just(0.0f64), Just(-100.0f64)],
     ) {
         let mut viewport = Viewport::new();
-        viewport.set_zoom_level(2.5);
+        viewport.set_zoom(2.5, 2.5);
         viewport.set_offset_x(10.0);
         viewport.set_offset_y(5.0);
 
         let before = (
-            viewport.zoom_level(),
+            viewport.zoom_x(),
             viewport.offset_x(),
             viewport.offset_y(),
         );
@@ -113,7 +113,7 @@ proptest! {
 
         viewport.auto_scale(range, 50, width, height);
 
-        assert_eq!(viewport.zoom_level(), before.0);
+        assert_eq!(viewport.zoom_x(), before.0);
         assert_eq!(viewport.offset_x(), before.1);
         assert_eq!(viewport.offset_y(), before.2);
     }

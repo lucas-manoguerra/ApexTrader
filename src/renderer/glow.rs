@@ -45,7 +45,7 @@ struct PriceAxisParams {
     center_price: f64,
     offset_y: f64,
     price_range: f64,
-    zoom_level: f64,
+    zoom_y: f64,
 }
 
 fn draw_price_axis(
@@ -59,7 +59,7 @@ fn draw_price_axis(
     let screen_height = bottom - top;
 
     // Rango de precios visible en el área de dibujo.
-    let half_range_visible = params.price_range / (2.0 * params.zoom_level);
+    let half_range_visible = params.price_range / (2.0 * params.zoom_y);
     let min_visible =
         params.center_price + params.offset_y * params.price_range - half_range_visible;
     let max_visible =
@@ -72,7 +72,7 @@ fn draw_price_axis(
 
     while tick <= max_visible {
         let relative_price = tick - params.center_price - params.offset_y * params.price_range;
-        let pixels_per_unit = screen_height / params.price_range * params.zoom_level;
+        let pixels_per_unit = screen_height / params.price_range * params.zoom_y;
         let y = bottom - relative_price * pixels_per_unit;
 
         // Formatear precio con 2 decimales fijos.
@@ -105,7 +105,7 @@ fn draw_time_axis(
     font_id: egui::FontId,
 ) {
     let screen_width = right - left;
-    let candle_spacing = transforms::candle_spacing(viewport.zoom_level());
+    let candle_spacing = transforms::candle_spacing(viewport.zoom_x());
 
     let first_visible = (-viewport.offset_x()).max(0.0) as i32;
     let last_visible = ((-viewport.offset_x()) + screen_width / candle_spacing)
@@ -154,10 +154,11 @@ impl ChartRenderer for GlowChartRenderer {
         }
 
         tracing::debug!(
-            "Renderizando {} velas con glow en rect {:?} (zoom={:.2})",
+            "Renderizando {} velas con glow en rect {:?} (zoom_x={:.2}, zoom_y={:.2})",
             candles.len(),
             rect,
-            viewport.zoom_level()
+            viewport.zoom_x(),
+            viewport.zoom_y()
         );
 
         if candles.is_empty() {
@@ -199,7 +200,7 @@ impl ChartRenderer for GlowChartRenderer {
         let visible = viewport.visible_range(candles.len(), drawing_width);
 
         // Espaciamiento entre velas ajustado por zoom.
-        let candle_width = transforms::candle_body_width(viewport.zoom_level()) as f32;
+        let candle_width = transforms::candle_body_width(viewport.zoom_x()) as f32;
         let candle_width = candle_width.clamp(4.0, 40.0);
         let _spacing = candle_width * 0.4;
 
@@ -209,7 +210,7 @@ impl ChartRenderer for GlowChartRenderer {
             let bottom = bottom as f64;
             let top = top as f64;
             let screen_height = bottom - top;
-            let pixels_per_unit = screen_height / price_range * viewport.zoom_level();
+            let pixels_per_unit = screen_height / price_range * viewport.zoom_y();
             let relative_price = price - center_price - viewport.offset_y() * price_range;
             (bottom - relative_price * pixels_per_unit) as f32
         };
@@ -273,7 +274,7 @@ impl ChartRenderer for GlowChartRenderer {
                 center_price,
                 offset_y: viewport.offset_y(),
                 price_range,
-                zoom_level: viewport.zoom_level(),
+                zoom_y: viewport.zoom_y(),
             },
             font_id.clone(),
         );
@@ -333,7 +334,7 @@ impl ChartRenderer for GlowChartRenderer {
                     chart_point.y,
                     screen_height_drawing,
                     price_range,
-                    viewport.zoom_level(),
+                    viewport.zoom_y(),
                     viewport.offset_y(),
                     center_price,
                 );

@@ -78,8 +78,9 @@ impl eframe::App for ApexTraderApp {
 
             // Mostrar estado del viewport (zoom/pan) para depuración.
             ui.label(format!(
-                "Zoom: {:.2}x | Offset: ({:.2}, {:.2})",
-                viewport.zoom_level(),
+                "Zoom X: {:.2}x | Zoom Y: {:.2}x | Offset: ({:.2}, {:.2})",
+                viewport.zoom_x(),
+                viewport.zoom_y(),
                 viewport.offset_x(),
                 viewport.offset_y()
             ));

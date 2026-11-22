@@ -63,7 +63,9 @@ pub fn handle_input(
         let screen_height = interaction_rect.height() as f64;
 
         let vp = chart.viewport_mut();
+        // El scroll vertical afecta al eje Y (precio); el eje X no se mueve.
         vp.zoom_at(
+            0.0,
             scroll_delta.y as f64,
             center_x as f64,
             center_y as f64,

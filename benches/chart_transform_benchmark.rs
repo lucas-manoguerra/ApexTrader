@@ -22,7 +22,7 @@ use rust_decimal::prelude::FromPrimitive;
 /// `renderer/` debe mantener o mejorar estos números.
 fn bench_viewport_transforms(iterations: usize) {
     let mut viewport = Viewport::new();
-    viewport.set_zoom_level(2.0);
+    viewport.set_zoom(2.0, 2.0);
     viewport.set_offset_x(50.0);
     viewport.set_offset_y(30.0);
 

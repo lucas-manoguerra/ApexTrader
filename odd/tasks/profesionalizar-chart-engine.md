@@ -37,12 +37,15 @@ coordenadas y límites del viewport.
   Nota: el renderer (`glow.rs`) pasa `drawing_width`/`screen_height_drawing`
   y resta márgenes vía `screen_to_chart_point`; `tests/crosshair.rs` (4 tests)
   pasa.
-- T5: Separar escalas X e Y independientes en `scale.rs` (S4). Route: inline.
-  Status: done. `ChartScales`/`AxisScale` con X e Y independientes ya existe
-  en `scale.rs` (commit T1). Limitación conocida: `Viewport` aplica un
-  `zoom_level` unificado en el camino común y no hay entrada de usuario para
-  escalar X/Y por separado, por lo que escalar Viewport hoy sería código
-  muerto; `ChartScales` es la base independiente lista para cablearse.
+- T5: Exponer zoom independiente X/Y en `Viewport` (S4). Route: inline.
+  Status: done. `Viewport` reemplaza `zoom_level` unificado por `zoom_x`/`zoom_y`
+  independientes; `zoom_at(delta_x, delta_y, ...)` acepta delta por eje;
+  `set_zoom`/`set_zoom_x`/`set_zoom_y` independientes; `auto_scale` ajusta solo
+  el eje Y (PriceScale / precio) y deja el eje X (TimeScale / velas) intacto.
+  `scale.rs` expone `TimeScale` (eje X) y `PriceScale` (eje Y) dentro de
+  `ChartScales`, reemplazando el `AxisScale` genérico. Consumidores actualizados:
+  `events/mod.rs` (scroll → eje Y), `services/mod.rs` (debug), `glow.rs` (zoom_x
+  para velas, zoom_y para precio y crosshair), tests y benchmark.
 - T6: Pruebas de propiedades adicionales para el engine (S6). Route: inline.
   Status: done. `chart_proptest.rs` (auto_scale, zoom, pan, round-trip,
   límites del viewport).
@@ -66,13 +69,15 @@ proptest prop_zoom_in_out_keeps_cursor_vela_fija valida que el índice de
 vela bajo el cursor no se mueve tras zoom in/out (tolerancia sub-píxel por
 punto flotante). cargo test --workspace, clippy -D warnings y cargo fmt
 todos verdes.
-L3: T4 (crosshair preciso con área útil), T5 (escalas independientes en
-scale.rs), T6 (pruebas de propiedades) y T7 (verificación final) marcados
-como completos: crosshair funciona con área útil (renderer pasa drawing_width
-/screen_height_drawing y screen_to_chart_point; tests/crosshair.rs pasa),
-ChartScales/AxisScale independientes existen en scale.rs (Viewport mantiene
-zoom_level unificado por falta de entrada de usuario para X/Y separados),
-tests de propiedades cubren S6, y cargo test --workspace / clippy -D warnings
-/ cargo fmt / tests/architecture.rs están todos verdes. Etapa 3 lista para
-entrega bajo `delivery strategy: ask-on-risk` (sin push ni PR hasta que el
-usuario lo decida).
+L3: T4 (crosshair preciso con área útil), T5 (zoom independiente X/Y en
+Viewport y TimeScale/PriceScale en scale.rs), T6 (pruebas de propiedades) y
+T7 (verificación final) completados y commiteados en 93cbe59 (T2+T3) más el
+commit de T5. Viewport reemplaza zoom_level unificado por zoom_x/zoom_y;
+zoom_at(delta_x, delta_y, ...) por eje; auto_scale solo ajusta el eje Y
+(PriceScale/precio) y deja el eje X (TimeScale/velas) intacto; scale.rs
+expone TimeScale y PriceScale dentro de ChartScales. Consumidores actualizados:
+events/mod.rs (scroll → eje Y), services/mod.rs (debug), glow.rs (zoom_x para
+velas, zoom_y para precio y crosshair), tests y benchmark. cargo test --workspace
+(66 tests), clippy -D warnings, cargo fmt --check y tests/architecture.rs todos
+verdes. Etapa 3 lista para entrega bajo `delivery strategy: ask-on-risk`
+(sin push ni PR hasta que el usuario lo decida).
