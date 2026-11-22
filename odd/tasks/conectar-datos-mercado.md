@@ -44,7 +44,7 @@ mostrar estado de carga en la UI.
   sin panic (S5). Route: inline. Status: done. Commit: 9c36532 (MarketError
   en src/market/errors.rs).
 - T5: Comandos de aplicación para cargar datos de un símbolo (S6). Route:
-  inline. Status: done. Commit: (pendiente).
+  inline. Status: done. Commit: 66b6114.
   `LoadCandles::execute(provider, symbol, from_ms, to_ms)` obtiene velas
   de un `MarketDataProvider`, las convierte a `domain::Candle` y las devuelve
   ordenadas, listas para `ChartState::add_candles`.
