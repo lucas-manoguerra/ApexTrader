@@ -12,4 +12,5 @@ pub mod chart;
 pub mod domain;
 pub mod errors;
 pub mod logging;
+pub mod market;
 pub mod renderer;
