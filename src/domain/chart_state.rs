@@ -43,6 +43,18 @@ impl ChartState {
         Ok(())
     }
 
+    /// Agrega varias velas al estado del gráfico.
+    ///
+    /// Las velas deben estar ordenadas y sin duplicados (responsabilidad del
+    /// llamante, típicamente la capa de aplicación que conecta con un
+    /// `MarketDataProvider`). Cada vela se agrega mediante `add_candle`.
+    pub fn add_candles(&mut self, candles: &[Candle]) -> Result<(), ChartError> {
+        for candle in candles {
+            self.add_candle(*candle)?;
+        }
+        Ok(())
+    }
+
     /// Devuelve un préstamo inmutable de las velas (`borrowing`).
     /// El llamante puede leerlas pero no modificarlas ni apropiarse de ellas.
     pub fn candles(&self) -> &[Candle] {
@@ -75,5 +87,25 @@ impl ChartState {
 impl Default for ChartState {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn add_candles_stores_all() {
+        let mut state = ChartState::new();
+        let candles = [
+            Candle::new(100.0, 105.0, 99.0, 103.0).unwrap(),
+            Candle::new(103.0, 108.0, 102.0, 106.0).unwrap(),
+        ];
+
+        assert!(state.add_candles(&candles).is_ok());
+        assert_eq!(state.len(), 2);
+        assert!(!state.is_empty());
+        assert_eq!(state.candles()[0].open(), 100.0);
+        assert_eq!(state.candles()[1].close(), 106.0);
     }
 }

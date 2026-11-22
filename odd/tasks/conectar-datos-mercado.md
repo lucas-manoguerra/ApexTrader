@@ -34,9 +34,12 @@ mostrar estado de carga en la UI.
 - T1: Crear módulo `market/` con `Symbol`, `MarketCandle` y trait
   `MarketDataProvider`. Route: inline. Status: done. Commit: 9c36532.
 - T2: Implementar proveedor mock/sintético (`MockMarketDataProvider`) para
-  pruebas sin red. Route: inline. Status: pending.
+  pruebas sin red. Route: inline. Status: done. Commit: 9c36532 (incluido en T1).
 - T3: Conectar `ChartState` con método para ingestar velas de un proveedor,
-  ordenadas y sin duplicados (S4). Route: inline. Status: pending.
+  ordenadas y sin duplicados (S4). Route: inline. Status: done. Commit: (pendiente).
+  `ChartState::add_candles(&[Candle])` agrega múltiples velas. El
+  ordenamiento/dedup por timestamp se hace en la capa de aplicación con
+  `MarketCandle` (evita dependencia circular domain → market).
 - T4: Errores tipados de mercado (red, auth, rate limit, símbolo inválido)
   sin panic (S5). Route: inline. Status: pending.
 - T5: Comandos de aplicación para cargar datos de un símbolo (S6). Route:
