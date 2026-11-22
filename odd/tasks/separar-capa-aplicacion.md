@@ -30,7 +30,7 @@ presentación de información de depuración.
 - T1: Crear módulo `application` con `mod.rs`, `commands/`, `events/`,
   `services/` y registrar en `lib.rs`. Route: inline. Status: pending. Commit: -
 - T2: Mover lógica de input (zoom con scroll, pan con arrastre, crosshair) a
-  `application/events/`. Route: inline. Status: pending. Commit: -
+  `application/events/`. Route: inline. Status: done. Commit: pending.
 - T3: Mover composición de dependencias (ChartState, renderer, datos de prueba
   de ejemplo, fuentes) a `application/services/`. Route: inline. Status:
   pending. Commit: -
