@@ -245,7 +245,8 @@ fn load_symbol_into_chart(
                 let close = open + change * 0.7;
                 let high = open.max(close) + change.abs() * 0.3;
                 let low = open.min(close) - change.abs() * 0.3;
-                if let Ok(candle) = Candle::new(open, high, low, close)
+                let volume = 1000.0 + (i as f64 * 0.5).sin().abs() * 500.0;
+                if let Ok(candle) = Candle::new(open, high, low, close, volume)
                     && let Err(e) = chart.add_candle(candle)
                 {
                     tracing::error!("No se pudo agregar vela {}: {}", i, e);
