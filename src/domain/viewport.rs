@@ -215,6 +215,9 @@ impl Viewport {
         }
 
         let candle_spacing = self.candle_spacing();
+        if candle_spacing <= 0.0 || !candle_spacing.is_finite() {
+            return;
+        }
         let center_x = screen_width / 2.0;
         let margin = screen_width * MARGIN_RATIO;
 
@@ -232,7 +235,13 @@ impl Viewport {
             (screen_width - margin - center_x - (candle_count as f64 - 1.0) * candle_spacing)
                 / candle_spacing;
 
-        self.offset_x = self.offset_x.clamp(min_offset_x, max_offset_x);
+        // Si las velas no caben en pantalla (min_offset_x > max_offset_x),
+        // el pan horizontal no tiene límites significativos: el usuario debe
+        // poder hacer scroll libremente. No aplicar clamp para evitar panic
+        // cuando min > max.
+        if min_offset_x <= max_offset_x {
+            self.offset_x = self.offset_x.clamp(min_offset_x, max_offset_x);
+        }
     }
 
     /// Limita el zoom del eje X para que una sola vela no llene toda la pantalla
