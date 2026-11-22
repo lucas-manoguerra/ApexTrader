@@ -8,35 +8,42 @@
 ///
 /// - **DataSpace**: coordenadas del mercado (índice de vela, precio).
 ///   `offset_x` y `offset_y` se expresan en unidades de datos.
-/// - **ViewportSpace**: estado de la cámara (zoom_level, min_zoom, max_zoom).
+/// - **ViewportSpace**: estado de la cámara (zoom_x, zoom_y, min_zoom, max_zoom).
 /// - **ScreenSpace**: píxeles de pantalla (0..=screen_width, 0..=screen_height).
 ///
 /// Las transformaciones entre espacios son explícitas y unidireccionales.
 ///
+/// Los ejes X e Y escalan de forma independiente (S4): el zoom vertical no
+/// distorsiona el horizontal y viceversa. Cada eje tiene su propio nivel de
+/// zoom, pero ambos comparten los mismos `min_zoom` y `max_zoom` del usuario.
+///
 /// Todos los campos son privados. Se modifican únicamente a través de
 /// métodos públicos que validan las invariantes del dominio:
 ///
-/// - `zoom_level` debe estar siempre en `[min_zoom, max_zoom]`.
+/// - `zoom_x` y `zoom_y` deben estar siempre en `[min_zoom, max_zoom]`.
 /// - `min_zoom` debe ser siempre `<= max_zoom`.
-/// - `zoom_level`, `offset_x`, `offset_y` deben ser siempre finitos.
-/// - `delta == 0.0` en `zoom_at` no modifica el estado.
+/// - `zoom_x`, `zoom_y`, `offset_x`, `offset_y` deben ser siempre finitos.
+/// - `delta_x == 0.0 && delta_y == 0.0` en `zoom_at` no modifica el estado.
 use crate::domain::price::Price;
 use crate::domain::price_range::PriceRange;
+use crate::domain::transforms;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
-
-/// Espaciado base entre velas en píxeles a zoom 1.0.
-const CANDLE_SPACING_BASE: f64 = 20.0;
 
 /// Margen porcentual usado en auto_scale y clamping (5% cada lado).
 const MARGIN_RATIO: f64 = 0.05;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Viewport {
-    /// Nivel de zoom. 1.0 = sin zoom (1 unidad de precio = 1 píxel base).
+    /// Nivel de zoom del eje X (tiempo / índice de vela).
+    /// 1.0 = sin zoom (1 unidad de precio = 1 píxel base).
     /// Valores mayores = más cerca (más detalle).
     /// Valores menores = más alejado (más velas visibles).
-    zoom_level: f64,
+    zoom_x: f64,
+
+    /// Nivel de zoom del eje Y (precio).
+    /// 1.0 = escala base. Valores mayores = precios más ampliados verticalmente.
+    zoom_y: f64,
 
     /// Desplazamiento horizontal en coordenadas de datos (índices de vela).
     /// Positivo = se mueve a la derecha (velas más recientes a la izquierda).
@@ -49,10 +56,10 @@ pub struct Viewport {
     /// Factor de zoom por cada "tick" de scroll del mouse.
     zoom_step: f64,
 
-    /// Nivel mínimo de zoom permitido.
+    /// Nivel mínimo de zoom permitido (ambos ejes).
     min_zoom: f64,
 
-    /// Nivel máximo de zoom permitido.
+    /// Nivel máximo de zoom permitido (ambos ejes).
     max_zoom: f64,
 }
 
@@ -60,7 +67,8 @@ impl Viewport {
     /// Crea un viewport con valores por defecto.
     pub fn new() -> Self {
         Self {
-            zoom_level: 1.0,
+            zoom_x: 1.0,
+            zoom_y: 1.0,
             offset_x: 0.0,
             offset_y: 0.0,
             zoom_step: 0.01,
@@ -69,9 +77,14 @@ impl Viewport {
         }
     }
 
-    /// Devuelve el nivel de zoom actual.
-    pub fn zoom_level(&self) -> f64 {
-        self.zoom_level
+    /// Devuelve el nivel de zoom actual del eje X (tiempo / índice de vela).
+    pub fn zoom_x(&self) -> f64 {
+        self.zoom_x
+    }
+
+    /// Devuelve el nivel de zoom actual del eje Y (precio).
+    pub fn zoom_y(&self) -> f64 {
+        self.zoom_y
     }
 
     /// Devuelve el desplazamiento horizontal actual (índices de vela).
@@ -99,18 +112,19 @@ impl Viewport {
         self.max_zoom
     }
 
-    /// Devuelve el espaciamiento entre centros de velas en píxeles de pantalla.
+    /// Devuelve el espaciamiento entre centros de velas en píxeles de pantalla (eje X).
     ///
-    /// A mayor zoom, mayor espaciamiento (las velas están más separadas).
+    /// A mayor `zoom_x`, mayor espaciamiento (las velas están más separadas).
     /// Consiste con el ancho de vela usado en el renderer.
     pub fn candle_spacing(&self) -> f64 {
-        CANDLE_SPACING_BASE * self.zoom_level
+        transforms::candle_spacing(self.zoom_x)
     }
 
-    /// Establece el nivel mínimo de zoom.
+    /// Establece el nivel mínimo de zoom permitido (ambos ejes).
     ///
     /// Si el nuevo valor es mayor que `max_zoom`, se ajusta `max_zoom`
-    /// para mantener `min_zoom <= max_zoom`.
+    /// para mantener `min_zoom <= max_zoom`. Se clampean `zoom_x` y `zoom_y`
+    /// al nuevo rango.
     pub fn set_min_zoom(&mut self, value: f64) {
         if !value.is_finite() || value <= 0.0 {
             return;
@@ -119,14 +133,16 @@ impl Viewport {
         if self.min_zoom > self.max_zoom {
             self.max_zoom = self.min_zoom;
         }
-        // Asegurar que zoom_level esté dentro del nuevo rango.
-        self.zoom_level = self.zoom_level.clamp(self.min_zoom, self.max_zoom);
+        // Asegurar que ambos niveles de zoom estén dentro del nuevo rango.
+        self.zoom_x = self.zoom_x.clamp(self.min_zoom, self.max_zoom);
+        self.zoom_y = self.zoom_y.clamp(self.min_zoom, self.max_zoom);
     }
 
-    /// Establece el nivel máximo de zoom permitido.
+    /// Establece el nivel máximo de zoom permitido (ambos ejes).
     ///
     /// Si el nuevo valor es menor que `min_zoom`, se ajusta `min_zoom`
-    /// para mantener `min_zoom <= max_zoom`.
+    /// para mantener `min_zoom <= max_zoom`. Se clampean `zoom_x` y `zoom_y`
+    /// al nuevo rango.
     pub fn set_max_zoom(&mut self, value: f64) {
         if !value.is_finite() || value <= 0.0 {
             return;
@@ -135,18 +151,37 @@ impl Viewport {
         if self.max_zoom < self.min_zoom {
             self.min_zoom = self.max_zoom;
         }
-        // Asegurar que zoom_level esté dentro del nuevo rango.
-        self.zoom_level = self.zoom_level.clamp(self.min_zoom, self.max_zoom);
+        // Asegurar que ambos niveles de zoom estén dentro del nuevo rango.
+        self.zoom_x = self.zoom_x.clamp(self.min_zoom, self.max_zoom);
+        self.zoom_y = self.zoom_y.clamp(self.min_zoom, self.max_zoom);
     }
 
-    /// Establece el nivel de zoom directamente.
+    /// Establece el nivel de zoom de ambos ejes directamente.
+    ///
+    /// Cada valor se clampea a `[min_zoom, max_zoom]`. Si no es finito, se ignora ese eje.
+    pub fn set_zoom(&mut self, x: f64, y: f64) {
+        self.set_zoom_x(x);
+        self.set_zoom_y(y);
+    }
+
+    /// Establece el nivel de zoom del eje X directamente.
     ///
     /// El valor se clampea a `[min_zoom, max_zoom]`. Si no es finito, se ignora.
-    pub fn set_zoom_level(&mut self, value: f64) {
+    pub fn set_zoom_x(&mut self, value: f64) {
         if !value.is_finite() || value <= 0.0 {
             return;
         }
-        self.zoom_level = value.clamp(self.min_zoom, self.max_zoom);
+        self.zoom_x = value.clamp(self.min_zoom, self.max_zoom);
+    }
+
+    /// Establece el nivel de zoom del eje Y directamente.
+    ///
+    /// El valor se clampea a `[min_zoom, max_zoom]`. Si no es finito, se ignora.
+    pub fn set_zoom_y(&mut self, value: f64) {
+        if !value.is_finite() || value <= 0.0 {
+            return;
+        }
+        self.zoom_y = value.clamp(self.min_zoom, self.max_zoom);
     }
 
     /// Establece el desplazamiento horizontal directamente.
@@ -200,59 +235,53 @@ impl Viewport {
         self.offset_x = self.offset_x.clamp(min_offset_x, max_offset_x);
     }
 
-    /// Limita el zoom para que una sola vela no llene toda la pantalla
+    /// Limita el zoom del eje X para que una sola vela no llene toda la pantalla
     /// y para que al menos dos velas quepan simultáneamente.
     ///
     /// `candle_count` es el número total de velas cargadas.
     /// `screen_width` es el ancho del área de dibujo en píxeles.
+    ///
+    /// Solo afecta al eje X (horizontal). El eje Y no tiene un equivalente de
+    /// "velas quepan", así que queda sujeto únicamente a `[min_zoom, max_zoom]`.
     pub fn clamp_zoom_to_candles(&mut self, candle_count: usize, screen_width: f64) {
         if candle_count == 0 || !screen_width.is_finite() || screen_width <= 0.0 {
             return;
         }
 
-        // candle_spacing = CANDLE_SPACING_BASE * zoom_level
-        // Máximo zoom: candle_spacing >= 4.0 => zoom_level <= 5.0 / CANDLE_SPACING_BASE * CANDLE_SPACING_BASE
-        //                simplified: zoom_level <= 5.0 (una vela de 20px no ocupa más de 100px)
-        // Mínimo zoom: al menos 2 velas quepan => 2 * candle_spacing <= screen_width
-        //                => 2 * CANDLE_SPACING_BASE * zoom_level <= screen_width
-        //                => zoom_level <= screen_width / (2 * CANDLE_SPACING_BASE)
-        // Nota: para el mínimo zoom queremos que AL MENOS 2 velas quepan,
-        // así que zoom_level NO puede ser tan pequeño que 2 velas ocupen más que la pantalla.
-        // Es decir: 2 * CANDLE_SPACING_BASE * zoom_level <= screen_width
-        // => zoom_level <= screen_width / (2 * CANDLE_SPACING_BASE)
-        // Pero eso es un LÍMITE SUPERIOR, no inferior.
-        //
-        // El límite inferior para zoom viene de min_zoom del usuario.
-        // Para evitar que una vela llene toda la pantalla, limitamos zoom_level <= 5.0.
+        // candle_spacing = CANDLE_SPACING_BASE * zoom_x
+        // Máximo zoom X: candle_spacing >= 4.0 => zoom_x <= 5.0
+        // (una vela base de 20px no ocupa más de 100px de ancho).
         let max_zoom_by_candle = 5.0;
 
         let min_allowed = self.min_zoom;
         let max_allowed = self.max_zoom.min(max_zoom_by_candle);
 
         if min_allowed <= max_allowed {
-            self.zoom_level = self.zoom_level.clamp(min_allowed, max_allowed);
+            self.zoom_x = self.zoom_x.clamp(min_allowed, max_allowed);
         }
     }
 
-    /// Aplica un zoom alrededor de un punto dado (coordenadas de pantalla).
+    /// Aplica un zoom alrededor de un punto dado (coordenadas de pantalla), por eje de forma independiente.
     ///
-    /// `delta` es el cambio de scroll: positivo = zoom in, negativo = zoom out.
+    /// `delta_x` y `delta_y` son el cambio de scroll: positivo = zoom in, negativo = zoom out.
     /// `center_x` y `center_y` son el punto alrededor del cual hacer zoom
     /// como fracciones 0..=1 del área de pantalla (0.0 = izquierda/arriba, 1.0 = derecha/abajo).
     /// `screen_width` y `screen_height` son las dimensiones del área de dibujo en píxeles.
     ///
-    /// Si `delta == 0.0`, no se modifica el estado.
+    /// Si `delta_x == 0.0`, el eje X no se modifica. Si `delta_y == 0.0`, el eje Y no se modifica.
     /// Si alguno de los parámetros no es finito, no se modifica el estado.
     pub fn zoom_at(
         &mut self,
-        delta: f64,
+        delta_x: f64,
+        delta_y: f64,
         center_x: f64,
         center_y: f64,
         screen_width: f64,
         screen_height: f64,
     ) {
         // Validar finitud de parámetros.
-        if !delta.is_finite()
+        if !delta_x.is_finite()
+            || !delta_y.is_finite()
             || !center_x.is_finite()
             || !center_y.is_finite()
             || !screen_width.is_finite()
@@ -261,96 +290,104 @@ impl Viewport {
             return;
         }
 
-        // Ignorar eventos sin movimiento.
-        if delta == 0.0 {
+        // Ignorar eventos sin movimiento en ningún eje.
+        if delta_x == 0.0 && delta_y == 0.0 {
             return;
         }
 
-        let zoom_factor = if delta > 0.0 {
+        let factor_x = if delta_x > 0.0 {
             1.0 + self.zoom_step
-        } else {
+        } else if delta_x < 0.0 {
             1.0 - self.zoom_step
+        } else {
+            1.0
+        };
+        let factor_y = if delta_y > 0.0 {
+            1.0 + self.zoom_step
+        } else if delta_y < 0.0 {
+            1.0 - self.zoom_step
+        } else {
+            1.0
         };
 
-        let new_zoom = (self.zoom_level * zoom_factor).clamp(self.min_zoom, self.max_zoom);
+        let new_zoom_x = (self.zoom_x * factor_x).clamp(self.min_zoom, self.max_zoom);
+        let new_zoom_y = (self.zoom_y * factor_y).clamp(self.min_zoom, self.max_zoom);
 
         // Convertir coordenadas normalizadas 0..=1 a píxeles de pantalla.
         let center_x_px = center_x * screen_width;
         let center_y_px = center_y * screen_height;
 
-        // Ajustar offsets para que el zoom sea centrado en el punto dado.
+        // Ajustar offsets para que el zoom sea centrado en el punto dado, por eje independiente.
         // Cuando hacemos zoom, el punto center debe quedarse fijo en pantalla.
-        let zoom_ratio = new_zoom / self.zoom_level;
+        let zoom_ratio_x = new_zoom_x / self.zoom_x;
+        let zoom_ratio_y = new_zoom_y / self.zoom_y;
 
         // Convertir offset_x (índices de vela) a píxeles, aplicar zoom, volver a índices.
-        let offset_x_px = self.offset_x * self.candle_spacing();
-        let offset_y_px = self.offset_y * screen_height / self.zoom_level;
+        let offset_x_px = self.offset_x * transforms::candle_spacing(self.zoom_x);
+        // offset_y está en unidades de precio; para convertir a píxeles usamos screen_height / zoom_y.
+        let offset_y_px = self.offset_y * screen_height / self.zoom_y;
 
-        let new_offset_x_px = center_x_px + (offset_x_px - center_x_px) * zoom_ratio;
-        let new_offset_y_px = center_y_px + (offset_y_px - center_y_px) * zoom_ratio;
+        let new_offset_x_px = center_x_px + (offset_x_px - center_x_px) * zoom_ratio_x;
+        let new_offset_y_px = center_y_px + (offset_y_px - center_y_px) * zoom_ratio_y;
 
-        self.offset_x = new_offset_x_px / self.candle_spacing_at(new_zoom);
-        self.offset_y = new_offset_y_px * new_zoom / screen_height;
+        self.offset_x = new_offset_x_px / transforms::candle_spacing(new_zoom_x);
+        self.offset_y = new_offset_y_px * new_zoom_y / screen_height;
 
-        self.zoom_level = new_zoom;
+        self.zoom_x = new_zoom_x;
+        self.zoom_y = new_zoom_y;
 
         tracing::debug!(
-            "Zoom: level={:.2}, offset=({:.2}, {:.2})",
-            self.zoom_level,
+            "Zoom: x={:.2}, y={:.2}, offset=({:.2}, {:.2})",
+            self.zoom_x,
+            self.zoom_y,
             self.offset_x,
             self.offset_y
         );
     }
 
-    /// Calcula el candle_spacing para un nivel de zoom dado.
-    fn candle_spacing_at(&self, zoom_level: f64) -> f64 {
-        CANDLE_SPACING_BASE * zoom_level
-    }
-
     /// Aplica un desplazamiento (pan) al viewport.
     ///
     /// `dx` y `dy` son el cambio en píxeles de pantalla.
+    /// `screen_height` es la altura real del área de dibujo en píxeles.
     ///
-    /// Si alguno de los parámetros no es finito, no se modifica el estado.
-    pub fn pan(&mut self, dx: f64, dy: f64) {
-        if !dx.is_finite() || !dy.is_finite() {
+    /// Si alguno de los parámetros no es finito, o la altura no es positiva,
+    /// no se modifica el estado.
+    pub fn pan(&mut self, dx: f64, dy: f64, screen_height: f64) {
+        if !dx.is_finite() || !dy.is_finite() || !screen_height.is_finite() || screen_height <= 0.0
+        {
             return;
         }
 
         // El pan se aplica inversamente: si arrastramos a la derecha,
         // el contenido se mueve a la derecha, así que offset_x aumenta.
-        // Convertir píxeles a índices de vela usando candle_spacing.
+        // Convertir píxeles a índices de vela usando candle_spacing (eje X).
         self.offset_x += dx / self.candle_spacing();
-        // offset_y está en unidades de precio, no de pantalla. Para simplicidad
-        // y consistencia con price_to_screen, usamos el mismo factor que el eje Y.
-        self.offset_y += dy * self.zoom_level / self.screen_height_for_pan();
+        // offset_y está en unidades de precio; usamos el factor de conversión del eje Y.
+        self.offset_y += dy * self.zoom_y / screen_height;
 
         tracing::trace!(
-            "Pan: offset=({:.2}, {:.2}), zoom={:.2}",
+            "Pan: offset=({:.2}, {:.2}), zoom=({:.2}, {:.2})",
             self.offset_x,
             self.offset_y,
-            self.zoom_level
+            self.zoom_x,
+            self.zoom_y
         );
     }
 
-    /// Altura de pantalla por defecto para conversión de pan vertical.
-    /// En una implementación completa, esto vendría del estado de la ventana.
-    fn screen_height_for_pan(&self) -> f64 {
-        // Valor por defecto razonable para cálculos internos.
-        // En producción, esto debería venir del tamaño real del área de dibujo.
-        720.0
-    }
-
-    /// Ajusta automáticamente el zoom y los offsets para que todas las velas
-    /// quepan en el área de dibujo con un margen del 5% en cada lado.
+    /// Ajusta automáticamente el zoom y el offset vertical para que todo el
+    /// rango de precios quepa en el área de dibujo con un margen del 5% en
+    /// cada lado.
     ///
     /// `price_range` es el rango de precios (mínimo y máximo) de las velas a mostrar.
-    /// `candle_count` es la cantidad total de velas.
+    /// `candle_count` es la cantidad total de velas (solo se usa para validar
+    /// que haya algo que mostrar).
     /// `screen_width` y `screen_height` son las dimensiones del área de dibujo en píxeles.
     ///
-    /// Después de llamar, `zoom_level`, `offset_x` y `offset_y` quedan configurados
-    /// para que todas las velas sean visibles. El llamante puede seguir ajustando
-    /// manualmente con `zoom_at` o `pan`.
+    /// `auto_scale` ajusta solo el eje Y (PriceScale / precio): `zoom_y` se
+    /// rige por la escala de precio y `offset_y` se centra en el punto medio
+    /// del rango. El eje X (TimeScale / tiempo y velas) se deja intacto: el
+    /// llamante puede seguir ajustando `zoom_x`, `offset_x` con `zoom_at`
+    /// o `pan`.
     pub fn auto_scale(
         &mut self,
         price_range: PriceRange,
@@ -358,66 +395,83 @@ impl Viewport {
         screen_width: f64,
         screen_height: f64,
     ) {
-        let min_price = price_range.min().value();
-        let max_price = price_range.max().value();
+        // Rechazar dimensiones cero, negativas o no finitas antes de dividir.
+        if candle_count == 0
+            || !screen_width.is_finite()
+            || !screen_height.is_finite()
+            || screen_width <= 0.0
+            || screen_height <= 0.0
+        {
+            return;
+        }
+
+        let min_price_f64 = price_range
+            .min()
+            .value()
+            .to_f64()
+            .expect("precio mínimo convertible");
+        let max_price_f64 = price_range
+            .max()
+            .value()
+            .to_f64()
+            .expect("precio máximo convertible");
+
+        // Rechazar rango degenerado (min == max) o no finito: no hay escala
+        // visual posible. Dejar el estado sin cambios.
+        let Some(price_range_value) =
+            transforms::validate_price_range(min_price_f64, max_price_f64)
+        else {
+            return;
+        };
 
         let margin = MARGIN_RATIO;
         let available_height = screen_height * (1.0 - 2.0 * margin);
-        let available_width = screen_width * (1.0 - 2.0 * margin);
 
-        // Verticalmente: el rango de precios ocupa screen_height * zoom_level píxeles.
-        // Para que quepa en available_height: zoom_level <= available_height / screen_height.
+        // Verticalmente (eje Y - precio): el rango de precios ocupa
+        // screen_height * zoom_y píxeles (price_range se cancela en
+        // price_to_screen: price_range * pixels_per_unit = screen_height *
+        // zoom_y). Para que quepa en available_height:
+        // zoom_y <= available_height / screen_height = 1 - 2 * margin.
+        // auto_scale ajusta solo el eje Y (PriceScale); el eje X
+        // (TimeScale / velas) se deja intacto.
         let zoom_vertical_max = available_height / screen_height;
 
-        // Horizontalmente: ancho_total = candle_count * candle_spacing =
-        // candle_count * CANDLE_SPACING_BASE * zoom_level.
-        // Para que quepa en available_width:
-        // zoom_level <= available_width / (candle_count * CANDLE_SPACING_BASE)
-        let zoom_horizontal_max = available_width / (candle_count as f64 * CANDLE_SPACING_BASE);
-
-        // Tomar el mínimo para asegurar que todo quepa en ambas dimensiones.
-        let max_allowed = zoom_vertical_max
-            .min(zoom_horizontal_max)
-            .min(self.max_zoom);
-
-        // Si ni siquiera el zoom mínimo permite que quepan todas las velas
-        // horizontalmente, usamos min_zoom y aceptamos scroll horizontal.
-        let new_zoom = if self.min_zoom > max_allowed {
+        // Eje Y: zoom basado en la escala de precio, clampeado al rango
+        // permitido. Si ni siquiera el zoom mínimo permite que quepa el rango
+        // de precios, usamos min_zoom y aceptamos scroll vertical.
+        let max_allowed_y = zoom_vertical_max.min(self.max_zoom);
+        let new_zoom_y = if self.min_zoom > max_allowed_y {
             self.min_zoom
         } else {
-            self.zoom_level.clamp(self.min_zoom, max_allowed)
+            self.zoom_y.clamp(self.min_zoom, max_allowed_y)
         };
 
-        // Centrar horizontalmente: la primera vela (index 0) y la última (index N-1)
-        // deben quedar simétricas alrededor de center_x.
-        // data_x_to_screen(0) = center_x + offset_x * candle_spacing
-        // Queremos que quede en center_x - (N-1)/2 * candle_spacing.
-        // Entonces offset_x = -(N-1) / 2.
-        self.offset_x = -(candle_count as f64 - 1.0) / 2.0;
-
-        // offset_y se deja en 0: el llamante pasará center_price como el punto medio
-        // del rango de precios al llamar price_to_screen, lo cual centrará verticalmente.
+        // Centrar verticalmente: dejar offset_y en 0 y que el llamante pase
+        // center_price = price_range.midpoint() al llamar price_to_screen.
+        // Con offset_y = 0 y center_price = midpoint, el precio medio del rango
+        // queda en el centro vertical del área de dibujo.
         self.offset_y = 0.0;
-
-        self.zoom_level = new_zoom;
+        self.zoom_y = new_zoom_y;
 
         tracing::debug!(
-            "Autoescala: zoom={:.4}, offset_x={:.4}, offset_y={:.4}, \
-             rango_precio={:.2}..{:.2}, velas={}, pantalla={:.0}x{:.0}",
-            self.zoom_level,
-            self.offset_x,
+            "Autoescala (solo eje Y/precio): zoom_y={:.4}, offset_y={:.4}, \
+             rango_precio={:.2}..{:.2}, centro_precio={:.2}, \
+             pantalla={:.0}x{:.0}, rango_valor={:.2}",
+            self.zoom_y,
             self.offset_y,
-            min_price,
-            max_price,
-            candle_count,
+            min_price_f64,
+            max_price_f64,
+            price_range.midpoint().value(),
             screen_width,
-            screen_height
+            screen_height,
+            price_range_value
         );
     }
 
     /// Restablece el viewport a valores por defecto.
     pub fn reset(&mut self) {
-        self.zoom_level = 1.0;
+        self.zoom_x = 1.0;
+        self.zoom_y = 1.0;
         self.offset_x = 0.0;
         self.offset_y = 0.0;
         tracing::debug!("Viewport restablecido a valores por defecto");
@@ -428,11 +482,9 @@ impl Viewport {
     /// `index` es el índice de la vela en el array (basado en 0).
     /// `screen_width` es el ancho del área de dibujo en píxeles.
     ///
-    /// Devuelve la coordenada X en píxeles de pantalla.
+    /// Devuelve la coordenada X en píxeles de pantalla. Usa `zoom_x` (eje X).
     pub fn data_x_to_screen(&self, index: usize, screen_width: f64) -> f64 {
-        let candle_spacing = self.candle_spacing();
-        let center_x = screen_width / 2.0;
-        center_x + (index as f64 * candle_spacing) + self.offset_x * candle_spacing
+        transforms::data_x_to_screen(index, screen_width, self.zoom_x, self.offset_x)
     }
 
     /// Convierte una coordenada de pantalla X a un índice de vela (coordenada de datos X).
@@ -440,12 +492,16 @@ impl Viewport {
     /// `screen_x` es la posición en píxeles de pantalla.
     /// `screen_width` es el ancho del área de dibujo en píxeles.
     ///
-    /// Devuelve el índice de vela más cercano (basado en 0).
-    pub fn screen_x_to_data(&self, screen_x: f64, screen_width: f64) -> usize {
-        let candle_spacing = self.candle_spacing();
-        let center_x = screen_width / 2.0;
-        let index = (screen_x - center_x - self.offset_x * candle_spacing) / candle_spacing;
-        index.round() as usize
+    /// Devuelve el índice de vela más cercano (basado en 0), clampado a
+    /// `[0, candle_count - 1]`. Usa `zoom_x` (eje X).
+    pub fn screen_x_to_data(&self, screen_x: f64, screen_width: f64, candle_count: usize) -> usize {
+        transforms::screen_x_to_data(
+            screen_x,
+            screen_width,
+            self.zoom_x,
+            self.offset_x,
+            candle_count,
+        )
     }
 
     /// Convierte un precio (coordenada de datos Y) a coordenada de pantalla.
@@ -456,6 +512,7 @@ impl Viewport {
     /// `center_price` es el precio central alrededor del cual se hace zoom.
     ///
     /// Devuelve la coordenada Y en píxeles de pantalla (eje Y invertido: 0 es arriba).
+    /// Usa `zoom_y` (eje Y).
     pub fn price_to_screen(
         &self,
         price: Price,
@@ -463,12 +520,32 @@ impl Viewport {
         price_range: PriceRange,
         center_price: Price,
     ) -> f64 {
+        // Validar dimensiones antes de dividir: evita división por cero o
+        // coordenadas no finitas (rango degenerado, pantalla vacía).
+        if !screen_height.is_finite() || screen_height <= 0.0 {
+            return screen_height / 2.0;
+        }
+
         let center_y = screen_height / 2.0;
-        let range_value = price_range.max().value() - price_range.min().value();
-        let range_value_f64 = range_value
+
+        let min_price_f64 = price_range
+            .min()
+            .value()
             .to_f64()
-            .expect("el rango de precios debe ser convertible a f64 para renderizado");
-        let pixels_per_unit = screen_height / range_value_f64 * self.zoom_level;
+            .expect("el precio mínimo debe ser convertible a f64 para renderizado");
+        let max_price_f64 = price_range
+            .max()
+            .value()
+            .to_f64()
+            .expect("el precio máximo debe ser convertible a f64 para renderizado");
+        let Some(range_value_f64) = transforms::validate_price_range(min_price_f64, max_price_f64)
+        else {
+            // Rango degenerado (min == max): no hay escala visual posible.
+            // Devolver el centro del área como posición neutra.
+            return center_y;
+        };
+
+        let pixels_per_unit = screen_height / range_value_f64 * self.zoom_y;
         let price_f64 = price
             .value()
             .to_f64()
@@ -490,6 +567,7 @@ impl Viewport {
     ///
     /// Devuelve el `Price` calculado. Si el resultado no es un precio válido
     /// (negativo o no convertible), devuelve `center_price` como fallback.
+    /// Usa `zoom_y` (eje Y).
     pub fn screen_y_to_price(
         &self,
         screen_y: f64,
@@ -502,7 +580,7 @@ impl Viewport {
         let range_value_f64 = range_value
             .to_f64()
             .expect("el rango de precios debe ser convertible a f64 para renderizado");
-        let pixels_per_unit = screen_height / range_value_f64 * self.zoom_level;
+        let pixels_per_unit = screen_height / range_value_f64 * self.zoom_y;
         let relative_price = (center_y - screen_y) / pixels_per_unit;
         let center_price_f64 = center_price
             .value()
@@ -514,6 +592,43 @@ impl Viewport {
         match decimal {
             Some(d) => Price::new(d).unwrap_or(center_price),
             None => center_price,
+        }
+    }
+
+    /// Calcula el rango de velas visibles en el área de dibujo.
+    ///
+    /// Una vela se considera visible si su centro cae dentro de
+    /// `[0, screen_width]` según `data_x_to_screen`. El renderer debe
+    /// iterar solo `first..=last` para lograr O(N_visible) por frame.
+    /// Usa `zoom_x` (eje X).
+    pub fn visible_range(
+        &self,
+        candle_count: usize,
+        screen_width: f64,
+    ) -> transforms::VisibleRange {
+        if candle_count == 0 {
+            return transforms::VisibleRange { first: 1, last: 0 };
+        }
+
+        let spacing = self.candle_spacing();
+        let center_x = screen_width / 2.0;
+
+        // data_x_to_screen(i) = center_x + i * spacing + offset_x * spacing
+        // Visible si 0 <= data_x_to_screen(i) <= screen_width.
+        let first = ((-center_x - self.offset_x * spacing) / spacing)
+            .ceil()
+            .max(0.0) as usize;
+        let last = ((center_x - self.offset_x * spacing) / spacing)
+            .floor()
+            .min(candle_count as f64 - 1.0) as usize;
+
+        if first > last {
+            return transforms::VisibleRange { first: 0, last: 0 };
+        }
+
+        transforms::VisibleRange {
+            first: first.min(candle_count.saturating_sub(1)),
+            last,
         }
     }
 }

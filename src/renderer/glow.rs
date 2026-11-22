@@ -1,11 +1,9 @@
 use crate::domain::candle::Candle;
-use crate::domain::price::Price;
-use crate::domain::price_range::PriceRange;
+use crate::domain::transforms::{self, ScreenPoint, screen_to_chart_point};
 use crate::domain::viewport::Viewport;
 use crate::errors::RendererError;
 use crate::renderer::ChartRenderer;
 use eframe::egui;
-use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 
 /// Renderizador de chart usando el Painter de egui (backend glow/OpenGL).
@@ -47,7 +45,7 @@ struct PriceAxisParams {
     center_price: f64,
     offset_y: f64,
     price_range: f64,
-    zoom_level: f64,
+    zoom_y: f64,
 }
 
 fn draw_price_axis(
@@ -61,7 +59,7 @@ fn draw_price_axis(
     let screen_height = bottom - top;
 
     // Rango de precios visible en el área de dibujo.
-    let half_range_visible = params.price_range / (2.0 * params.zoom_level);
+    let half_range_visible = params.price_range / (2.0 * params.zoom_y);
     let min_visible =
         params.center_price + params.offset_y * params.price_range - half_range_visible;
     let max_visible =
@@ -74,7 +72,7 @@ fn draw_price_axis(
 
     while tick <= max_visible {
         let relative_price = tick - params.center_price - params.offset_y * params.price_range;
-        let pixels_per_unit = screen_height / params.price_range * params.zoom_level;
+        let pixels_per_unit = screen_height / params.price_range * params.zoom_y;
         let y = bottom - relative_price * pixels_per_unit;
 
         // Formatear precio con 2 decimales fijos.
@@ -107,12 +105,11 @@ fn draw_time_axis(
     font_id: egui::FontId,
 ) {
     let screen_width = right - left;
-    let base_candle_width = 12.0;
+    let candle_spacing = transforms::candle_spacing(viewport.zoom_x());
 
     let first_visible = (-viewport.offset_x()).max(0.0) as i32;
-    let last_visible = ((-viewport.offset_x())
-        + screen_width / (base_candle_width * viewport.zoom_level()))
-    .min(candles_count as f64 - 1.0) as i32;
+    let last_visible = ((-viewport.offset_x()) + screen_width / candle_spacing)
+        .min(candles_count as f64 - 1.0) as i32;
 
     if first_visible > last_visible {
         return;
@@ -149,7 +146,7 @@ impl ChartRenderer for GlowChartRenderer {
         rect: egui::Rect,
         candles: &[Candle],
         viewport: &Viewport,
-        crosshair_pos: Option<(f64, f64)>,
+        crosshair_pos: Option<ScreenPoint>,
     ) -> Result<(), RendererError> {
         if rect.width() <= 0.0 || rect.height() <= 0.0 {
             tracing::warn!("Rectángulo de dibujo vacío, no se puede renderizar");
@@ -157,10 +154,11 @@ impl ChartRenderer for GlowChartRenderer {
         }
 
         tracing::debug!(
-            "Renderizando {} velas con glow en rect {:?} (zoom={:.2})",
+            "Renderizando {} velas con glow en rect {:?} (zoom_x={:.2}, zoom_y={:.2})",
             candles.len(),
             rect,
-            viewport.zoom_level()
+            viewport.zoom_x(),
+            viewport.zoom_y()
         );
 
         if candles.is_empty() {
@@ -198,11 +196,11 @@ impl ChartRenderer for GlowChartRenderer {
             center_price
         );
 
-        let n = candles.len();
+        let drawing_width = (right - left) as f64;
+        let visible = viewport.visible_range(candles.len(), drawing_width);
 
         // Espaciamiento entre velas ajustado por zoom.
-        let base_candle_width = 12.0;
-        let candle_width = base_candle_width * viewport.zoom_level() as f32;
+        let candle_width = transforms::candle_body_width(viewport.zoom_x()) as f32;
         let candle_width = candle_width.clamp(4.0, 40.0);
         let _spacing = candle_width * 0.4;
 
@@ -212,15 +210,21 @@ impl ChartRenderer for GlowChartRenderer {
             let bottom = bottom as f64;
             let top = top as f64;
             let screen_height = bottom - top;
-            let pixels_per_unit = screen_height / price_range * viewport.zoom_level();
+            let pixels_per_unit = screen_height / price_range * viewport.zoom_y();
             let relative_price = price - center_price - viewport.offset_y() * price_range;
             (bottom - relative_price * pixels_per_unit) as f32
         };
 
-        // Dibujamos cada vela.
-        for (i, candle) in candles.iter().enumerate() {
+        // Dibujamos solo las velas visibles: O(N_visible) por frame en lugar
+        // de O(N_total).
+        for (i, candle) in candles
+            .iter()
+            .enumerate()
+            .skip(visible.first)
+            .take(visible.last - visible.first + 1)
+        {
             // Posición X ajustada por zoom y pan del viewport.
-            let screen_x = viewport.data_x_to_screen(i, (right - left) as f64) + left as f64;
+            let screen_x = viewport.data_x_to_screen(i, drawing_width) + left as f64;
 
             let y_high = price_to_y(candle.high());
             let y_low = price_to_y(candle.low());
@@ -256,6 +260,7 @@ impl ChartRenderer for GlowChartRenderer {
 
         // Eje de precios (Y): ticks dinámicos ajustados al zoom.
         let font_id = egui::FontId::proportional(11.0);
+        let n = candles.len();
         let left_f64 = left as f64;
         let right_f64 = right as f64;
         let top_f64 = top as f64;
@@ -269,7 +274,7 @@ impl ChartRenderer for GlowChartRenderer {
                 center_price,
                 offset_y: viewport.offset_y(),
                 price_range,
-                zoom_level: viewport.zoom_level(),
+                zoom_y: viewport.zoom_y(),
             },
             font_id.clone(),
         );
@@ -280,26 +285,27 @@ impl ChartRenderer for GlowChartRenderer {
         );
 
         // --- Crosshair: líneas vertical y horizontal en la posición del cursor ---
-        if let Some((crosshair_x, crosshair_y)) = crosshair_pos {
-            // Convertir rect de egui (f32) a f64 para comparar con crosshair_pos.
+        if let Some(crosshair) = crosshair_pos {
             let left_f64 = left as f64;
             let right_f64 = right as f64;
             let top_f64 = top as f64;
             let bottom_f64 = bottom as f64;
 
             // Solo dibujar si el cursor está dentro del área de dibujo útil.
-            if crosshair_x >= left_f64
-                && crosshair_x <= right_f64
-                && crosshair_y >= top_f64
-                && crosshair_y <= bottom_f64
+            // crosshair está en ScreenPoint (relativo al rect completo), mismo espacio
+            // que left/right/top/bottom, así que la comparación es consistente.
+            if crosshair.x >= left_f64
+                && crosshair.x <= right_f64
+                && crosshair.y >= top_f64
+                && crosshair.y <= bottom_f64
             {
                 let crosshair_color = egui::Color32::from_rgb(255, 165, 0);
 
                 // Línea vertical.
                 painter.line_segment(
                     [
-                        egui::pos2(crosshair_x as f32, top),
-                        egui::pos2(crosshair_x as f32, bottom),
+                        egui::pos2(crosshair.x as f32, top),
+                        egui::pos2(crosshair.x as f32, bottom),
                     ],
                     egui::Stroke::new(1.0, crosshair_color),
                 );
@@ -307,43 +313,38 @@ impl ChartRenderer for GlowChartRenderer {
                 // Línea horizontal.
                 painter.line_segment(
                     [
-                        egui::pos2(left, crosshair_y as f32),
-                        egui::pos2(right, crosshair_y as f32),
+                        egui::pos2(left, crosshair.y as f32),
+                        egui::pos2(right, crosshair.y as f32),
                     ],
                     egui::Stroke::new(1.0, crosshair_color),
                 );
 
                 // Calcular precio y índice bajo el cursor.
-                let screen_height_drawing = bottom_f64 - top_f64;
                 let screen_width_drawing = right_f64 - left_f64;
+                let screen_height_drawing = bottom_f64 - top_f64;
 
-                let relative_y = crosshair_y - top_f64;
-                let relative_x = crosshair_x - left_f64;
+                // Convertir ScreenPoint (rect completo) a ChartPoint (área útil),
+                // restando los márgenes de ejes (left/top).
+                let chart_point = screen_to_chart_point(crosshair, left_f64, top_f64);
 
-                // Construir PriceRange y center_price desde los datos de velas.
-                // min_price, max_price, center_price son f64; convertirlos a Decimal.
-                let price_min_decimal = Decimal::from_f64(min_price).unwrap_or(Decimal::ZERO);
-                let price_max_decimal = Decimal::from_f64(max_price).unwrap_or(Decimal::ZERO);
-                let center_price_decimal = Decimal::from_f64(center_price).unwrap_or(Decimal::ZERO);
-
-                let price_min = Price::new(price_min_decimal).expect("precio mínimo válido");
-                let price_max = Price::new(price_max_decimal).expect("precio máximo válido");
-                let price_range = PriceRange::new(price_min, price_max).expect("rango válido");
-                let center_price_typed =
-                    Price::new(center_price_decimal).expect("precio central válido");
-
-                let price_at_cursor = viewport.screen_y_to_price(
-                    relative_y,
+                // Precio y índice bajo el cursor, usando transformaciones con f64
+                // sin reconstruir objetos de dominio por frame (evita expect() en el
+                // camino de renderizado).
+                let price_at_cursor = transforms::screen_y_to_price(
+                    chart_point.y,
                     screen_height_drawing,
                     price_range,
-                    center_price_typed,
+                    viewport.zoom_y(),
+                    viewport.offset_y(),
+                    center_price,
                 );
-                let index_at_cursor = viewport.screen_x_to_data(relative_x, screen_width_drawing);
+                let index_at_cursor =
+                    viewport.screen_x_to_data(chart_point.x, screen_width_drawing, candles.len());
 
                 // Etiqueta de precio (lado izquierdo, alineada con la línea horizontal).
-                let price_label = format!("{:.2}", price_at_cursor.value());
+                let price_label = format!("{:.2}", price_at_cursor);
                 painter.text(
-                    egui::pos2(left - 6.0, crosshair_y as f32),
+                    egui::pos2(left - 6.0, crosshair.y as f32),
                     egui::Align2::RIGHT_CENTER,
                     price_label,
                     egui::FontId::proportional(11.0),
@@ -353,7 +354,7 @@ impl ChartRenderer for GlowChartRenderer {
                 // Etiqueta de índice de vela (fondo, alineada con la línea vertical).
                 let index_label = format!("{}", index_at_cursor);
                 painter.text(
-                    egui::pos2(crosshair_x as f32, bottom + 4.0),
+                    egui::pos2(crosshair.x as f32, bottom + 4.0),
                     egui::Align2::CENTER_TOP,
                     index_label,
                     egui::FontId::proportional(11.0),

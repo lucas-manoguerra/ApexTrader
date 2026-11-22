@@ -1,4 +1,4 @@
-use crate::errors::PriceError;
+use crate::errors::QuantityError;
 
 /// Cantidad de activo (tamaño de orden, posición, etc.).
 ///
@@ -18,11 +18,11 @@ impl Quantity {
     ///
     /// # Errores
     ///
-    /// Devuelve `PriceError::NonFiniteQuantity` si el valor es `NaN` o infinito.
-    /// Devuelve `PriceError::NonPositiveQuantity` si el valor es cero o menor.
-    pub fn new(value: rust_decimal::Decimal) -> Result<Self, PriceError> {
+    /// Devuelve `QuantityError::NonFiniteQuantity` si el valor es `NaN` o infinito.
+    /// Devuelve `QuantityError::NonPositiveQuantity` si el valor es cero o menor.
+    pub fn new(value: rust_decimal::Decimal) -> Result<Self, QuantityError> {
         if value.is_zero() || value.is_sign_negative() {
-            return Err(PriceError::NonPositiveQuantity {
+            return Err(QuantityError::NonPositiveQuantity {
                 value: value.to_string(),
             });
         }
@@ -34,7 +34,7 @@ impl Quantity {
     ///
     /// `scale` es la cantidad de decimales. Ejemplo: `new_from_raw(12345, 2)`
     /// produce `123.45`.
-    pub fn new_from_raw(value: i64, scale: u32) -> Result<Self, PriceError> {
+    pub fn new_from_raw(value: i64, scale: u32) -> Result<Self, QuantityError> {
         let decimal = rust_decimal::Decimal::new(value, scale);
         Self::new(decimal)
     }
@@ -58,11 +58,11 @@ impl std::fmt::Display for Quantity {
 }
 
 impl std::str::FromStr for Quantity {
-    type Err = PriceError;
+    type Err = QuantityError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let decimal =
-            rust_decimal::Decimal::from_str(s).map_err(|_| PriceError::NonFiniteQuantity)?;
+            rust_decimal::Decimal::from_str(s).map_err(|_| QuantityError::NonFiniteQuantity)?;
         Self::new(decimal)
     }
 }

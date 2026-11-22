@@ -7,6 +7,8 @@
 ///
 /// Expone los módulos públicos para que los tests de integración y otros
 /// crates puedan depender de ellos sin arrastrar el binario de escritorio.
+pub mod application;
+pub mod chart;
 pub mod domain;
 pub mod errors;
 pub mod logging;

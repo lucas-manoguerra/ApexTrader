@@ -49,13 +49,13 @@ fn crosshair_index_at_cursor() {
 
     // Índice 0 en el centro.
     let x_center = screen_width / 2.0;
-    let idx = viewport.screen_x_to_data(x_center, screen_width);
+    let idx = viewport.screen_x_to_data(x_center, screen_width, 1000);
     assert_eq!(idx, 0);
 
     // Una vela a la derecha.
-    let spacing = 20.0 / viewport.zoom_level();
+    let spacing = 20.0 / viewport.zoom_x();
     let x_one = x_center + spacing;
-    let idx_one = viewport.screen_x_to_data(x_one, screen_width);
+    let idx_one = viewport.screen_x_to_data(x_one, screen_width, 1000);
     assert_eq!(idx_one, 1);
 }
 
@@ -77,6 +77,6 @@ fn crosshair_none_handled_gracefully() {
     assert_eq!(price.value(), Decimal::new(50000, 2));
 
     // Llamar screen_x_to_data con el centro → índice 0.
-    let idx = viewport.screen_x_to_data(screen_width / 2.0, screen_width);
+    let idx = viewport.screen_x_to_data(screen_width / 2.0, screen_width, 1000);
     assert_eq!(idx, 0);
 }

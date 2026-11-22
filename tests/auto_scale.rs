@@ -13,8 +13,8 @@ fn auto_scale_zoom_within_limits() {
 
     viewport.auto_scale(range, 100, 1920.0, 1080.0);
 
-    assert!(viewport.zoom_level() >= viewport.min_zoom());
-    assert!(viewport.zoom_level() <= viewport.max_zoom());
+    assert!(viewport.zoom_x() >= viewport.min_zoom());
+    assert!(viewport.zoom_x() <= viewport.max_zoom());
 }
 
 /// S4: Con una sola vela, el zoom no es extremo (no se acerca a max_zoom innecesariamente).
@@ -28,8 +28,8 @@ fn auto_scale_single_candle_reasonable_zoom() {
     viewport.auto_scale(range, 1, 1920.0, 1080.0);
 
     // Con un solo precio, el rango es 0 → se usa $0.01 mínimo, zoom debería ser moderado.
-    assert!(viewport.zoom_level() > 0.0);
-    assert!(viewport.zoom_level() <= viewport.max_zoom());
+    assert!(viewport.zoom_x() > 0.0);
+    assert!(viewport.zoom_x() <= viewport.max_zoom());
 }
 
 /// S4: Después de auto_scale, el precio mínimo y máximo mapean dentro de la pantalla.
@@ -96,38 +96,54 @@ fn auto_scale_center_price_maps_to_center_y() {
     assert!((y_mid - screen_height / 2.0).abs() < 1.0);
 }
 
-/// S4: Con más velas, el zoom disminuye para que todas quepan horizontalmente.
-/// (Con candle_spacing = 20.0 * zoom_level, a más velas se requiere menos zoom.)
+/// S4: auto_scale solo afecta al eje Y (precio); el eje X (tiempo/velas)
+/// se deja intacto.
 #[test]
-fn auto_scale_more_candles_lower_zoom() {
+fn auto_scale_only_affects_y_axis() {
     let mut viewport = Viewport::new();
+    viewport.set_zoom(3.0, 3.0); // ejes distintos para que sea obvio
+
     let min = Price::new(Decimal::new(10000, 2)).expect("100.00 válido");
     let max = Price::new(Decimal::new(20000, 2)).expect("200.00 válido");
     let range = PriceRange::new(min, max).expect("rango válido");
 
-    viewport.auto_scale(range, 10, 1920.0, 1080.0);
-    let zoom_10 = viewport.zoom_level();
+    let zoom_x_before = viewport.zoom_x();
+    let zoom_y_before = viewport.zoom_y();
 
-    viewport.auto_scale(range, 1000, 1920.0, 1080.0);
-    let zoom_1000 = viewport.zoom_level();
+    viewport.auto_scale(range, 50, 1920.0, 1080.0);
 
+    // El eje X no debe cambiar.
     assert!(
-        zoom_1000 < zoom_10,
-        "más velas requieren menos zoom para que quepan horizontalmente: zoom_10={}, zoom_1000={}",
-        zoom_10,
-        zoom_1000
+        (viewport.zoom_x() - zoom_x_before).abs() < f64::EPSILON,
+        "auto_scale no debe modificar zoom_x: {} != {}",
+        viewport.zoom_x(),
+        zoom_x_before
+    );
+    // El eje Y debe recalcularse según el rango de precios.
+    assert!(
+        (viewport.zoom_y() - zoom_y_before).abs() >= f64::EPSILON,
+        "auto_scale debe recalcular zoom_y: {} == {}",
+        viewport.zoom_y(),
+        zoom_y_before
     );
 }
 
 /// S4: El índice de la primera vela mapea a la izquierda con margen.
+/// (auto_scale solo ajusta el eje Y; el centrado horizontal del eje X lo
+/// establece el llamante con set_offset_x.)
 #[test]
 fn auto_scale_first_candle_within_horizontal_margin() {
     let mut viewport = Viewport::new();
+    let candle_count = 50usize;
     let min = Price::new(Decimal::new(10000, 2)).expect("100.00 válido");
     let max = Price::new(Decimal::new(20000, 2)).expect("200.00 válido");
     let range = PriceRange::new(min, max).expect("rango válido");
 
-    viewport.auto_scale(range, 50, 1920.0, 1080.0);
+    // Centrar horizontalmente las 50 velas (responsabilidad del llamante,
+    // no de auto_scale que solo toca el eje Y).
+    viewport.set_offset_x(-(candle_count as f64 - 1.0) / 2.0);
+
+    viewport.auto_scale(range, candle_count, 1920.0, 1080.0);
 
     let screen_width = 1920.0;
     let margin = screen_width * 0.05;
@@ -162,10 +178,10 @@ fn auto_scale_idempotent() {
     let range = PriceRange::new(min, max).expect("rango válido");
 
     viewport.auto_scale(range, 50, 1920.0, 1080.0);
-    let zoom1 = viewport.zoom_level();
+    let zoom1 = viewport.zoom_x();
 
     viewport.auto_scale(range, 50, 1920.0, 1080.0);
-    let zoom2 = viewport.zoom_level();
+    let zoom2 = viewport.zoom_x();
 
     assert!((zoom1 - zoom2).abs() < f64::EPSILON);
 }
