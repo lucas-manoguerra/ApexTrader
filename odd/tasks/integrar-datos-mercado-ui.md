@@ -35,14 +35,18 @@ auto_scale para que todas las velas quepan con margen 5%.
   `services/mod.rs` ahora crea un `MockMarketDataProvider`, llama
   `LoadCandles::execute`, agrega las velas a `ChartState` y aplica
   `auto_scale`. Incluye fallback a velas sintéticas si falla el proveedor.
-- T2: Mostrar estado de carga / error en la UI (S3). Route: inline. Status: done. Commit: (pendiente).
+- T2: Mostrar estado de carga / error en la UI (S3). Route: inline. Status: done. Commit: 436a0c5.
   `ApexTraderApp` tiene un campo `load_state: LoadState` (Idle/Loading/Loaded/Error).
   `services/mod.rs` lo establece al cargar (`Loaded` con count o `Error` con mensaje).
   La UI muestra `Carga de mercado: {:?}` con el estado actual.
 - T3: Permitir cambiar el símbolo desde la UI y recargar (S2). Route: inline.
-  Status: pending.
+  Status: done. Commit: (pendiente).
+  `ApexTraderApp` tiene `symbol_input: String`. La UI muestra un campo de texto
+  y botón "Recargar" (Enter también dispara la recarga). Al cambiar el símbolo,
+  se limpia el chart, se cargan las nuevas velas vía `load_symbol_into_chart` y
+  se aplica `auto_scale`. Errores de símbolo inválido se muestran en `load_state`.
 - T4: Llamar `auto_scale` tras cargar velas para que quepan en pantalla (S5).
-  Route: inline. Status: pending.
+  Route: inline. Status: done. Commit: 0076717 (ya incluido en T1).
 - T5: Pruebas de integración para carga end-to-end (provider → command →
   ChartState → renderer dibuja). Route: inline. Status: pending.
 - T6: Verificación final: cargo test --workspace, clippy -D warnings, cargo fmt.
@@ -58,3 +62,8 @@ aplica auto_scale. Incluye fallback a velas sintéticas si falla el proveedor.
 L3: T2 completado y commiteado. ApexTraderApp tiene campo load_state: LoadState
 (Idle/Loading/Loaded/Error). La UI muestra "Carga de mercado: {:?}"
 con el estado actual. Fallback a velas sintéticas si falla el proveedor.
+L4: T3 completado y commiteado. Agregado symbol_input a ApexTraderApp. La UI
+muestra campo de texto y botón "Recargar" (Enter también dispara la recarga).
+Al cambiar el símbolo, se limpia el chart, se cargan las nuevas velas vía
+load_symbol_into_chart y se aplica auto_scale. Agregado ChartState::clear() y
+función helper load_symbol_into_chart().

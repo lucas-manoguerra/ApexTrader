@@ -55,6 +55,14 @@ impl ChartState {
         Ok(())
     }
 
+    /// Elimina todas las velas del estado del gráfico.
+    ///
+    /// Útil para recargar datos de un nuevo símbolo sin acumular velas
+    /// anteriores.
+    pub fn clear(&mut self) {
+        self.candles.clear();
+    }
+
     /// Devuelve un préstamo inmutable de las velas (`borrowing`).
     /// El llamante puede leerlas pero no modificarlas ni apropiarse de ellas.
     pub fn candles(&self) -> &[Candle] {
