@@ -32,7 +32,7 @@ mostrar estado de carga en la UI.
 ## Tasks
 
 - T1: Crear módulo `market/` con `Symbol`, `MarketCandle` y trait
-  `MarketDataProvider`. Route: inline. Status: done. Commit: (pendiente).
+  `MarketDataProvider`. Route: inline. Status: done. Commit: 9c36532.
 - T2: Implementar proveedor mock/sintético (`MockMarketDataProvider`) para
   pruebas sin red. Route: inline. Status: pending.
 - T3: Conectar `ChartState` con método para ingestar velas de un proveedor,
