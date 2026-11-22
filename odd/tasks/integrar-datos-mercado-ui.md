@@ -48,7 +48,10 @@ auto_scale para que todas las velas quepan con margen 5%.
 - T4: Llamar `auto_scale` tras cargar velas para que quepan en pantalla (S5).
   Route: inline. Status: done. Commit: 0076717 (ya incluido en T1).
 - T5: Pruebas de integración para carga end-to-end (provider → command →
-  ChartState → renderer dibuja). Route: inline. Status: pending.
+  ChartState → renderer dibuja). Route: inline. Status: done. Commit: (pendiente).
+  `tests/market_proptest.rs` agrega `test_carga_end_to_end_btc_usdt` (mock →
+  LoadCandles → ChartState → auto_scale) y
+  `test_cambiar_simbolo_no_acumula_velas` (clear + recarga de símbolo distinto).
 - T6: Verificación final: cargo test --workspace, clippy -D warnings, cargo fmt.
   Route: inline. Status: pending.
 
@@ -67,3 +70,6 @@ muestra campo de texto y botón "Recargar" (Enter también dispara la recarga).
 Al cambiar el símbolo, se limpia el chart, se cargan las nuevas velas vía
 load_symbol_into_chart y se aplica auto_scale. Agregado ChartState::clear() y
 función helper load_symbol_into_chart().
+L5: T5 completado y commiteado. Pruebas de integración end-to-end:
+test_carga_end_to_end_btc_usdt y test_cambiar_simbolo_no_acumula_velas en
+tests/market_proptest.rs.
