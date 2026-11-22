@@ -52,8 +52,8 @@ auto_scale para que todas las velas quepan con margen 5%.
   `tests/market_proptest.rs` agrega `test_carga_end_to_end_btc_usdt` (mock →
   LoadCandles → ChartState → auto_scale) y
   `test_cambiar_simbolo_no_acumula_velas` (clear + recarga de símbolo distinto).
-- T6: Verificación final: cargo test --workspace, clippy -D warnings, cargo fmt.
-  Route: inline. Status: pending.
+- T6: Verificación final: cargo test --workspace (81 tests), clippy -D
+  warnings, cargo fmt --check todos verdes. Status: done. Etapa 5 completa.
 
 ## Log
 
@@ -73,3 +73,5 @@ función helper load_symbol_into_chart().
 L5: T5 completado y commiteado. Pruebas de integración end-to-end:
 test_carga_end_to_end_btc_usdt y test_cambiar_simbolo_no_acumula_velas en
 tests/market_proptest.rs.
+L6: T6 completado. Etapa 5 completa: cargo test --workspace (81 tests),
+clippy -D warnings, cargo fmt --check todos verdes.
