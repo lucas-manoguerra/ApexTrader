@@ -32,14 +32,13 @@ presentación de información de depuración.
 - T2: Mover lógica de input (zoom con scroll, pan con arrastre, crosshair) a
   `application/events/`. Route: inline. Status: done. Commit: pending.
 - T3: Mover composición de dependencias (ChartState, renderer, datos de prueba
-  de ejemplo, fuentes) a `application/services/`. Route: inline. Status:
-  pending. Commit: -
+  de ejemplo, fuentes) a `application/services/`. Route: inline. Status: done. Commit: pending.
 - T4: Crear `application::run()` que `main()` llame, encapsulando `eframe::run_native`.
-  Route: inline. Status: pending. Commit: -
+  Route: inline. Status: done. Commit: pending.
 - T5: Reducir `main.rs` a solo `fn main() -> eframe::Result { apex_trader::application::run() }`.
-  Route: inline. Status: pending. Commit: -
+  Route: inline. Status: done. Commit: pending.
 - T6: Verificación final: cargo check, clippy -D warnings, cargo test, cargo
-  fmt, verify_architecture. Route: inline. Status: pending. Commit: -
+  fmt, verify_architecture. Route: inline. Status: done. Commit: pending.
 
 ## Log
 
@@ -47,3 +46,8 @@ L1: Continuación de la auditoría técnica de ApexTrader v0.1.0. Etapa 1
 (estabilizar Chart Engine) completada y commiteada en
 `feature/stabilize-chart-engine`. Inicio de la Etapa 2 (separar capa de
 aplicación) aprobada por el usuario.
+L2: T1-T6 completados. `main.rs` reducido a `apex_trader::application::run()`.
+La capa `application` tiene `commands/`, `events/` (InputHandler) y
+`services/` (ApexTraderApp, run, configure_fonts, datos de prueba).
+Todas las verificaciones pasan: cargo check, clippy -D warnings, cargo test
+(6 suites + proptest verdes), cargo fmt.
