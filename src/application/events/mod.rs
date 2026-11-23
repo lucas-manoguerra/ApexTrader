@@ -211,6 +211,8 @@ fn pointer_coordinates_unbounded(
         layout.plot.top,
     );
     (screen_point, chart_point)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -250,6 +252,4 @@ mod tests {
 
         assert!(pointer_coordinates(pos, rect, &layout).is_none());
     }
-}
-
 }
