@@ -10,11 +10,10 @@ pub use crate::renderer::wgpu_pipeline::WgpuPipeline;
 
 /// Renderizador de chart usando wgpu (GPU acelerado con DirectX 12 en Windows).
 ///
-/// Inicializa instance, adapter, device y queue. Cuando se disponga del
-/// window handle de winit, crea la Surface y renderiza las velas directamente
-/// en la GPU.
-///
-/// Mientras no haya surface, el dibujo visual sigue a cargo de GlowChartRenderer.
+/// **Estado: experimental / unfinished.** Inicializa instance, adapter, device
+/// y queue, pero no puede renderizar sin una `Surface` real vinculada a la
+/// ventana. Hasta que se implemente esa integración, wgpu no se presenta como
+/// un backend funcional; `glow` sigue siendo el único renderer usable.
 pub struct WgpuChartRenderer {
     instance: wgpu::Instance,
     adapter: wgpu::Adapter,
@@ -28,6 +27,10 @@ pub struct WgpuChartRenderer {
 
 impl WgpuChartRenderer {
     /// Intenta inicializar wgpu sin surface (solo instance, adapter, device, queue).
+    ///
+    /// Este método solo crea los objetos de contexto GPU. No puede renderizar
+    /// hasta que se llame a `init_surface` con un window handle real. Hasta
+    /// entonces, `draw()` devuelve `Err`.
     pub fn new() -> Result<Self, RendererError> {
         info!("Intentando inicializar wgpu...");
 
@@ -75,8 +78,9 @@ impl WgpuChartRenderer {
 
     /// Inicializa la surface de wgpu a partir de un window handle nativo.
     ///
-    /// Este método debe llamarse una vez que se disponga del `RawWindowHandle`
-    /// de la ventana (por ejemplo, el `HWND` de Windows).
+    /// **Stub:** hoy no crea una surface real. Cuando se disponga del
+    /// `RawWindowHandle` de la ventana, se implementará con la API correcta
+    /// de wgpu 30. Hasta entonces, `draw()` seguirá devolviendo `Err`.
     pub fn init_surface(
         &mut self,
         _raw_handle: raw_window_handle::RawWindowHandle,
@@ -88,10 +92,14 @@ impl WgpuChartRenderer {
     }
 
     /// Indica si el renderer wgpu tiene una surface lista para dibujar.
+    ///
+    /// Retorna `true` solo si hay surface y pipeline inicializados. Hoy,
+    /// como `init_surface` es un stub, siempre retorna `false`.
     pub fn has_surface(&self) -> bool {
         self.surface.is_some() && self.pipeline.is_some()
     }
     pub fn resize(&mut self, width: u32, height: u32) {
+        // No-op hasta que haya surface y pipeline configurados.
         if let (Some(ref mut config), Some(surface)) = (self.config.as_mut(), self.surface.as_ref())
             && width > 0
             && height > 0
@@ -104,7 +112,9 @@ impl WgpuChartRenderer {
     }
 
     /// Presenta el frame actual (swap chain).
-    /// En wgpu 30, SurfaceTexture::Drop hace el present automáticamente.
+    ///
+    /// **Placeholder:** en wgpu 30, SurfaceTexture::Drop hace el present
+    /// automáticamente. Hasta que haya surface real, este método no hace nada.
     pub fn present(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }
@@ -119,6 +129,8 @@ impl ChartRenderer for WgpuChartRenderer {
         _viewport: &Viewport,
         _crosshair_pos: Option<ScreenPoint>,
     ) -> Result<(), RendererError> {
+        // wgpu no puede dibujar sin surface ni pipeline. Retorna Err para que
+        // el caller use glow como fallback.
         if self.surface.is_none() || self.pipeline.is_none() {
             return Err(RendererError::BackendInitFailed(
                 "wgpu surface no inicializada".to_string(),
