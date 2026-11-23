@@ -107,6 +107,18 @@ impl eframe::App for ApexTraderApp {
 
             let available = ui.available_rect_before_wrap();
             let painter = ui.painter();
+            let chart_layout =
+                ChartLayout::compute(available.width() as f64, available.height() as f64);
+
+            // Ajustar el historial completo al ancho real del plot al iniciar
+            // o después de cargar un nuevo conjunto de datos.
+            let data_revision = self.chart.data_revision();
+            if self.prev_viewport.is_none() || data_revision != self.prev_data_revision {
+                let logical_count = self.chart.time_scale().len();
+                self.chart
+                    .viewport_mut()
+                    .fit_content(logical_count, chart_layout.plot_width());
+            }
 
             let interaction_rect = available.shrink(0.0);
             let response = ui.interact(
@@ -136,11 +148,10 @@ impl eframe::App for ApexTraderApp {
                 self.calculate_invalidation_mask(viewport, crosshair_pos, data_revision, available);
 
             // Calcular rango de precios y centro a partir de los puntos visibles.
-            let chart_layout =
-                ChartLayout::compute(available.width() as f64, available.height() as f64);
             let drawing_width = chart_layout.plot_width();
             let drawing_height = chart_layout.plot_height();
-            let visible = viewport.visible_range(points.len(), drawing_width);
+            let logical_count = self.chart.time_scale().len();
+            let visible = viewport.visible_range(logical_count, drawing_width);
             let (price_range, center_price, max_volume) = if visible.is_empty() {
                 (0.0, 0.0, 0.0)
             } else {
@@ -174,7 +185,7 @@ impl eframe::App for ApexTraderApp {
                 price_range,
                 center_price,
                 max_volume,
-                candle_count: points.len(),
+                candle_count: logical_count,
                 screen_width: drawing_width,
                 screen_height: drawing_height,
                 crosshair_pos,
