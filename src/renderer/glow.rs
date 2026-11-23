@@ -1,9 +1,8 @@
-use crate::chart::layout::ChartLayout;
 use crate::domain::chart::time_scale::TimeScale;
-use crate::domain::transforms::{self, screen_to_chart_point};
+use crate::domain::transforms::{self, screen_to_chart_point, ScreenPoint};
 use crate::domain::viewport::Viewport;
 use crate::errors::RendererError;
-use crate::renderer::{ChartRenderer, ChartScene};
+use crate::renderer::{ChartRenderer, ChartScene, RenderColor, RenderFrame, RenderLayer};
 use eframe::egui;
 use rust_decimal::prelude::FromPrimitive;
 
@@ -14,6 +13,7 @@ pub struct GlowChartRenderer {
     /// Shapes de velas y volumen calculadas en el último frame estructural.
     /// egui exige volver a emitirlas en cada frame; por eso se reproducen
     /// desde esta caché cuando solo cambia el crosshair.
+    cached_series_layer: RenderLayer,
     cached_series_shapes: Vec<egui::Shape>,
     series_cache_valid: bool,
 }
@@ -21,6 +21,7 @@ pub struct GlowChartRenderer {
 impl GlowChartRenderer {
     pub fn new() -> Self {
         Self {
+            cached_series_layer: RenderLayer::default(),
             cached_series_shapes: Vec::new(),
             series_cache_valid: false,
         }
@@ -244,6 +245,64 @@ fn draw_time_axis(
     }
 }
 
+
+/// Convierte la geometría compartida de la serie en primitivas específicas de egui.
+fn series_layer_shapes(layer: &RenderLayer, origin: ScreenPoint) -> Vec<egui::Shape> {
+    let mut shapes = Vec::with_capacity(layer.candles.len().saturating_mul(3));
+
+    for (candle, volume) in layer.candles.iter().zip(&layer.volume_bars) {
+        let color = egui::Color32::from_rgba_unmultiplied(
+            candle.color.red,
+            candle.color.green,
+            candle.color.blue,
+            candle.color.alpha,
+        );
+        let center_x = candle.center_x + origin.x as f32;
+        let origin_y = origin.y as f32;
+
+        shapes.push(egui::Shape::line_segment(
+            [
+                egui::pos2(center_x, candle.high_y + origin_y),
+                egui::pos2(center_x, candle.low_y + origin_y),
+            ],
+            egui::Stroke::new(1.0, color),
+        ));
+
+        let body_height = (candle.close_y - candle.open_y).abs().max(2.0);
+        let body_y = candle.open_y.min(candle.close_y) + origin_y;
+        let body_rect = egui::Rect::from_min_size(
+            egui::pos2(center_x - candle.body_width / 2.0, body_y),
+            egui::vec2(candle.body_width, body_height),
+        );
+        shapes.push(egui::Shape::rect_filled(
+            body_rect,
+            egui::CornerRadius::same(1),
+            color,
+        ));
+
+        let volume_color = egui::Color32::from_rgba_unmultiplied(
+            volume.color.red,
+            volume.color.green,
+            volume.color.blue,
+            volume.color.alpha,
+        );
+        let volume_rect = egui::Rect::from_min_size(
+            egui::pos2(
+                volume.center_x + origin.x as f32 - candle.body_width / 2.0,
+                volume.base_y + origin_y - volume.height,
+            ),
+            egui::vec2(candle.body_width, volume.height),
+        );
+        shapes.push(egui::Shape::rect_filled(
+            volume_rect,
+            egui::CornerRadius::ZERO,
+            volume_color,
+        ));
+    }
+
+    shapes
+}
+
 fn should_rebuild_series(cache_valid: bool, reason: crate::renderer::InvalidationReason) -> bool {
     !cache_valid
         || !matches!(
@@ -275,20 +334,34 @@ impl ChartRenderer for GlowChartRenderer {
         );
 
         if scene.data_points.is_empty() {
+            self.cached_series_layer = RenderLayer::default();
             self.cached_series_shapes.clear();
             self.series_cache_valid = true;
             tracing::trace!("No hay puntos para renderizar");
             return Ok(());
         }
 
-        let layout = ChartLayout::compute(rect.width() as f64, rect.height() as f64);
+        let origin = ScreenPoint {
+            x: rect.left() as f64,
+            y: rect.top() as f64,
+        };
+        let rebuild_series =
+            should_rebuild_series(self.series_cache_valid, scene.invalidation_mask.level);
+        let frame = RenderFrame::from_scene(
+            scene,
+            rect.width() as f64,
+            rect.height() as f64,
+            origin,
+            rebuild_series,
+        );
+        let layout = &frame.layout;
         if !layout.is_valid() {
             tracing::warn!("Dimensiones de dibujo inválidas, no se puede renderizar");
             return Err(RendererError::EmptyDrawRect);
         }
 
-        let ox = rect.left() as f64;
-        let oy = rect.top() as f64;
+        let ox = frame.origin.x;
+        let oy = frame.origin.y;
 
         let left = layout.plot.left + ox;
         let right = layout.plot.right + ox;
@@ -323,91 +396,10 @@ impl ChartRenderer for GlowChartRenderer {
             visible.last
         );
 
-        let candle_width = transforms::candle_body_width(scene.viewport.zoom_x()) as f32;
-        let candle_width = candle_width.clamp(4.0, 40.0);
-        let _spacing = candle_width * 0.4;
-
-        let price_to_y = |price: f64| -> f32 {
-            let bottom = bottom_precios;
-            let screen_height = bottom - top;
-            let pixels_per_unit = screen_height / price_range * scene.viewport.zoom_y();
-            let relative_price = price - center_price - scene.viewport.offset_y() * price_range;
-            (bottom - relative_price * pixels_per_unit) as f32
-        };
-
-        let volume_to_height = |volume: f64| -> f32 {
-            if max_volume <= 0.0 || !max_volume.is_finite() {
-                return 0.0;
-            }
-            let screen_height = volumen_bottom - volumen_top;
-            let relative = volume / max_volume;
-            (relative * screen_height) as f32
-        };
-
-        let rebuild_series =
-            should_rebuild_series(self.series_cache_valid, scene.invalidation_mask.level);
-
         if rebuild_series {
-            self.cached_series_shapes.clear();
-            self.cached_series_shapes
-                .reserve((visible.last - visible.first + 1).saturating_mul(3));
-
-            for (i, point) in scene
-                .data_points
-                .iter()
-                .enumerate()
-                .skip(visible.first)
-                .take(visible.last - visible.first + 1)
-            {
-                let logical_index = point.logical_index.unwrap_or(i);
-                let screen_x = scene
-                    .viewport
-                    .logical_to_screen(logical_index as f64, drawing_width)
-                    + left;
-
-                let y_high = price_to_y(point.high());
-                let y_low = price_to_y(point.low());
-                let y_open = price_to_y(point.open());
-                let y_close = price_to_y(point.close());
-
-                let color = if point.close() >= point.open() {
-                    egui::Color32::GREEN
-                } else {
-                    egui::Color32::RED
-                };
-
-                self.cached_series_shapes.push(egui::Shape::line_segment(
-                    [
-                        egui::pos2(screen_x as f32, y_high),
-                        egui::pos2(screen_x as f32, y_low),
-                    ],
-                    egui::Stroke::new(1.0, color),
-                ));
-
-                let body_height = (y_close - y_open).abs().max(2.0);
-                let body_y = y_open.min(y_close);
-                let body_rect = egui::Rect::from_min_size(
-                    egui::pos2(screen_x as f32 - candle_width / 2.0, body_y),
-                    egui::vec2(candle_width, body_height),
-                );
-                self.cached_series_shapes.push(egui::Shape::rect_filled(
-                    body_rect,
-                    egui::CornerRadius::same(1),
-                    color,
-                ));
-
-                let volume_height = volume_to_height(point.volume());
-                let volume_y = volumen_bottom - volume_height as f64;
-                let volume_rect = egui::Rect::from_min_size(
-                    egui::pos2(screen_x as f32 - candle_width / 2.0, volume_y as f32),
-                    egui::vec2(candle_width, volume_height.max(1.0)),
-                );
-                self.cached_series_shapes.push(egui::Shape::rect_filled(
-                    volume_rect,
-                    egui::CornerRadius::ZERO,
-                    color,
-                ));
-            }
+            self.cached_series_layer = frame.layers.first().cloned().unwrap_or_default();
+            self.cached_series_shapes =
+                series_layer_shapes(&self.cached_series_layer, frame.origin);
             self.series_cache_valid = true;
         }
 
@@ -471,7 +463,12 @@ impl ChartRenderer for GlowChartRenderer {
             {
                 let crosshair_screen_x = crosshair.x + ox;
                 let crosshair_screen_y = crosshair.y + oy;
-                let crosshair_color = egui::Color32::from_rgb(255, 165, 0);
+                let crosshair_color = egui::Color32::from_rgba_unmultiplied(
+                    RenderColor::ORANGE.red,
+                    RenderColor::ORANGE.green,
+                    RenderColor::ORANGE.blue,
+                    RenderColor::ORANGE.alpha,
+                );
 
                 painter.line_segment(
                     [
@@ -667,6 +664,7 @@ mod tests {
     #[test]
     fn empty_scene_clears_previously_cached_shapes() {
         let mut renderer = GlowChartRenderer {
+            cached_series_layer: RenderLayer::default(),
             cached_series_shapes: vec![egui::Shape::Noop],
             series_cache_valid: true,
         };

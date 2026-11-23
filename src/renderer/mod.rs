@@ -46,6 +46,7 @@ mod wgpu_pipeline;
 pub use glow::GlowChartRenderer;
 pub use ir::{
     CandleRender, ChartScene, CrosshairRender, InvalidationMask, InvalidationReason,
-    PriceAxisLabel, RenderFrame, RenderGeometry, RenderLayer, TimeAxisLabel, VolumeBarRender,
+    PriceAxisLabel, RenderColor, RenderFrame, RenderGeometry, RenderLayer, TimeAxisLabel,
+    VolumeBarRender,
 };
 pub use wgpu::WgpuChartRenderer;
