@@ -534,20 +534,11 @@ impl Viewport {
     /// Ajusta el eje temporal para mostrar todo el historial con un margen
     /// horizontal del 5%. El eje de precios no se modifica.
     pub fn fit_content(&mut self, logical_count: usize, screen_width: f64) -> bool {
-        if logical_count == 0 || !screen_width.is_finite() || screen_width <= 0.0 {
+        if logical_count == 0 {
             return false;
         }
 
-        let desired_spacing = if logical_count == 1 {
-            transforms::CANDLE_SPACING_BASE
-        } else {
-            screen_width * 0.90 / (logical_count - 1) as f64
-        };
-        let desired_zoom = desired_spacing / transforms::CANDLE_SPACING_BASE;
-        let previous = (self.zoom_x, self.offset_x);
-        self.set_zoom_x(desired_zoom);
-        self.set_offset_x(-((logical_count - 1) as f64) / 2.0);
-        previous != (self.zoom_x, self.offset_x)
+        self.fit_logical_range(0.0, (logical_count - 1) as f64, screen_width)
     }
 
     /// Centra una posición lógica (también fraccionaria) en el área visible.
@@ -854,6 +845,18 @@ mod tests {
         let last = viewport.logical_to_screen(20.5, 1_000.0);
         assert!((first - 50.0).abs() < 1e-8);
         assert!((last - 950.0).abs() < 1e-8);
+    }
+
+    #[test]
+    fn fit_logical_range_changes_only_the_horizontal_axis() {
+        let mut viewport = Viewport::new();
+        viewport.set_zoom_y(3.25);
+        viewport.set_offset_y(-0.75);
+
+        assert!(viewport.fit_logical_range(5.0, 15.0, 1_000.0));
+
+        assert_eq!(viewport.zoom_y(), 3.25);
+        assert_eq!(viewport.offset_y(), -0.75);
     }
 
     #[test]
