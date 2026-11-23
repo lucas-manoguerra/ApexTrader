@@ -478,7 +478,7 @@ mod tests {
 
     #[test]
     fn series_cache_is_reused_for_unchanged_and_cursor_only_frames() {
-        assert!(!should_rebuild_series(false, InvalidationReason::None) == false);
+        assert!(should_rebuild_series(false, InvalidationReason::None));
         assert!(!should_rebuild_series(true, InvalidationReason::None));
         assert!(!should_rebuild_series(true, InvalidationReason::CursorOnly));
     }
@@ -502,6 +502,58 @@ mod tests {
     fn invalid_cache_is_built_even_without_an_invalidation_reason() {
         assert!(should_rebuild_series(false, InvalidationReason::None));
         assert!(should_rebuild_series(false, InvalidationReason::CursorOnly));
+    }
+
+    #[test]
+    fn each_visible_candle_generates_wick_body_and_volume_shapes() {
+        use crate::domain::candle::Candle;
+        use crate::domain::chart::chart_data::ChartDataPoint;
+        use crate::domain::chart::time_point::TimePoint;
+        use crate::domain::viewport::Viewport;
+
+        let time = TimePoint::new(0, 60_000, 60_000).expect("intervalo válido");
+        let candles = [
+            ChartDataPoint::new(
+                Candle::new(100.0, 105.0, 98.0, 103.0, 500.0).expect("vela alcista válida"),
+                time,
+            ),
+            ChartDataPoint::new(
+                Candle::new(103.0, 106.0, 99.0, 101.0, 1_000.0).expect("vela bajista válida"),
+                time,
+            ),
+        ];
+        let scene = ChartScene {
+            data_points: &candles,
+            viewport: Viewport::new(),
+            price_range: 10.0,
+            center_price: 102.0,
+            max_volume: 1_000.0,
+            candle_count: candles.len(),
+            screen_width: 800.0,
+            screen_height: 500.0,
+            crosshair_pos: None,
+            invalidation_mask: crate::renderer::InvalidationMask {
+                level: InvalidationReason::Full,
+            },
+        };
+        let mut renderer = GlowChartRenderer::new();
+        let context = egui::Context::default();
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 500.0));
+
+        let _ = context.run(egui::RawInput::default(), |ctx| {
+            let painter = ctx.layer_painter(egui::LayerId::new(
+                egui::Order::Middle,
+                egui::Id::new("glow-series-shapes-test"),
+            ));
+            renderer.draw(&painter, rect, &scene).expect("escena válida");
+        });
+
+        assert_eq!(
+            renderer.cached_series_shapes.len(),
+            candles.len() * 3,
+            "cada vela visible debe generar wick, cuerpo y barra de volumen"
+        );
+        assert!(renderer.series_cache_valid);
     }
 
     #[test]
