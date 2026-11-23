@@ -131,10 +131,6 @@ pub fn validate_price_range(min: f64, max: f64) -> Option<f64> {
     Some(range)
 }
 
-// ---------------------------------------------------------------------------
-// Espacios de coordenadas y conversiones (S4)
-// ---------------------------------------------------------------------------
-
 /// Punto en coordenadas de pantalla: píxeles desde la esquina superior
 /// izquierda del rect de dibujo recibido por el renderer (incluye márgenes
 /// de ejes).
@@ -278,7 +274,6 @@ mod tests {
 
     #[test]
     fn visible_range_zero_zero_is_not_empty() {
-        // {first: 0, last: 0} representa la vela cero, NO un rango vacío.
         let r = VisibleRange::new(0, 0);
         assert!(!r.is_empty());
         assert_eq!(r.len(), 1);

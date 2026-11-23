@@ -123,7 +123,6 @@ mod tests {
         assert!(!state.is_empty());
         assert_eq!(state.data_points()[0].open(), 100.0);
         assert_eq!(state.data_points()[1].close(), 106.0);
-        // Preserva el tiempo: el punto 1 comienza en 0 ms.
         assert_eq!(state.data_points()[0].time_point.open_time_ms, 0);
         assert_eq!(state.data_points()[1].time_point.open_time_ms, 60_000);
     }

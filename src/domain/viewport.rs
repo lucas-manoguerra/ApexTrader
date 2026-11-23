@@ -296,7 +296,6 @@ impl Viewport {
         screen_width: f64,
         screen_height: f64,
     ) {
-        // Validar finitud de parámetros.
         if !delta_x.is_finite()
             || !delta_y.is_finite()
             || !center_x.is_finite()
@@ -307,7 +306,6 @@ impl Viewport {
             return;
         }
 
-        // Ignorar eventos sin movimiento en ningún eje.
         if delta_x == 0.0 && delta_y == 0.0 {
             return;
         }
@@ -334,16 +332,10 @@ impl Viewport {
         let center_x_px = center_x * screen_width;
         let center_y_px = center_y * screen_height;
 
-        // Ajustar offsets para que el zoom sea centrado en el punto dado, por eje independiente.
-        // Cuando hacemos zoom, el punto center debe quedarse fijo en pantalla.
         let zoom_ratio_x = new_zoom_x / self.zoom_x;
         let zoom_ratio_y = new_zoom_y / self.zoom_y;
 
-        // Convertir offset_x (índices de vela) a píxeles, aplicar zoom, volver a índices.
         let offset_x_px = self.offset_x * transforms::candle_spacing(self.zoom_x);
-        // offset_y está en unidades de precio; para convertir a píxeles usamos
-        // screen_height * zoom_y, consistente con price_to_screen /
-        // screen_y_to_price (el price_range se cancela en la conversión).
         let offset_y_px = self.offset_y * screen_height * self.zoom_y;
 
         let new_offset_x_px = center_x_px + (offset_x_px - center_x_px) * zoom_ratio_x;
@@ -377,15 +369,7 @@ impl Viewport {
             return;
         }
 
-        // El pan se aplica inversamente: si arrastramos a la derecha,
-        // el contenido se mueve a la derecha, así que offset_x aumenta.
-        // Convertir píxeles a índices de vela usando candle_spacing (eje X).
         self.offset_x += dx / self.candle_spacing();
-        // offset_y está en unidades de precio; factor de conversión consistente con
-        // price_to_screen / screen_y_to_price: offset_y_px = offset_y * screen_height * zoom_y,
-        // así que dy píxeles = dy / (screen_height * zoom_y) unidades de precio.
-        // El pan se aplica inversamente: al arrastrar hacia abajo (dy > 0) el
-        // contenido baja y el precio en el centro desciende, por eso se resta.
         self.offset_y -= dy / (screen_height * self.zoom_y);
 
         tracing::trace!(
@@ -417,7 +401,6 @@ impl Viewport {
         screen_width: f64,
         screen_height: f64,
     ) {
-        // Rechazar dimensiones cero, negativas o no finitas antes de dividir.
         if candle_count == 0
             || !screen_width.is_finite()
             || !screen_height.is_finite()
@@ -438,8 +421,6 @@ impl Viewport {
             .to_f64()
             .expect("precio máximo convertible");
 
-        // Rechazar rango degenerado (min == max) o no finito: no hay escala
-        // visual posible. Dejar el estado sin cambios.
         let Some(price_range_value) =
             transforms::validate_price_range(min_price_f64, max_price_f64)
         else {
@@ -449,18 +430,8 @@ impl Viewport {
         let margin = MARGIN_RATIO;
         let available_height = screen_height * (1.0 - 2.0 * margin);
 
-        // Verticalmente (eje Y - precio): el rango de precios ocupa
-        // screen_height * zoom_y píxeles (price_range se cancela en
-        // price_to_screen: price_range * pixels_per_unit = screen_height *
-        // zoom_y). Para que quepa en available_height:
-        // zoom_y <= available_height / screen_height = 1 - 2 * margin.
-        // auto_scale ajusta solo el eje Y (precio); el eje X
-        // (tiempo y velas) se deja intacto.
         let zoom_vertical_max = available_height / screen_height;
 
-        // Eje Y: zoom basado en la escala de precio, clampeado al rango
-        // permitido. Si ni siquiera el zoom mínimo permite que quepa el rango
-        // de precios, usamos min_zoom y aceptamos scroll vertical.
         let max_allowed_y = zoom_vertical_max.min(self.max_zoom);
         let new_zoom_y = if self.min_zoom > max_allowed_y {
             self.min_zoom
@@ -468,10 +439,6 @@ impl Viewport {
             self.zoom_y.clamp(self.min_zoom, max_allowed_y)
         };
 
-        // Centrar verticalmente: dejar offset_y en 0 y que el llamante pase
-        // center_price = price_range.midpoint() al llamar price_to_screen.
-        // Con offset_y = 0 y center_price = midpoint, el precio medio del rango
-        // queda en el centro vertical del área de dibujo.
         self.offset_y = 0.0;
         self.zoom_y = new_zoom_y;
 
@@ -542,8 +509,6 @@ impl Viewport {
         price_range: PriceRange,
         center_price: Price,
     ) -> f64 {
-        // Validar dimensiones antes de dividir: evita división por cero o
-        // coordenadas no finitas (rango degenerado, pantalla vacía).
         if !screen_height.is_finite() || screen_height <= 0.0 {
             return screen_height / 2.0;
         }
@@ -562,8 +527,6 @@ impl Viewport {
             .expect("el precio máximo debe ser convertible a f64 para renderizado");
         let Some(range_value_f64) = transforms::validate_price_range(min_price_f64, max_price_f64)
         else {
-            // Rango degenerado (min == max): no hay escala visual posible.
-            // Devolver el centro del área como posición neutra.
             return center_y;
         };
 
@@ -659,10 +622,6 @@ impl Viewport {
 mod tests {
     use super::*;
 
-    /// Los ejes X e Y escalan de forma independiente: cambiar el zoom X no
-    /// afecta al zoom Y y viceversa. Viewport es el único dueño del estado
-    /// de escala (zoom_x, zoom_y, offset_x, offset_y).
-    #[test]
     fn zoom_axes_are_independent() {
         let mut viewport = Viewport::new();
         viewport.set_zoom_x(2.0);
@@ -670,13 +629,11 @@ mod tests {
         assert!((viewport.zoom_x() - 2.0).abs() < f64::EPSILON);
         assert!((viewport.zoom_y() - 5.0).abs() < f64::EPSILON);
 
-        // Cambiar solo X no afecta Y.
         viewport.set_zoom_x(3.0);
         assert!((viewport.zoom_x() - 3.0).abs() < f64::EPSILON);
         assert!((viewport.zoom_y() - 5.0).abs() < f64::EPSILON);
     }
 
-    /// El zoom se clampea a [min_zoom, max_zoom] en ambos ejes.
     #[test]
     fn zoom_clamps_to_limits() {
         let mut viewport = Viewport::new();
