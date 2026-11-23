@@ -84,27 +84,27 @@ impl Candle {
     }
 
     /// Devuelve el precio de apertura.
-    pub fn open(self) -> f64 {
+    pub fn open(&self) -> f64 {
         self.open
     }
 
     /// Devuelve el precio máximo.
-    pub fn high(self) -> f64 {
+    pub fn high(&self) -> f64 {
         self.high
     }
 
     /// Devuelve el precio mínimo.
-    pub fn low(self) -> f64 {
+    pub fn low(&self) -> f64 {
         self.low
     }
 
     /// Devuelve el precio de cierre.
-    pub fn close(self) -> f64 {
+    pub fn close(&self) -> f64 {
         self.close
     }
 
     /// Devuelve el volumen negociado en el período.
-    pub fn volume(self) -> f64 {
+    pub fn volume(&self) -> f64 {
         self.volume
     }
 }
