@@ -50,6 +50,7 @@ enum LoadState {
 struct ApexTraderApp {
     chart: ChartState,
     renderer: Box<dyn ChartRenderer>,
+    input_handler: InputHandler,
     load_state: LoadState,
     /// Símbolo ingresado por el usuario para cargar datos de mercado.
     symbol_input: String,
@@ -116,12 +117,16 @@ impl eframe::App for ApexTraderApp {
                 egui::Sense::click_and_drag(),
             );
 
-            let mut input_handler = InputHandler::new();
-
             let crosshair_pos = {
                 let chart = &mut self.chart;
-                events::handle_input(&mut input_handler, ui, &response, interaction_rect, chart);
-                input_handler.crosshair_pos()
+                events::handle_input(
+                    &mut self.input_handler,
+                    ui,
+                    &response,
+                    interaction_rect,
+                    chart,
+                );
+                self.input_handler.crosshair_pos()
             };
 
             let viewport = self.chart.viewport();
@@ -290,6 +295,7 @@ pub fn run() -> eframe::Result {
             Ok(Box::new(ApexTraderApp {
                 chart,
                 renderer,
+                input_handler: InputHandler::new(),
                 load_state,
                 symbol_input: "BTC/USDT".to_string(),
                 prev_viewport: None,
