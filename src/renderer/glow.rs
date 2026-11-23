@@ -1,5 +1,6 @@
 use crate::chart::layout::ChartLayout;
 use crate::domain::transforms::{self, screen_to_chart_point};
+use crate::domain::chart::time_scale::TimeScale;
 use crate::domain::viewport::Viewport;
 use crate::errors::RendererError;
 use crate::renderer::{ChartRenderer, ChartScene};
@@ -153,28 +154,37 @@ fn draw_time_axis(
     right: f64,
     bottom: f64,
     viewport: &Viewport,
-    candles_count: usize,
+    data_points: &[crate::domain::chart::chart_data::ChartDataPoint],
+    logical_count: usize,
     font_id: egui::FontId,
 ) {
     let screen_width = right - left;
-
-    let visible = viewport.visible_range(candles_count, screen_width);
+    let visible = viewport.visible_range(logical_count, screen_width);
     if visible.is_empty() {
         return;
     }
 
-    let visible_count = visible.last - visible.first + 1;
+    let visible_count = visible.len();
     let index_step = if visible_count > 1 {
         ((visible_count as f64) / 6.0).ceil() as usize
     } else {
         1
     };
 
-    let mut idx = visible.first;
-    while idx <= visible.last {
-        let screen_x = viewport.data_x_to_screen(idx, screen_width) + left;
-        let label = format!("{}", idx);
+    let mut last_index = None;
+    for point in data_points {
+        let Some(index) = point.logical_index else {
+            continue;
+        };
+        if index < visible.first || index > visible.last
+            || (index - visible.first) % index_step != 0
+            || last_index == Some(index)
+        {
+            continue;
+        }
 
+        let screen_x = viewport.logical_to_screen(index as f64, screen_width) + left;
+        let label = TimeScale::format_time_point(point.time_point);
         painter.text(
             egui::pos2(screen_x as f32, (bottom + 6.0) as f32),
             egui::Align2::CENTER_TOP,
@@ -182,8 +192,7 @@ fn draw_time_axis(
             font_id.clone(),
             egui::Color32::GRAY,
         );
-
-        idx += index_step;
+        last_index = Some(index);
     }
 }
 
@@ -302,7 +311,8 @@ impl ChartRenderer for GlowChartRenderer {
                 .skip(visible.first)
                 .take(visible.last - visible.first + 1)
             {
-                let screen_x = scene.viewport.data_x_to_screen(i, drawing_width) + left;
+                let logical_index = point.logical_index.unwrap_or(i);
+                let screen_x = scene.viewport.logical_to_screen(logical_index as f64, drawing_width) + left;
 
                 let y_high = price_to_y(point.high());
                 let y_low = price_to_y(point.low());
@@ -391,6 +401,7 @@ impl ChartRenderer for GlowChartRenderer {
             right_f64,
             bottom_precios,
             &scene.viewport,
+            scene.data_points,
             scene.candle_count,
             font_id,
         );
@@ -438,6 +449,11 @@ impl ChartRenderer for GlowChartRenderer {
                     layout.plot_width(),
                     scene.candle_count,
                 );
+                let time_label = scene
+                    .data_points
+                    .get(index_at_cursor)
+                    .map(|point| TimeScale::format_time_point(point.time_point))
+                    .unwrap_or_default();
 
                 let price_label = format!("{:.2}", price_at_cursor);
                 painter.text(
@@ -448,11 +464,10 @@ impl ChartRenderer for GlowChartRenderer {
                     crosshair_color,
                 );
 
-                let index_label = format!("{}", index_at_cursor);
                 painter.text(
                     egui::pos2(crosshair_screen_x as f32, (bottom_precios + 4.0) as f32),
                     egui::Align2::CENTER_TOP,
-                    index_label,
+                    time_label,
                     egui::FontId::proportional(11.0),
                     crosshair_color,
                 );
