@@ -17,7 +17,7 @@ pub trait ChartRenderer {
         &mut self,
         painter: &egui::Painter,
         rect: egui::Rect,
-        scene: &ChartScene,
+        scene: &ChartScene<'_>,
     ) -> Result<(), RendererError>;
 
     /// Nombre legible del renderer (para logs y depuración).
