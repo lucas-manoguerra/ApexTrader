@@ -31,3 +31,26 @@ pub trait MarketDataProvider: Send + Sync {
         to_ms: i64,
     ) -> Result<Vec<MarketCandle>, MarketError>;
 }
+
+
+/// Snapshot de una actualización recibida desde un stream realtime.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RealtimeMarketUpdate {
+    /// Estado OHLCV más reciente de la vela en formación.
+    pub candle: MarketCandle,
+    /// Indica que la actualización cierra la vela y la siguiente tendrá otro timestamp.
+    pub is_closed: bool,
+}
+
+/// Proveedor de actualizaciones continuas de mercado.
+///
+/// Las implementaciones pueden usar WebSocket, IPC u otra fuente. Cada llamada
+/// devuelve el snapshot más reciente de la vela; varios snapshots pueden
+/// compartir el mismo timestamp de apertura mientras la vela siga abierta.
+pub trait RealtimeMarketDataProvider: Send {
+    /// Nombre legible del proveedor.
+    fn name(&self) -> &str;
+
+    /// Obtiene la siguiente actualización de la vela activa.
+    fn next_update(&mut self) -> Result<RealtimeMarketUpdate, MarketError>;
+}

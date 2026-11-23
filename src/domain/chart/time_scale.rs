@@ -32,6 +32,22 @@ impl TimeScale {
         self.timestamps_ms.dedup();
     }
 
+    /// Agrega un timestamp al final sin reconstruir toda la escala.
+    ///
+    /// Devuelve false si el timestamp no es estrictamente posterior al último.
+    /// Es la ruta eficiente para la llegada secuencial de nuevas velas realtime.
+    pub fn push(&mut self, timestamp_ms: i64) -> bool {
+        if self
+            .timestamps_ms
+            .last()
+            .is_some_and(|last_timestamp| timestamp_ms <= *last_timestamp)
+        {
+            return false;
+        }
+        self.timestamps_ms.push(timestamp_ms);
+        true
+    }
+
     /// Cantidad de posiciones temporales únicas.
     pub fn len(&self) -> usize {
         self.timestamps_ms.len()
@@ -234,6 +250,16 @@ mod tests {
         // Salto temporal intencional: no crea índices intermedios.
         scale.rebuild([0, 60_000, 3_600_000, 3_660_000]);
         scale
+    }
+
+    #[test]
+    fn push_appends_only_strictly_increasing_timestamps() {
+        let mut scale = TimeScale::new();
+        assert!(scale.push(10));
+        assert!(scale.push(20));
+        assert!(!scale.push(20));
+        assert!(!scale.push(15));
+        assert_eq!(scale.timestamps(), &[10, 20]);
     }
 
     #[test]

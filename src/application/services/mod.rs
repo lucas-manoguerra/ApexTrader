@@ -7,17 +7,16 @@
 use crate::application::commands::load_candles::LoadCandles;
 use crate::application::events::{self, InputHandler};
 use crate::chart::layout::ChartLayout;
-use crate::domain::candle::Candle;
-use crate::domain::chart::chart_data::ChartDataPoint;
-use crate::domain::chart::time_point::TimePoint;
 use crate::domain::chart_state::ChartState;
 use crate::domain::price::Price;
 use crate::domain::price_range::PriceRange;
 use crate::domain::transforms::ScreenPoint;
 use crate::domain::viewport::Viewport;
 use crate::logging::init as init_logging;
+use crate::market::candle::MarketCandle;
 use crate::market::mock::MockMarketDataProvider;
-use crate::market::provider::MarketDataProvider;
+use crate::market::mock_realtime::MockRealtimeMarketDataProvider;
+use crate::market::provider::{MarketDataProvider, RealtimeMarketDataProvider};
 use crate::market::symbol::Symbol;
 use crate::renderer::{
     ChartRenderer, ChartScene, InvalidationMask, InvalidationReason, create_renderer,
@@ -26,7 +25,14 @@ use eframe::egui;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 use std::str::FromStr;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tracing;
+
+const MOCK_INTERVAL_MS: i64 = 60_000;
+const MOCK_HISTORY_CANDLES: i64 = 200;
+const MOCK_TICKS_PER_CANDLE: u32 = 20;
+const MOCK_REALTIME_VOLUME: f64 = 35.0;
+const MOCK_REALTIME_TICK_INTERVAL: Duration = Duration::from_millis(250);
 
 /// Estado de carga de datos de mercado.
 #[derive(Debug, Clone, PartialEq)]
@@ -63,17 +69,28 @@ struct ApexTraderApp {
     prev_data_revision: u64,
     /// Indica que una carga completa de historial requiere ajustar el eje X una vez.
     fit_content_pending: bool,
+    /// Stream realtime intercambiable por un proveedor WebSocket real.
+    realtime_provider: Option<Box<dyn RealtimeMarketDataProvider>>,
+    /// Sigue la última vela cuando el usuario está mirando el extremo derecho.
+    follow_latest: bool,
+    /// Indica que se agregó una vela nueva y hay que evaluar el seguimiento.
+    follow_latest_pending: bool,
+    /// Instante previsto para la siguiente actualización realtime.
+    next_realtime_tick: Instant,
     /// Rect de dibujo del frame anterior.
     prev_rect: Option<egui::Rect>,
 }
 
 impl eframe::App for ApexTraderApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.advance_realtime(ui.ctx());
+
         egui::CentralPanel::default().show(ui, |ui| {
             ui.heading("ApexTrader — Chart de Velas");
             ui.separator();
 
             ui.label(format!("Renderer: {}", self.renderer.name()));
+            ui.checkbox(&mut self.follow_latest, "Seguir última vela");
 
             ui.separator();
 
@@ -87,19 +104,31 @@ impl eframe::App for ApexTraderApp {
                 if recargar {
                     match Symbol::from_str(&self.symbol_input) {
                         Ok(symbol) => {
-                            let provider = MockMarketDataProvider::new(50000.0);
-                            let to_ms = 0;
-                            let from_ms = -(200i64 * 60_000);
+                            let provider = MockMarketDataProvider::new(50_000.0)
+                                .with_interval_ms(MOCK_INTERVAL_MS)
+                                .with_base_volume(MOCK_REALTIME_VOLUME);
+                            let to_ms = latest_closed_candle_open_time(MOCK_INTERVAL_MS);
+                            let from_ms = to_ms.saturating_sub(
+                                (MOCK_HISTORY_CANDLES - 1) * MOCK_INTERVAL_MS,
+                            );
                             self.load_state = load_symbol_into_chart(
                                 &mut self.chart,
                                 &provider,
-                                symbol,
+                                symbol.clone(),
                                 from_ms,
                                 to_ms,
                             );
+                            self.realtime_provider = create_realtime_provider(
+                                &self.chart,
+                                symbol,
+                                MOCK_REALTIME_VOLUME,
+                                MOCK_TICKS_PER_CANDLE,
+                            );
+                            self.next_realtime_tick = Instant::now() + MOCK_REALTIME_TICK_INTERVAL;
                             self.fit_content_pending = true;
                         }
                         Err(e) => {
+                            self.realtime_provider = None;
                             self.load_state = LoadState::Error(format!("Símbolo inválido: {e}"));
                         }
                     }
@@ -124,7 +153,30 @@ impl eframe::App for ApexTraderApp {
                         .fit_content(logical_count, chart_layout.plot_width());
                     self.fit_content_pending = false;
                 }
+            } else if self.follow_latest_pending && self.follow_latest {
+                let point_count = self.chart.len();
+                if point_count > 1 && chart_layout.plot_width() > 0.0 {
+                    let (was_at_right_edge, current_offset) = {
+                        let viewport = self.chart.viewport();
+                        let previous_last = (point_count - 2) as f64;
+                        let last_x = viewport
+                            .logical_to_screen(previous_last, chart_layout.plot_width());
+                        (
+                            last_x >= chart_layout.plot_width() * 0.8
+                                && last_x <= chart_layout.plot_width() * 1.05,
+                            viewport.offset_x(),
+                        )
+                    };
+                    if was_at_right_edge {
+                        // Una posición lógica a la izquierda mantiene la nueva
+                        // vela en el borde derecho sin tocar zoom ni escala Y.
+                        self.chart
+                            .viewport_mut()
+                            .set_offset_x(current_offset - 1.0);
+                    }
+                }
             }
+            self.follow_latest_pending = false;
 
             let interaction_rect = available.shrink(0.0);
             let response = ui.interact(
@@ -218,6 +270,10 @@ impl eframe::App for ApexTraderApp {
             ));
 
             ui.label(format!("Carga de mercado: {:?}", self.load_state));
+            ui.label(format!(
+                "Realtime mock: {}",
+                if self.realtime_provider.is_some() { "activo" } else { "inactivo" }
+            ));
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
                 ui.label(format!("Puntos: {}", points.len()));
@@ -234,6 +290,47 @@ impl eframe::App for ApexTraderApp {
 /// Compara el estado actual con el del frame anterior para determinar
 /// qué partes del chart necesitan ser re-renderizadas.
 impl ApexTraderApp {
+    fn advance_realtime(&mut self, ctx: &egui::Context) {
+        let now = Instant::now();
+        if let Some(provider) = self.realtime_provider.as_mut() {
+            if now >= self.next_realtime_tick {
+                self.next_realtime_tick = now + MOCK_REALTIME_TICK_INTERVAL;
+                match provider.next_update() {
+                    Ok(update) => {
+                        let candle_closed = update.is_closed;
+                        match update.candle.to_chart_data_point() {
+                            Ok(point) => {
+                                let previous_count = self.chart.len();
+                                if let Err(error) = self.chart.add_data_point(point) {
+                                    tracing::error!(
+                                        "No se pudo aplicar la actualización realtime: {error}"
+                                    );
+                                } else {
+                                    self.follow_latest_pending |= self.chart.len() > previous_count;
+                                    if candle_closed {
+                                    tracing::debug!(
+                                        "Mock realtime cerró vela {} en {} ms",
+                                        update.candle.symbol,
+                                        update.candle.open_time_ms
+                                    );
+                                    }
+                                }
+                            }
+                            Err(error) => tracing::error!(
+                                "El mock realtime generó un punto inválido: {error}"
+                            ),
+                        }
+                    }
+                    Err(error) => tracing::error!("Error en mock realtime: {error}"),
+                }
+            }
+
+            ctx.request_repaint_after(
+                self.next_realtime_tick.saturating_duration_since(Instant::now()),
+            );
+        }
+    }
+
     fn calculate_invalidation_mask(
         &self,
         viewport: &Viewport,
@@ -308,12 +405,23 @@ pub fn run() -> eframe::Result {
 
             let mut chart = ChartState::new();
 
-            let provider = MockMarketDataProvider::new(50000.0);
+            let provider = MockMarketDataProvider::new(50_000.0)
+                .with_interval_ms(MOCK_INTERVAL_MS)
+                .with_base_volume(MOCK_REALTIME_VOLUME);
             let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
-            let to_ms = 0;
-            let from_ms = -(200i64 * 60_000);
+            let to_ms = latest_closed_candle_open_time(MOCK_INTERVAL_MS);
+            let from_ms = to_ms.saturating_sub(
+                (MOCK_HISTORY_CANDLES - 1) * MOCK_INTERVAL_MS,
+            );
 
-            let load_state = load_symbol_into_chart(&mut chart, &provider, symbol, from_ms, to_ms);
+            let load_state =
+                load_symbol_into_chart(&mut chart, &provider, symbol.clone(), from_ms, to_ms);
+            let realtime_provider = create_realtime_provider(
+                &chart,
+                symbol,
+                MOCK_REALTIME_VOLUME,
+                MOCK_TICKS_PER_CANDLE,
+            );
 
             // Crear renderer (intenta wgpu, cae a glow si falla)
             let renderer = create_renderer();
@@ -329,10 +437,64 @@ pub fn run() -> eframe::Result {
                 prev_crosshair_pos: None,
                 prev_data_revision: data_revision,
                 fit_content_pending: true,
+                realtime_provider,
+                follow_latest: true,
+                follow_latest_pending: false,
+                next_realtime_tick: Instant::now() + MOCK_REALTIME_TICK_INTERVAL,
                 prev_rect: None,
             }))
         }),
     )
+}
+
+/// Timestamp de apertura de la última vela completamente cerrada.
+fn latest_closed_candle_open_time(interval_ms: i64) -> i64 {
+    let now_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .min(i64::MAX as u128) as i64;
+    let current_open = now_ms.div_euclid(interval_ms) * interval_ms;
+    current_open.saturating_sub(interval_ms)
+}
+
+/// Construye el stream realtime a continuación del último punto histórico.
+fn create_realtime_provider(
+    chart: &ChartState,
+    symbol: Symbol,
+    base_volume: f64,
+    ticks_per_candle: u32,
+) -> Option<Box<dyn RealtimeMarketDataProvider>> {
+    let last_point = chart.data_points().last()?;
+    let close_time_ms = last_point
+        .time_point
+        .open_time_ms
+        .checked_add(last_point.time_point.interval_ms)?;
+    let last_candle = MarketCandle {
+        symbol: symbol.clone(),
+        open_time_ms: last_point.time_point.open_time_ms,
+        open: last_point.open(),
+        high: last_point.high(),
+        low: last_point.low(),
+        close: last_point.close(),
+        volume: last_point.volume(),
+        close_time_ms,
+    };
+    let seed_provider = MockMarketDataProvider::new(last_point.close())
+        .with_interval_ms(last_point.time_point.interval_ms)
+        .with_base_volume(base_volume);
+    match MockRealtimeMarketDataProvider::from_last_candle(
+        last_candle,
+        ticks_per_candle,
+        base_volume,
+        seed_provider.seed_for_symbol(&symbol),
+    ) {
+        Ok(provider) => Some(Box::new(provider)),
+        Err(error) => {
+            tracing::warn!("No se pudo iniciar el mock realtime: {error}");
+            None
+        }
+    }
 }
 
 /// Carga velas de un símbolo desde un proveedor de mercado en el `ChartState`.
@@ -348,7 +510,7 @@ fn load_symbol_into_chart(
     from_ms: i64,
     to_ms: i64,
 ) -> LoadState {
-    match LoadCandles::execute(provider, symbol, from_ms, to_ms) {
+    match LoadCandles::execute(provider, symbol.clone(), from_ms, to_ms) {
         Ok(result) => {
             if !result.is_clean() {
                 tracing::warn!(
@@ -386,26 +548,29 @@ fn load_symbol_into_chart(
         Err(e) => {
             tracing::error!("No se pudieron cargar datos de mercado: {e}");
             chart.clear();
-            let mut price = 100.0;
-            for i in 0..20 {
-                let open = price;
-                let change = (i as f64 * 0.5).sin() * 3.0;
-                let close = open + change * 0.7;
-                let high = open.max(close) + change.abs() * 0.3;
-                let low = open.min(close) - change.abs() * 0.3;
-                let volume = 1000.0 + (i as f64 * 0.5).sin().abs() * 500.0;
-                let open_time_ms = i as i64 * 60_000;
-                let close_time_ms = open_time_ms + 60_000 - 1;
-                if let Some(tp) = TimePoint::new(open_time_ms, close_time_ms, 60_000) {
-                    if let Ok(candle) = Candle::new(open, high, low, close, volume) {
-                        if let Err(e) = chart.add_data_point(ChartDataPoint::new(candle, tp)) {
-                            tracing::error!("No se pudo agregar punto de datos {}: {}", i, e);
-                        }
-                    } else {
-                        tracing::error!("No se pudo crear vela sintética {}: {}", i, open);
+
+            // El fallback usa el mismo generador OHLCV realista para no volver
+            // a introducir una serie simplista y desconectada del histórico.
+            let fallback_provider = MockMarketDataProvider::new(100.0)
+                .with_interval_ms(MOCK_INTERVAL_MS)
+                .with_base_volume(MOCK_REALTIME_VOLUME);
+            match LoadCandles::execute(&fallback_provider, symbol.clone(), from_ms, to_ms) {
+                Ok(fallback) => {
+                    if let Err(error) = chart.add_data_points(&fallback.data_points) {
+                        tracing::error!("No se pudo cargar el histórico de fallback: {error}");
+                    }
+                    if let Some(range) = price_range_from_data_points(chart) {
+                        chart.viewport_mut().auto_scale(
+                            range,
+                            chart.len(),
+                            1920.0,
+                            1080.0,
+                        );
                     }
                 }
-                price = close;
+                Err(fallback_error) => {
+                    tracing::error!("También falló el histórico sintético de fallback: {fallback_error}");
+                }
             }
             tracing::info!(
                 "ChartState inicializado con {} puntos de datos (fallback)",

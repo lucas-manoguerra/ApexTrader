@@ -60,3 +60,39 @@ mostrar estado de carga en la UI.
 
 L1: Etapa 4 aprobada por el usuario tras completar la Etapa 3 (rama
 feature/profesionalizar-chart-engine mergeada vía PR #2).
+
+
+## Extensión: histórico sintético y stream realtime
+
+La capa mock se amplía para probar el ciclo completo de actualización del chart
+sin conectar un exchange real.
+
+- T8: Reemplazar la curva sinusoidal simplista por un histórico determinista con
+  tendencias de varias escalas, volatilidad variable, mechas asimétricas y
+  volumen correlacionado con el retorno absoluto. Route: inline. Status: done
+  (pendiente de CI). Archivo: src/market/mock.rs.
+- T9: Crear el contrato RealtimeMarketDataProvider y una implementación mock
+  que emita snapshots OHLCV de la vela activa, indique su cierre y abra velas
+  contiguas conservando continuidad de precio y tiempo. Route: inline.
+  Status: done (pendiente de CI). Archivos: src/market/provider.rs y
+  src/market/mock_realtime.rs.
+- T10: Conectar el stream a la UI con un reloj de simulación, actualizaciones
+  periódicas y control de seguimiento de la última vela. El seguimiento solo
+  mueve el eje X si el usuario permanece cerca del borde derecho. Route: inline.
+  Status: done (pendiente de CI). Archivo: src/application/services/mod.rs.
+- T11: Optimizar la ingestión incremental: reemplazar una vela existente sin
+  reconstruir TimeScale y anexar timestamps crecientes en O(1) amortizado.
+  Route: inline. Status: done (pendiente de CI). Archivos:
+  src/domain/chart_state.rs y src/domain/chart/time_scale.rs.
+
+Criterios de aceptación:
+- Las consultas históricas repetidas y los rangos solapados generan exactamente
+  las mismas velas.
+- Cada vela conserva OHLC válido, timestamps alineados y continuidad open/close.
+- El volumen varía y aumenta estadísticamente con los movimientos absolutos fuertes.
+- El stream actualiza la misma vela hasta cerrarla; el siguiente timestamp empieza
+  en el cierre de la anterior y abre al último precio.
+- El histórico y el realtime se integran mediante el mismo ChartState.
+- Los ticks de una vela activa no reconstruyen el histórico de TimeScale.
+- El seguimiento realtime no interfiere con el pan/zoom manual cuando el usuario
+  abandona el extremo derecho.

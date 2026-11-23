@@ -51,10 +51,32 @@ impl ChartState {
             .data_points
             .binary_search_by_key(&timestamp_ms, |point| point.time_point.open_time_ms)
         {
-            Ok(index) => self.data_points[index] = data_point,
-            Err(index) => self.data_points.insert(index, data_point),
+            Ok(index) => {
+                // Los ticks realtime reescriben repetidamente la última vela.
+                // Su índice temporal ya existe, así que no es necesario ordenar
+                // ni reconstruir TimeScale en cada actualización.
+                let mut updated_point = data_point;
+                updated_point.logical_index = Some(index);
+                self.data_points[index] = updated_point;
+            }
+            Err(index) if index == self.data_points.len() => {
+                // Las velas nuevas llegan cronológicamente: se agregan al final
+                // y la escala temporal crece en O(1) amortizado.
+                if self.time_scale.push(timestamp_ms) {
+                    let mut appended_point = data_point;
+                    appended_point.logical_index = Some(self.data_points.len());
+                    self.data_points.push(appended_point);
+                } else {
+                    self.data_points.insert(index, data_point);
+                    self.rebuild_time_scale();
+                }
+            }
+            Err(index) => {
+                // La inserción histórica fuera de orden conserva la ruta general.
+                self.data_points.insert(index, data_point);
+                self.rebuild_time_scale();
+            }
         }
-        self.rebuild_time_scale();
         self.data_revision = self.data_revision.wrapping_add(1);
         Ok(())
     }
@@ -252,6 +274,56 @@ mod tests {
         state.clear();
 
         assert_eq!(state.data_revision(), initial_revision);
+    }
+
+    #[test]
+    fn updating_the_latest_candle_does_not_rebuild_the_time_scale() {
+        let mut state = ChartState::new();
+        let first_time = TimePoint::new(0, 60_000, 60_000).unwrap();
+        let second_time = TimePoint::new(60_000, 120_000, 60_000).unwrap();
+        let initial = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
+        let update = Candle::new(100.0, 106.0, 98.0, 104.0, 1_500.0).unwrap();
+
+        state
+            .add_data_point(ChartDataPoint::new(initial, first_time))
+            .unwrap();
+        state
+            .add_data_point(ChartDataPoint::new(initial, second_time))
+            .unwrap();
+
+        let timestamps_ptr = state.time_scale().timestamps().as_ptr();
+        let revision = state.data_revision();
+        state
+            .add_data_point(ChartDataPoint::new(update, second_time))
+            .unwrap();
+
+        assert_eq!(state.len(), 2);
+        assert_eq!(state.data_points()[1].close(), 104.0);
+        assert_eq!(state.data_points()[1].volume(), 1_500.0);
+        assert_eq!(state.data_points()[1].logical_index, Some(1));
+        assert_eq!(state.time_scale().timestamps().as_ptr(), timestamps_ptr);
+        assert_eq!(state.time_scale().timestamps(), &[0, 60_000]);
+        assert_eq!(state.data_revision(), revision + 1);
+    }
+
+    #[test]
+    fn appending_realtime_candles_extends_the_time_scale_incrementally() {
+        let mut state = ChartState::new();
+        let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
+        for index in 0..3 {
+            let open_time = index * 60_000;
+            let time = TimePoint::new(open_time, open_time + 60_000, 60_000).unwrap();
+            state
+                .add_data_point(ChartDataPoint::new(candle, time))
+                .unwrap();
+        }
+
+        assert_eq!(state.len(), 3);
+        assert_eq!(state.time_scale().timestamps(), &[0, 60_000, 120_000]);
+        assert_eq!(
+            state.data_points().iter().map(|point| point.logical_index).collect::<Vec<_>>(),
+            vec![Some(0), Some(1), Some(2)]
+        );
     }
 
     #[test]
