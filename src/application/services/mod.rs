@@ -118,10 +118,12 @@ impl eframe::App for ApexTraderApp {
             // el zoom ni el desplazamiento que eligió el usuario.
             if self.fit_content_pending {
                 let logical_count = self.chart.time_scale().len();
-                self.chart
-                    .viewport_mut()
-                    .fit_content(logical_count, chart_layout.plot_width());
-                self.fit_content_pending = false;
+                if logical_count > 0 {
+                    self.chart
+                        .viewport_mut()
+                        .fit_content(logical_count, chart_layout.plot_width());
+                    self.fit_content_pending = false;
+                }
             }
 
             let interaction_rect = available.shrink(0.0);
