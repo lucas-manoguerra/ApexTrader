@@ -122,9 +122,12 @@ pub struct RenderGeometry {
 
 /// La escena completa del chart: qué dibujar, sin decir cómo.
 #[derive(Debug, Clone)]
-pub struct ChartScene {
-    /// Puntos de datos del chart.
-    pub data_points: Vec<ChartDataPoint>,
+pub struct ChartScene<'a> {
+    /// Vista prestada de los puntos de datos propiedad de ChartState.
+    ///
+    /// La escena no clona ni toma posesión de las velas; su vida útil queda
+    /// limitada al préstamo entregado por la aplicación en este frame.
+    pub data_points: &'a [ChartDataPoint],
     /// Viewport (zoom y pan).
     pub viewport: Viewport,
     /// Rango de precios visible (máximo - mínimo).
@@ -198,11 +201,11 @@ impl InvalidationMask {
     }
 }
 
-impl ChartScene {
+impl<'a> ChartScene<'a> {
     /// Crea una `ChartScene` vacía.
     pub fn empty() -> Self {
         Self {
-            data_points: Vec::new(),
+            data_points: &[],
             viewport: Viewport::new(),
             price_range: 0.0,
             center_price: 0.0,
@@ -215,7 +218,7 @@ impl ChartScene {
     }
 }
 
-impl Default for ChartScene {
+impl<'a> Default for ChartScene<'a> {
     fn default() -> Self {
         Self::empty()
     }
