@@ -799,5 +799,4 @@ mod tests {
         assert!(!viewport.fit_content(10, f64::NAN));
         assert_eq!(viewport, before);
     }
-
 }
