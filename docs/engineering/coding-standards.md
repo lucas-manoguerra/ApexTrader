@@ -14,6 +14,18 @@ Excepciones permitidas (y solo estas):
 - Documentación de APIs públicas (`///` en items públicos) que describa el contrato, no la implementación.
 - Justificación de `unsafe` requerida por el guardrail de `unsafe`.
 
+## Documentación pública obligatoria: `///` y `//!` (obligatorio)
+
+Todo item público (struct, enum, trait, función, método, constante, módulo) **debe** tener documentación `///` o `//!` profesional, actualizada y precisa.
+
+Requisitos:
+
+- **`///` en items públicos:** describir el contrato, el propósito y el comportamiento observable, no la implementación interna. Incluir parámetros, retorno, errores, panics e invariantes cuando aplique.
+- **`//!` en módulos:** describir el propósito del módulo, su responsabilidad, cómo encaja en la arquitectura y las reglas de uso.
+- **Mantener actualizado:** si cambia el comportamiento, la firma o el propósito de un item público, actualizar su documentación en el mismo commit. Nunca dejar documentación desactualizada.
+- **Profesional:** escribir en español argentino (voseo), claro y conciso. Sin jargon innecesario, sin comentarios de implementación, sin "TODO", "FIXME" o notas internas.
+- **No documentar lo obvio:** si el nombre ya expresa la intención, la documentación puede ser breve, pero nunca ausente en items públicos.
+
 ## Principios generales
 
 - Un archivo, una responsabilidad.
