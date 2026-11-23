@@ -24,6 +24,14 @@
 /// - `min_zoom` debe ser siempre `<= max_zoom`.
 /// - `zoom_x`, `zoom_y`, `offset_x`, `offset_y` deben ser siempre finitos.
 /// - `delta_x == 0.0 && delta_y == 0.0` en `zoom_at` no modifica el estado.
+///
+/// ## Ownership
+///
+/// `Viewport` es el único dueño del estado de escala del chart:
+/// `zoom_x`, `zoom_y`, `offset_x`, `offset_y`, `min_zoom` y `max_zoom`.
+/// Ningún otro tipo debe duplicar este estado. Antes de esta consolidación,
+/// `ChartScales`/`TimeScale`/`PriceScale` en `chart::scale` duplicaban el
+/// mismo estado; fueron eliminados (ver T11).
 use crate::domain::price::Price;
 use crate::domain::price_range::PriceRange;
 use crate::domain::transforms;
