@@ -388,11 +388,16 @@ impl InteractionController {
                         anchor_pointer_x / self.screen_width,
                         0.5,
                     ),
-                    ScaleAxis::Price => (
-                        ev.x - anchor_pointer_x,
-                        0.5,
-                        anchor_pointer_y / self.screen_height,
-                    ),
+                    ScaleAxis::Price => {
+                        // Arrastrar hacia el interior del gráfico acerca la escala
+                        // tanto desde el eje izquierdo como desde el derecho.
+                        let direction = if anchor_pointer_x < 0.0 { -1.0 } else { 1.0 };
+                        (
+                            (ev.x - anchor_pointer_x) * direction,
+                            0.5,
+                            anchor_pointer_y / self.screen_height,
+                        )
+                    }
                 };
                 let base = 1.0 + viewport.zoom_step();
                 let factor = base.powf(-delta / 40.0);
@@ -783,11 +788,7 @@ mod tests {
                 y: 610.0,
             }),
         );
-        let result = controller.on_event(
-            &mut viewport,
-            100,
-            &pointer_drag(anchor_x, 570.0),
-        );
+        let result = controller.on_event(&mut viewport, 100, &pointer_drag(anchor_x, 570.0));
 
         assert!(result.viewport_changed);
         assert!(viewport.zoom_x() > zoom_x_before);
@@ -824,7 +825,7 @@ mod tests {
         let result = controller.on_event(
             &mut viewport,
             100,
-            &pointer_drag(anchor_x - 40.0, anchor_y),
+            &pointer_drag(anchor_x + 40.0, anchor_y),
         );
         let scaled_price_after =
             (300.0 - anchor_y) / (600.0 * viewport.zoom_y()) + viewport.offset_y();

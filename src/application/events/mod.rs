@@ -316,18 +316,20 @@ mod tests {
         let rect = interaction_rect();
         let layout = ChartLayout::compute(rect.width() as f64, rect.height() as f64);
         let price_pos = egui::pos2(
-            rect.left() + (layout.price_axis_left.left + layout.price_axis_left.width() / 2.0) as f32,
-            rect.top() + (layout.price_axis_left.top + layout.price_axis_left.height() / 2.0) as f32,
+            rect.left()
+                + (layout.price_axis_left.left + layout.price_axis_left.width() / 2.0) as f32,
+            rect.top()
+                + (layout.price_axis_left.top + layout.price_axis_left.height() / 2.0) as f32,
         );
         let time_pos = egui::pos2(
             rect.left() + (layout.time_axis.left + layout.time_axis.width() / 2.0) as f32,
             rect.top() + (layout.time_axis.top + layout.time_axis.height() / 2.0) as f32,
         );
 
-        let (price_axis, _) =
-            axis_pointer_coordinates(price_pos, rect, &layout).expect("el eje de precios debe detectarse");
-        let (time_axis, _) =
-            axis_pointer_coordinates(time_pos, rect, &layout).expect("el eje temporal debe detectarse");
+        let (price_axis, _) = axis_pointer_coordinates(price_pos, rect, &layout)
+            .expect("el eje de precios debe detectarse");
+        let (time_axis, _) = axis_pointer_coordinates(time_pos, rect, &layout)
+            .expect("el eje temporal debe detectarse");
 
         assert_eq!(price_axis, ScaleAxis::Price);
         assert_eq!(time_axis, ScaleAxis::Time);
