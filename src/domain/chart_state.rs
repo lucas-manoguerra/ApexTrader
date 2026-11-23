@@ -13,6 +13,8 @@ use crate::errors::ChartError;
 pub struct ChartState {
     data_points: Vec<ChartDataPoint>,
     viewport: Viewport,
+    /// Versión monótona de los datos para invalidar cachés incluso si la longitud no cambia.
+    data_revision: u64,
 }
 
 impl ChartState {
@@ -21,6 +23,7 @@ impl ChartState {
         Self {
             data_points: Vec::new(),
             viewport: Viewport::new(),
+            data_revision: 0,
         }
     }
 
@@ -39,6 +42,7 @@ impl ChartState {
         );
 
         self.data_points.push(data_point);
+        self.data_revision = self.data_revision.wrapping_add(1);
         Ok(())
     }
 
@@ -59,7 +63,10 @@ impl ChartState {
     /// Útil para recargar datos de un nuevo símbolo sin acumular datos
     /// anteriores.
     pub fn clear(&mut self) {
-        self.data_points.clear();
+        if !self.data_points.is_empty() {
+            self.data_points.clear();
+            self.data_revision = self.data_revision.wrapping_add(1);
+        }
     }
 
     /// Devuelve un préstamo inmutable de los puntos de datos (`borrowing`).
@@ -83,6 +90,11 @@ impl ChartState {
     pub fn viewport_mut(&mut self) -> &mut Viewport {
         tracing::trace!("Prestando viewport mutable para input de usuario");
         &mut self.viewport
+    }
+
+    /// Revisión monótona que cambia cada vez que se modifica la colección de datos.
+    pub fn data_revision(&self) -> u64 {
+        self.data_revision
     }
 
     pub fn len(&self) -> usize {
