@@ -49,7 +49,7 @@ impl MockRealtimeMarketDataProvider {
             return Err(MarketError::InvalidResponse(
                 "la última vela no tiene un intervalo válido".to_string(),
             ));
-        }
+        };
         if ticks_per_candle == 0 {
             return Err(MarketError::InvalidResponse(
                 "ticks_per_candle debe ser mayor que cero".to_string(),
