@@ -304,6 +304,7 @@ pub fn run() -> eframe::Result {
 
             // Crear renderer (intenta wgpu, cae a glow si falla)
             let renderer = create_renderer();
+            let data_revision = chart.data_revision();
 
             Ok(Box::new(ApexTraderApp {
                 chart,
@@ -313,7 +314,7 @@ pub fn run() -> eframe::Result {
                 symbol_input: "BTC/USDT".to_string(),
                 prev_viewport: None,
                 prev_crosshair_pos: None,
-                prev_data_revision: chart.data_revision(),
+                prev_data_revision: data_revision,
                 prev_rect: None,
             }))
         }),
