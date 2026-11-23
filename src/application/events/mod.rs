@@ -161,16 +161,16 @@ pub fn handle_input(
             button: PointerButton::Primary,
         });
         input_handler
-                .controller
-                .on_event(chart.viewport_mut(), candle_count, &event);
+            .controller
+            .on_event(chart.viewport_mut(), candle_count, &event);
     }
     if response.drag_stopped_by(egui::PointerButton::Secondary) {
         let event = InteractionEvent::PointerUp(PointerUpEvent {
             button: PointerButton::Secondary,
         });
         input_handler
-                .controller
-                .on_event(chart.viewport_mut(), candle_count, &event);
+            .controller
+            .on_event(chart.viewport_mut(), candle_count, &event);
     }
 
     // El crosshair usa ScreenPoint relativo al rect completo, mientras que
