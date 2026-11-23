@@ -6,8 +6,8 @@
 
 use crate::chart::interaction::controller::InteractionController;
 use crate::chart::interaction::events::{
-    InteractionEvent, Modifiers, PointerButton, PointerDownEvent, PointerDragEvent,
-    PointerUpEvent, ScrollEvent,
+    InteractionEvent, Modifiers, PointerButton, PointerDownEvent, PointerDragEvent, PointerUpEvent,
+    ScrollEvent,
 };
 use crate::chart::layout::ChartLayout;
 use crate::domain::chart_state::ChartState;
