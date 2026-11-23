@@ -544,7 +544,7 @@ mod tests {
         let _ = context.run_ui(egui::RawInput::default(), |ctx| {
             let painter = ctx.layer_painter(egui::LayerId::new(
                 egui::Order::Middle,
-                egui::Id::unique(),
+                egui::Id::new("glow-renderer-candle-cache"),
             ));
             renderer
                 .draw(&painter, rect, &scene)
@@ -572,7 +572,7 @@ mod tests {
         let _ = context.run_ui(egui::RawInput::default(), |ctx| {
             let painter = ctx.layer_painter(egui::LayerId::new(
                 egui::Order::Middle,
-                egui::Id::unique(),
+                egui::Id::new("glow-renderer-empty-cache"),
             ));
             renderer
                 .draw(&painter, rect, &scene)
