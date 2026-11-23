@@ -229,26 +229,11 @@ impl ChartRenderer for GlowChartRenderer {
             return Ok(());
         }
 
-        let visible_points = &scene.data_points[visible.first..=visible.last];
-        let min_price = visible_points
-            .iter()
-            .map(|p| p.low())
-            .fold(f64::INFINITY, f64::min);
-        let max_price = visible_points
-            .iter()
-            .map(|p| p.high())
-            .fold(f64::NEG_INFINITY, f64::max);
-        let mut price_range = max_price - min_price;
-        if price_range == 0.0 {
-            price_range = 1.0;
-        }
-
-        let max_volume = visible_points
-            .iter()
-            .map(|p| p.volume())
-            .fold(0.0f64, f64::max);
-
-        let center_price = (min_price + max_price) / 2.0;
+        // La aplicación ya preparó estas métricas en una sola pasada
+        // sobre el rango visible; el renderer no vuelve a recorrer las velas.
+        let price_range = scene.price_range;
+        let center_price = scene.center_price;
+        let max_volume = scene.max_volume;
 
         tracing::trace!(
             "Rango de precios (visible): min={:.2}, max={:.2}, range={:.2}, center={:.2}, \
