@@ -530,7 +530,10 @@ mod tests {
             }),
         );
 
-        assert_eq!(viewport, zoom_only, "la opción desactivada no debe añadir pan");
+        assert_eq!(
+            viewport, zoom_only,
+            "la opción desactivada no debe añadir pan"
+        );
         assert!(viewport.zoom_x() > zoom_before);
 
         options.scroll.horizontal_mouse_wheel = true;

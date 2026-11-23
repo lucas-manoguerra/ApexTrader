@@ -5,11 +5,11 @@
 //! el controlador opera sobre el Viewport propiedad de ChartState.
 
 use crate::chart::interaction::controller::InteractionController;
-use crate::chart::interaction::options::InteractionOptions;
 use crate::chart::interaction::events::{
     InteractionEvent, Modifiers, PointerButton, PointerDownEvent, PointerDragEvent, PointerUpEvent,
     ScrollEvent,
 };
+use crate::chart::interaction::options::InteractionOptions;
 use crate::chart::layout::ChartLayout;
 use crate::domain::chart_state::ChartState;
 use crate::domain::transforms::{ChartPoint, ScreenPoint, screen_to_chart_point};
