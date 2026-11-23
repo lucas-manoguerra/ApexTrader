@@ -1,4 +1,6 @@
 use apex_trader::domain::candle::Candle;
+use apex_trader::domain::chart::chart_data::ChartDataPoint;
+use apex_trader::domain::chart::time_point::TimePoint;
 use apex_trader::domain::chart_state::ChartState;
 use apex_trader::domain::viewport::Viewport;
 
@@ -13,20 +15,22 @@ fn candle_is_pure_domain_type() {
     assert_eq!(c.close(), 103.0);
 }
 
-/// Regla 2: ChartState presta velas y viewport; no las cede.
-/// El llamante recibe &[Candle] y &Viewport (borrowing), no ownership.
+/// Regla 2: ChartState presta puntos de datos y viewport; no los cede.
+/// El llamante recibe &[ChartDataPoint] y &Viewport (borrowing), no ownership.
 #[test]
-fn chart_state_lends_candles_and_viewport() {
+fn chart_state_lends_data_points_and_viewport() {
     let mut chart = ChartState::new();
+    let candle = Candle::new(1.0, 2.0, 0.5, 1.5, 100.0).expect("vela válida debe aceptarse");
+    let tp = TimePoint::new(0, 60_000, 60_000).expect("intervalo válido");
     chart
-        .add_candle(Candle::new(1.0, 2.0, 0.5, 1.5, 100.0).expect("vela válida debe aceptarse"))
-        .expect("vela válida debe agregarse");
+        .add_data_point(ChartDataPoint::new(candle, tp))
+        .expect("punto de datos válido debe agregarse");
 
-    let candles = chart.candles();
-    assert_eq!(candles.len(), 1);
+    let points = chart.data_points();
+    assert_eq!(points.len(), 1);
 
     let viewport = chart.viewport();
-    // El viewport sigue accesible tras prestar velas (ninguna se movió).
+    // El viewport sigue accesible tras prestar puntos de datos (ninguno se movió).
     assert_eq!(viewport.zoom_x(), 1.0);
 }
 
@@ -43,13 +47,13 @@ fn viewport_is_copy_value_type() {
 #[test]
 fn chart_state_rejects_non_finite_prices() {
     let mut chart = ChartState::new();
-    // Candle::new() rechaza precios no finitos antes de llegar a add_candle.
+    // Candle::new() rechaza precios no finitos antes de llegar a add_data_point.
     let result = Candle::new(f64::NAN, 2.0, 0.5, 1.5, 0.0);
     assert!(result.is_err());
 
-    // Si la vela se crea válida, add_candle la acepta.
     let valid = Candle::new(1.0, 2.0, 0.5, 1.5, 100.0).expect("vela válida");
-    assert!(chart.add_candle(valid).is_ok());
+    let tp = TimePoint::new(0, 60_000, 60_000).expect("intervalo válido");
+    assert!(chart.add_data_point(ChartDataPoint::new(valid, tp)).is_ok());
 }
 
 /// Regla 5: Candle rechaza rangos de precio inválidos (low > high).

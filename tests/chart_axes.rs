@@ -9,7 +9,6 @@ fn nice_tick_step_returns_nice_values() {
     let min = Price::new(Decimal::new(10000, 2)).expect("100.00 válido");
     let max = Price::new(Decimal::new(20000, 2)).expect("200.00 válido");
 
-    // Verificar que el rango de precios tiene sentido
     let diff = max.value() - min.value();
     assert_eq!(diff, Decimal::new(10000, 2));
 }
@@ -20,8 +19,6 @@ fn price_ticks_adjust_to_zoom() {
     let min = Price::new(Decimal::new(10000, 2)).expect("100.00 válido");
     let max = Price::new(Decimal::new(20000, 2)).expect("200.00 válido");
 
-    // Con zoom 1.0, el rango visible es el rango completo.
-    // Con zoom mayor, el rango visible es menor.
     let half_range_at_zoom_1 = (max.value() - min.value()).to_f64().unwrap() / 2.0;
     let half_range_at_zoom_2 = half_range_at_zoom_1 / 2.0;
 
@@ -52,7 +49,6 @@ fn x_axis_index_labels_are_integers() {
         let _x_pos = screen_x as f32;
     }
 
-    // Verificar que los índices son monotónicos
     let x0 = viewport.data_x_to_screen(0, screen_width);
     let x1 = viewport.data_x_to_screen(1, screen_width);
     assert!(x1 > x0, "el índice 1 debe estar a la derecha del índice 0");
@@ -68,7 +64,6 @@ fn tick_count_is_reasonable() {
     let target_ticks = 6usize;
     let raw_step = visible_range.to_f64().unwrap() / target_ticks as f64;
 
-    // El step debe ser un valor "nice" (1, 2, 5, 10, etc.)
     let magnitude = 10.0f64.powi(raw_step.log10().floor() as i32);
     let residual = raw_step / magnitude;
     let step = if residual < 1.5 {
@@ -81,7 +76,6 @@ fn tick_count_is_reasonable() {
         10.0 * magnitude
     };
 
-    // Verificar que el step es una potencia de 10 multiplicada por 1, 2 o 5
     let step_ratio = step / magnitude;
     assert!(
         step_ratio == 1.0 || step_ratio == 2.0 || step_ratio == 5.0 || step_ratio == 10.0,

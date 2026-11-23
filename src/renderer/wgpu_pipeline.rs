@@ -2,7 +2,6 @@ use crate::domain::candle::Candle;
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 
-/// Un vértice en el espacio de coordenadas normalizado de pantalla (-1.0 a 1.0).
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct Vertex {
@@ -10,22 +9,16 @@ pub struct Vertex {
     pub color: [f32; 4],
 }
 
-/// Una vela preparada para el GPU: cuerpo + mécho.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct CandleInstance {
-    /// Posición del centro en la pantalla (x, y) en coordenadas normalizadas.
     pub center: [f32; 2],
-    /// Precios (open, high, low, close) en escala normalizada 0..=1.
     pub prices: [f32; 4],
-    /// Ancho del cuerpo en coordenadas normalizadas.
     pub body_width: f32,
-    /// Color: [r, g, b, a] donde 1.0 = verde (subió), 0.0 = rojo (bajó).
     pub color: [f32; 4],
     pub _padding: [f32; 3],
 }
 
-/// Shader WGSL para renderizar velas japonesas.
 const CANDLE_VERTEX_SHADER: &str = r#"
 struct VertexInput {
     @location(0) center: vec2<f32>,
@@ -54,7 +47,6 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
 }
 "#;
 
-/// Pipeline de renderizado de wgpu para velas.
 pub struct WgpuPipeline {
     pub pipeline: wgpu::RenderPipeline,
     pub vertex_buffer: wgpu::Buffer,
@@ -63,7 +55,6 @@ pub struct WgpuPipeline {
 }
 
 impl WgpuPipeline {
-    /// Crea el pipeline de renderizado dado un device y configuración de surface.
     pub fn new(
         device: &wgpu::Device,
         surface_config: &wgpu::SurfaceConfiguration,
@@ -112,7 +103,6 @@ impl WgpuPipeline {
             cache: None,
         });
 
-        // Geometría simple: un cuadrado (2 triángulos) como placeholder para el cuerpo de la vela.
         let vertices: Vec<Vertex> = vec![
             Vertex {
                 position: [-0.5, -0.5],
@@ -154,7 +144,6 @@ impl WgpuPipeline {
         })
     }
 
-    /// Dibuja el placeholder (cuadrado verde) en el render pass actual.
     pub fn draw(&self, render_pass: &mut wgpu::RenderPass) {
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -162,7 +151,6 @@ impl WgpuPipeline {
         render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
     }
 
-    /// Actualiza los datos de las velas en el vertex buffer.
     pub fn update_candles(
         &mut self,
         _device: &wgpu::Device,
@@ -171,6 +159,5 @@ impl WgpuPipeline {
         _min_price: f64,
         _max_price: f64,
     ) {
-        // Placeholder para actualización futura de buffers de instancias.
     }
 }

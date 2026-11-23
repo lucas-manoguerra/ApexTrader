@@ -12,13 +12,13 @@ Un ADR registra una decisión importante:
 
 ## Propósito
 
-Evitar que dentro de un año tengamos que volver a discutir decisiones que ya analizamos.
+Para no tener que discutir dentro de un año decisiones que ya analizamos.
 
 ## Cómo agregar un ADR
 
-1. Crear un archivo `docs/decisions/NNNN-titulo-corto.md` (NNNN es un número secuencial).
-2. Incluir: contexto, alternativas, decisión, justificación, consecuencias.
-3. Referenciar el ADR desde el código o la documentación relacionada cuando sea útil.
+1. Creá un archivo `docs/decisions/NNNN-titulo-corto.md` (NNNN es un número secuencial).
+2. Incluí: contexto, alternativas, decisión, justificación, consecuencias.
+3. Referenciá el ADR desde el código o la documentación relacionada cuando sea útil.
 
 ## Ejemplo de decisión futura
 

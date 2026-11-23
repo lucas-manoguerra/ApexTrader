@@ -3,6 +3,7 @@
 //! Traduce eventos de egui (scroll, arrastre, posición del mouse) en acciones
 //! de dominio (zoom, pan, actualización del crosshair) sobre el `ChartState`.
 
+use crate::chart::layout::ChartLayout;
 use crate::domain::chart_state::ChartState;
 use crate::domain::transforms::ScreenPoint;
 use eframe::egui;
@@ -50,25 +51,39 @@ pub fn handle_input(
     interaction_rect: egui::Rect,
     chart: &mut ChartState,
 ) {
-    // --- Manejo de input: Zoom con scroll ---
     let scroll_delta = ui.input(|i| i.smooth_scroll_delta);
     if scroll_delta.y != 0.0
         && let Some(pos) = ui.input(|i| i.pointer.hover_pos())
     {
-        let center_x = (pos.x - interaction_rect.left()) / interaction_rect.width();
-        let center_y = (pos.y - interaction_rect.top()) / interaction_rect.height();
+        let layout = ChartLayout::compute(
+            interaction_rect.width() as f64,
+            interaction_rect.height() as f64,
+        );
+        let center_x = if layout.plot.width() > 0.0 {
+            ((pos.x as f64 - interaction_rect.left() as f64 - layout.plot.left)
+                / layout.plot.width())
+            .clamp(0.0, 1.0)
+        } else {
+            0.5
+        };
+        let center_y = if layout.plot.height() > 0.0 {
+            ((pos.y as f64 - interaction_rect.top() as f64 - layout.plot.top)
+                / layout.plot.height())
+            .clamp(0.0, 1.0)
+        } else {
+            0.5
+        };
 
         let candle_count = chart.len();
-        let screen_width = interaction_rect.width() as f64;
-        let screen_height = interaction_rect.height() as f64;
+        let screen_width = layout.plot_width();
+        let screen_height = layout.plot_height();
 
         let vp = chart.viewport_mut();
-        // El scroll vertical afecta al eje Y (precio); el eje X no se mueve.
         vp.zoom_at(
             0.0,
             scroll_delta.y as f64,
-            center_x as f64,
-            center_y as f64,
+            center_x,
+            center_y,
             screen_width,
             screen_height,
         );
@@ -76,7 +91,6 @@ pub fn handle_input(
         vp.clamp_pan_to_candles(candle_count, screen_width);
     }
 
-    // --- Manejo de input: Pan con arrastre ---
     if response.dragged() {
         let delta = response.drag_delta();
 
@@ -92,7 +106,6 @@ pub fn handle_input(
         vp.clamp_pan_to_candles(candle_count, screen_width);
     }
 
-    // --- Manejo de input: Crosshair sigue el cursor ---
     if let Some(pos) = ui.input(|i| i.pointer.hover_pos()) {
         let rel_x = pos.x - interaction_rect.left();
         let rel_y = pos.y - interaction_rect.top();

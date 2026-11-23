@@ -1,8 +1,5 @@
 #![allow(dead_code)]
 
-// Esqueleto inicial: renderer wgpu y errores de trading se integran en
-// etapas futuras. Se irá quitando a medida que cada módulo se active.
-
 /// Biblioteca de ApexTrader.
 ///
 /// Expone los módulos públicos para que los tests de integración y otros

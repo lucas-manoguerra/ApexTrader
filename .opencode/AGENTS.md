@@ -33,7 +33,34 @@ Infraestructura → Aplicación → Dominio
 - `wgpu` no conoce reglas de validación de órdenes.
 - El dominio de mercado no depende de un proveedor de datos específico.
 
-## 4. Guardrails de Rust (obligatorio en todo código escrito)
+## 4. Regla inquebrantable: sin comentarios en el código (obligatorio)
+
+No se escriben comentarios en el código fuente. El código debe ser autodocumentado mediante:
+
+- Nombres de tipos, funciones, variables, módulos y campos que expresen intención.
+- Estructura clara: un archivo, una responsabilidad; archivos pequeños y enfocados.
+- Tests que pinchen el comportamiento observable (documentan el contrato por ejemplo).
+- Tipos que hagan imposibles los estados inválidos (ej. `Price` en lugar de `f64` crudo).
+
+Excepciones permitidas (y solo estas):
+
+- Documentación de APIs públicas (`///` en items públicos) que describa el contrato, no la implementación.
+- Justificación de `unsafe` requerida por el guardrail de `unsafe`.
+- Atribución de librerías externas requerida por el guardrail de "Documentación obligatoria de librerías", pero solo en el `## Log` de la tarea ODD, nunca dentro del código fuente.
+
+## 5. Documentación pública obligatoria: `///` y `//!` (obligatorio)
+
+Todo item público (struct, enum, trait, función, método, constante, módulo) **debe** tener documentación `///` o `//!` profesional, actualizada y precisa.
+
+Requisitos:
+
+- **`///` en items públicos:** describir el contrato, el propósito y el comportamiento observable, no la implementación interna. Incluir parámetros, retorno, errores, panics e invariantes cuando aplique.
+- **`//!` en módulos:** describir el propósito del módulo, su responsabilidad, cómo encaja en la arquitectura y las reglas de uso.
+- **Mantener actualizado:** si cambia el comportamiento, la firma o el propósito de un item público, actualizar su documentación en el mismo commit. Nunca dejar documentación desactualizada.
+- **Profesional:** escribir en español argentino (voseo), claro y conciso. Sin jargon innecesario, sin comentarios de implementación, sin "TODO", "FIXME" o notas internas.
+- **No documentar lo obvio:** si el nombre ya expresa la intención, la documentación puede ser breve, pero nunca ausente en items públicos.
+
+## 6. Guardrails de Rust (obligatorio en todo código escrito)
 
 - **No** `unwrap()` ni `expect()` en caminos de producción normales.
 - **No** `panic!()` para errores recuperables.
@@ -44,13 +71,13 @@ Infraestructura → Aplicación → Dominio
 - APIs públicas pequeñas, explícitas y documentadas.
 - Documentar APIs públicas y sus invariantes.
 
-## 5. Rendimiento (obligatorio)
+## 7. Rendimiento (obligatorio)
 
 - No optimizar por intuición. Medir, identificar cuello de botella, optimizar.
 - No introducir optimizaciones sin evidencia.
 - No sacrificar claridad por microoptimizaciones irrelevantes.
 
-## 6. Calidad del código — gates obligatorios (CI)
+## 8. Calidad del código — gates obligatorios (CI)
 
 Cada cambio debe pasar antes de integrarse:
 
@@ -63,7 +90,7 @@ cargo test --workspace
 
 Además, el script `scripts/verify_architecture.ps1` verifica que `src/domain/` no importe de crates de infraestructura.
 
-## 7. Git y commits
+## 9. Git y commits
 
 - Estrategia: trunk-based con ramas cortas (`feature/`, `fix/`, `refactor/`, `docs/`) desde `main`.
 - Conventional Commits: `tipo(ámbito): descripción breve`.
@@ -72,7 +99,7 @@ Además, el script `scripts/verify_architecture.ps1` verifica que `src/domain/` 
 - **No** `Co-Authored-By` ni atribución de IA.
 - Sin `unwrap`/`panic` en producción.
 
-## 8. Documentación obligatoria de librerías antes de cualquier código (CRÍTICO)
+## 10. Documentación obligatoria de librerías antes de cualquier código (CRÍTICO)
 
 Antes de escribir una sola línea de código o planificar una implementación que use una librería externa, el agente **debe** leer la documentación oficial de esa librería en su versión exacta declarada en `Cargo.toml`.
 
@@ -94,7 +121,7 @@ Antes de escribir una sola línea de código o planificar una implementación qu
 // Justificación: wgpu 30 cambió la API de Surface y DeviceDescriptor vs 0.x
 ```
 
-## 9. Skills de OpenCode
+## 11. Skills de OpenCode
 
 Antes de lanzar un subagente, cargar las skills relevantes del registro (`.atl/skill-registry.md`):
 - `wgpu-rust-engineering` — para renderers, pipelines, shaders WGSL.
@@ -106,10 +133,10 @@ Antes de lanzar un subagente, cargar las skills relevantes del registro (`.atl/s
 - `pollster-async-bridge` — para futuros bloqueantes con wgpu.
 - `protest-property-testing` — para pruebas basadas en propiedades.
 
-## 10. Regla de oro
+## 12. Regla de oro
 
 La simplicidad es una propiedad arquitectónica, no una excusa para evitar diseñar correctamente. Cada módulo tiene una responsabilidad. Las dependencias son explícitas y controladas. Ningún cambio se integra si rompe los gates de calidad.
 
-## 10. Incumplimiento
+## 13. Incumplimiento
 
 Si un subagente o cualquier cambio viola estos guardrails, se rechaza y se corrige antes de continuar. No hay excepciones.

@@ -131,10 +131,6 @@ pub fn validate_price_range(min: f64, max: f64) -> Option<f64> {
     Some(range)
 }
 
-// ---------------------------------------------------------------------------
-// Espacios de coordenadas y conversiones (S4)
-// ---------------------------------------------------------------------------
-
 /// Punto en coordenadas de pantalla: píxeles desde la esquina superior
 /// izquierda del rect de dibujo recibido por el renderer (incluye márgenes
 /// de ejes).
@@ -198,6 +194,10 @@ pub fn chart_point_to_data_point(
 ///
 /// El renderer debe iterar solo `first..=last`, de modo que el trabajo por
 /// frame sea O(N_visible) en lugar de O(N_total).
+///
+/// Un rango es vacío cuando `first > last`. Un rango `{first: 0, last: 0}`
+/// **no** es vacío (representaría la vela cero); use [`VisibleRange::empty`]
+/// para representar "sin velas visibles".
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VisibleRange {
     pub first: usize,
@@ -205,6 +205,19 @@ pub struct VisibleRange {
 }
 
 impl VisibleRange {
+    /// Crea un rango vacío (no hay velas visibles).
+    ///
+    /// Devuelve `{first: 1, last: 0}`, de modo que `is_empty()` sea `true`
+    /// y nunca se confunda con un rango que contiene la vela cero.
+    pub fn empty() -> Self {
+        Self { first: 1, last: 0 }
+    }
+
+    /// Crea un rango con las velas dadas.
+    pub fn new(first: usize, last: usize) -> Self {
+        Self { first, last }
+    }
+
     /// Devuelve `true` si no hay velas visibles.
     pub fn is_empty(&self) -> bool {
         self.first > self.last
@@ -217,5 +230,52 @@ impl VisibleRange {
         } else {
             self.last - self.first + 1
         }
+    }
+}
+
+impl Default for VisibleRange {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn visible_range_empty_is_empty() {
+        let r = VisibleRange::empty();
+        assert!(r.is_empty());
+        assert_eq!(r.len(), 0);
+        assert_eq!((r.first, r.last), (1, 0));
+    }
+
+    #[test]
+    fn visible_range_default_is_empty() {
+        let r = VisibleRange::default();
+        assert!(r.is_empty());
+        assert_eq!(r.len(), 0);
+    }
+
+    #[test]
+    fn visible_range_new_reports_length() {
+        let r = VisibleRange::new(10, 20);
+        assert!(!r.is_empty());
+        assert_eq!(r.len(), 11);
+    }
+
+    #[test]
+    fn visible_range_single_candle() {
+        let r = VisibleRange::new(5, 5);
+        assert!(!r.is_empty());
+        assert_eq!(r.len(), 1);
+    }
+
+    #[test]
+    fn visible_range_zero_zero_is_not_empty() {
+        let r = VisibleRange::new(0, 0);
+        assert!(!r.is_empty());
+        assert_eq!(r.len(), 1);
     }
 }

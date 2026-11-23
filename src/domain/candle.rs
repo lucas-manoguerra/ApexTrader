@@ -43,7 +43,6 @@ impl Candle {
         close: f64,
         volume: f64,
     ) -> Result<Self, CandleError> {
-        // Validar que todos los precios sean finitos
         if !open.is_finite() || !high.is_finite() || !low.is_finite() || !close.is_finite() {
             return Err(CandleError::NonFinitePrice(CandleDump {
                 open,
@@ -54,22 +53,18 @@ impl Candle {
             }));
         }
 
-        // Validar que el volumen sea finito y no negativo
         if !volume.is_finite() || volume < 0.0 {
             return Err(CandleError::InvalidVolume { volume });
         }
 
-        // Validar que low <= high
         if low > high {
             return Err(CandleError::InvalidLowHigh { low, high });
         }
 
-        // Validar que low <= open <= high
         if open < low || open > high {
             return Err(CandleError::InvalidOpen { open, low, high });
         }
 
-        // Validar que low <= close <= high
         if close < low || close > high {
             return Err(CandleError::InvalidClose { close, low, high });
         }
@@ -84,27 +79,27 @@ impl Candle {
     }
 
     /// Devuelve el precio de apertura.
-    pub fn open(self) -> f64 {
+    pub fn open(&self) -> f64 {
         self.open
     }
 
     /// Devuelve el precio máximo.
-    pub fn high(self) -> f64 {
+    pub fn high(&self) -> f64 {
         self.high
     }
 
     /// Devuelve el precio mínimo.
-    pub fn low(self) -> f64 {
+    pub fn low(&self) -> f64 {
         self.low
     }
 
     /// Devuelve el precio de cierre.
-    pub fn close(self) -> f64 {
+    pub fn close(&self) -> f64 {
         self.close
     }
 
     /// Devuelve el volumen negociado en el período.
-    pub fn volume(self) -> f64 {
+    pub fn volume(&self) -> f64 {
         self.volume
     }
 }

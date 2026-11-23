@@ -10,15 +10,15 @@ Gracias por interesarte en ApexTrader. Este documento explica cómo trabajar con
 
 ## Flujo de trabajo
 
-1. Crea una rama corta desde `main`: `feature/...`, `fix/...`, `refactor/...` o `docs/...`.
-2. Implementa el cambio siguiendo los estándares en `docs/`.
-3. Ejecuta los gates de calidad (ver más abajo).
-4. Abre un Pull Request hacia `main`.
+1. Creá una rama corta desde `main`: `feature/...`, `fix/...`, `refactor/...` o `docs/...`.
+2. Implementá el cambio siguiendo los estándares en `docs/`.
+3. Ejecutá los gates de calidad (ver más abajo).
+4. Abrí un Pull Request hacia `main`.
 5. Un revisor aprueba y se fusiona en `main`.
 
 ## Gates de calidad obligatorios
 
-Cada cambio debe pasar antes de integrarse:
+Cada cambio tiene que pasar antes de integrarse:
 
 ```bash
 cargo fmt --all -- --check
@@ -56,4 +56,4 @@ Cada decisión de arquitectura importante queda registrada como ADR en `docs/dec
 
 ## Comunidad
 
-Este es un proyecto personal en construcción. Abre un issue para proponer cambios o reportar problemas.
+Este es un proyecto personal en construcción. Abrí un issue para proponer cambios o reportar problemas.

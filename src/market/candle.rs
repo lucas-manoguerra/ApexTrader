@@ -4,6 +4,8 @@
 //! símbolo, timestamp y volumen, para ordenar y dedup datos del mercado.
 
 use crate::domain::candle::Candle;
+use crate::domain::chart::chart_data::ChartDataPoint;
+use crate::domain::chart::time_point::TimePoint;
 use crate::market::errors::MarketError;
 use crate::market::symbol::Symbol;
 
@@ -29,10 +31,27 @@ pub struct MarketCandle {
 }
 
 impl MarketCandle {
-    /// Convierte a `domain::Candle` (solo OHLC, sin metadatos).
+    /// Convierte a `domain::Candle` (solo OHLCV, sin metadatos temporales).
     pub fn to_domain_candle(&self) -> Result<Candle, MarketError> {
         Candle::new(self.open, self.high, self.low, self.close, self.volume)
             .map_err(|e| MarketError::InvalidResponse(format!("vela inválida: {e}")))
+    }
+
+    /// Convierte a `domain::chart::ChartDataPoint`, preservando el
+    /// timestamp y el intervalo para que el viewport pueda establecer
+    /// la relación entre tiempo e índice lógico.
+    pub fn to_chart_data_point(&self) -> Result<ChartDataPoint, MarketError> {
+        let candle = Candle::new(self.open, self.high, self.low, self.close, self.volume)
+            .map_err(|e| MarketError::InvalidResponse(format!("vela inválida: {e}")))?;
+        let interval_ms = self.close_time_ms - self.open_time_ms;
+        let time_point = TimePoint::new(self.open_time_ms, self.close_time_ms, interval_ms)
+            .ok_or_else(|| {
+                MarketError::InvalidResponse(format!(
+                    "punto temporal inválido: open={}, close={}, interval={}",
+                    self.open_time_ms, self.close_time_ms, interval_ms
+                ))
+            })?;
+        Ok(ChartDataPoint::new(candle, time_point))
     }
 
     /// Devuelve `true` si la vela es financieramente válida.

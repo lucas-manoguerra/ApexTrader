@@ -1,17 +1,17 @@
-use crate::domain::candle::Candle;
+use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::domain::viewport::Viewport;
 use crate::errors::ChartError;
 
 /// Estado del gráfico.
 ///
-/// `ChartState` **posee** las velas (`ownership`) y el `Viewport` (zoom/pan).
-/// Es el único responsable de crear, almacenar y modificar la colección de `Candle`.
-/// Ningún otro módulo puede tomar posesión de estas velas ni del viewport.
+/// `ChartState` **posee** los puntos de datos (`ownership`) y el `Viewport` (zoom/pan).
+/// Es el único responsable de crear, almacenar y modificar la colección de `ChartDataPoint`.
+/// Ningún otro módulo puede tomar posesión de estos datos ni del viewport.
 ///
 /// Como `Candle` valida sus propias invariantes al construirse, `ChartState`
-/// confía en que cualquier `Candle` recibido ya es válido.
+/// confía en que cualquier `ChartDataPoint` recibido ya es válido.
 pub struct ChartState {
-    candles: Vec<Candle>,
+    data_points: Vec<ChartDataPoint>,
     viewport: Viewport,
 }
 
@@ -19,55 +19,57 @@ impl ChartState {
     pub fn new() -> Self {
         tracing::debug!("Creando ChartState vacío");
         Self {
-            candles: Vec::new(),
+            data_points: Vec::new(),
             viewport: Viewport::new(),
         }
     }
 
-    /// Agrega una vela al estado del gráfico.
+    /// Agrega un punto de datos al estado del gráfico.
     ///
-    /// La vela debe haber sido creada mediante `Candle::new()`, que ya valida
-    /// todas las invariantes del dominio (precios finitos, `low <= high`,
-    /// `low <= open <= high`, `low <= close <= high`). Por lo tanto, este
-    /// método no necesita repetir esas validaciones.
-    pub fn add_candle(&mut self, candle: Candle) -> Result<(), ChartError> {
+    /// El punto de datos debe haber sido creado mediante `ChartDataPoint::new()`,
+    /// que valida las invariantes del dominio a través de `Candle::new()`.
+    pub fn add_data_point(&mut self, data_point: ChartDataPoint) -> Result<(), ChartError> {
         tracing::debug!(
-            "Agregando vela: open={:.2}, high={:.2}, low={:.2}, close={:.2}",
-            candle.open(),
-            candle.high(),
-            candle.low(),
-            candle.close()
+            "Agregando punto de datos: open={:.2}, high={:.2}, low={:.2}, close={:.2}, tiempo={}",
+            data_point.open(),
+            data_point.high(),
+            data_point.low(),
+            data_point.close(),
+            data_point.time_point.open_time_ms
         );
 
-        self.candles.push(candle);
+        self.data_points.push(data_point);
         Ok(())
     }
 
-    /// Agrega varias velas al estado del gráfico.
+    /// Agrega varios puntos de datos al estado del gráfico.
     ///
-    /// Las velas deben estar ordenadas y sin duplicados (responsabilidad del
+    /// Los puntos de datos deben estar ordenados y sin duplicados (responsabilidad del
     /// llamante, típicamente la capa de aplicación que conecta con un
-    /// `MarketDataProvider`). Cada vela se agrega mediante `add_candle`.
-    pub fn add_candles(&mut self, candles: &[Candle]) -> Result<(), ChartError> {
-        for candle in candles {
-            self.add_candle(*candle)?;
+    /// `MarketDataProvider`). Cada punto se agrega mediante `add_data_point`.
+    pub fn add_data_points(&mut self, data_points: &[ChartDataPoint]) -> Result<(), ChartError> {
+        for data_point in data_points {
+            self.add_data_point(*data_point)?;
         }
         Ok(())
     }
 
-    /// Elimina todas las velas del estado del gráfico.
+    /// Elimina todos los puntos de datos del estado del gráfico.
     ///
-    /// Útil para recargar datos de un nuevo símbolo sin acumular velas
+    /// Útil para recargar datos de un nuevo símbolo sin acumular datos
     /// anteriores.
     pub fn clear(&mut self) {
-        self.candles.clear();
+        self.data_points.clear();
     }
 
-    /// Devuelve un préstamo inmutable de las velas (`borrowing`).
-    /// El llamante puede leerlas pero no modificarlas ni apropiarse de ellas.
-    pub fn candles(&self) -> &[Candle] {
-        tracing::trace!("Prestando {} velas al llamante", self.candles.len());
-        &self.candles
+    /// Devuelve un préstamo inmutable de los puntos de datos (`borrowing`).
+    /// El llamante puede leerlos pero no modificarlos ni apropiarse de ellos.
+    pub fn data_points(&self) -> &[ChartDataPoint] {
+        tracing::trace!(
+            "Prestando {} puntos de datos al llamante",
+            self.data_points.len()
+        );
+        &self.data_points
     }
 
     /// Devuelve un préstamo inmutable del viewport (`borrowing`).
@@ -84,11 +86,11 @@ impl ChartState {
     }
 
     pub fn len(&self) -> usize {
-        self.candles.len()
+        self.data_points.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.candles.is_empty()
+        self.data_points.is_empty()
     }
 }
 
@@ -101,19 +103,27 @@ impl Default for ChartState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::candle::Candle;
+    use crate::domain::chart::time_point::TimePoint;
 
     #[test]
-    fn add_candles_stores_all() {
+    fn add_data_points_stores_all() {
         let mut state = ChartState::new();
-        let candles = [
-            Candle::new(100.0, 105.0, 99.0, 103.0, 1000.0).unwrap(),
-            Candle::new(103.0, 108.0, 102.0, 106.0, 1200.0).unwrap(),
+        let candle1 = Candle::new(100.0, 105.0, 99.0, 103.0, 1000.0).unwrap();
+        let candle2 = Candle::new(103.0, 108.0, 102.0, 106.0, 1200.0).unwrap();
+        let tp1 = TimePoint::new(0, 60_000, 60_000).expect("intervalo válido");
+        let tp2 = TimePoint::new(60_000, 120_000, 60_000).expect("intervalo válido");
+        let points = [
+            ChartDataPoint::new(candle1, tp1),
+            ChartDataPoint::new(candle2, tp2),
         ];
 
-        assert!(state.add_candles(&candles).is_ok());
+        assert!(state.add_data_points(&points).is_ok());
         assert_eq!(state.len(), 2);
         assert!(!state.is_empty());
-        assert_eq!(state.candles()[0].open(), 100.0);
-        assert_eq!(state.candles()[1].close(), 106.0);
+        assert_eq!(state.data_points()[0].open(), 100.0);
+        assert_eq!(state.data_points()[1].close(), 106.0);
+        assert_eq!(state.data_points()[0].time_point.open_time_ms, 0);
+        assert_eq!(state.data_points()[1].time_point.open_time_ms, 60_000);
     }
 }

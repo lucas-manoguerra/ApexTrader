@@ -27,7 +27,6 @@ fn auto_scale_single_candle_reasonable_zoom() {
 
     viewport.auto_scale(range, 1, 1920.0, 1080.0);
 
-    // Con un solo precio, el rango es 0 → se usa $0.01 mínimo, zoom debería ser moderado.
     assert!(viewport.zoom_x() > 0.0);
     assert!(viewport.zoom_x() <= viewport.max_zoom());
 }
@@ -45,12 +44,10 @@ fn auto_scale_prices_within_screen_bounds() {
     let screen_height = 1080.0;
     let center_price = Price::new(Decimal::new(15000, 2)).expect("150.00 válido");
 
-    // El precio mínimo y máximo deben mapear dentro de [margen, alto - margen]
     let margin = 1080.0 * 0.05;
     let y_min = viewport.price_to_screen(min, screen_height, range, center_price);
     let y_max = viewport.price_to_screen(max, screen_height, range, center_price);
 
-    // Usamos una tolerancia de 1 píxel para errores de punto flotante en los bordes.
     let tolerance = 1.0;
     assert!(
         y_min >= margin - tolerance,
@@ -92,7 +89,6 @@ fn auto_scale_center_price_maps_to_center_y() {
     let mid_price = Price::new(Decimal::new(15000, 2)).expect("150.00 válido");
     let y_mid = viewport.price_to_screen(mid_price, screen_height, range, mid_price);
 
-    // center_price mapea a center_y (eje Y centrado)
     assert!((y_mid - screen_height / 2.0).abs() < 1.0);
 }
 
@@ -101,7 +97,7 @@ fn auto_scale_center_price_maps_to_center_y() {
 #[test]
 fn auto_scale_only_affects_y_axis() {
     let mut viewport = Viewport::new();
-    viewport.set_zoom(3.0, 3.0); // ejes distintos para que sea obvio
+    viewport.set_zoom(3.0, 3.0);
 
     let min = Price::new(Decimal::new(10000, 2)).expect("100.00 válido");
     let max = Price::new(Decimal::new(20000, 2)).expect("200.00 válido");
@@ -112,14 +108,12 @@ fn auto_scale_only_affects_y_axis() {
 
     viewport.auto_scale(range, 50, 1920.0, 1080.0);
 
-    // El eje X no debe cambiar.
     assert!(
         (viewport.zoom_x() - zoom_x_before).abs() < f64::EPSILON,
         "auto_scale no debe modificar zoom_x: {} != {}",
         viewport.zoom_x(),
         zoom_x_before
     );
-    // El eje Y debe recalcularse según el rango de precios.
     assert!(
         (viewport.zoom_y() - zoom_y_before).abs() >= f64::EPSILON,
         "auto_scale debe recalcular zoom_y: {} == {}",
@@ -139,8 +133,6 @@ fn auto_scale_first_candle_within_horizontal_margin() {
     let max = Price::new(Decimal::new(20000, 2)).expect("200.00 válido");
     let range = PriceRange::new(min, max).expect("rango válido");
 
-    // Centrar horizontalmente las 50 velas (responsabilidad del llamante,
-    // no de auto_scale que solo toca el eje Y).
     viewport.set_offset_x(-(candle_count as f64 - 1.0) / 2.0);
 
     viewport.auto_scale(range, candle_count, 1920.0, 1080.0);
