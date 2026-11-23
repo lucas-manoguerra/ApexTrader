@@ -33,6 +33,44 @@ impl Default for GlowChartRenderer {
     }
 }
 
+/// Obtiene la etiqueta temporal en una coordenada lógica fraccionaria.
+///
+/// Las posiciones entre velas se interpolan en tiempo real, incluso cuando
+/// los intervalos entre timestamps son irregulares.
+fn time_label_at_logical(
+    data_points: &[crate::domain::chart::chart_data::ChartDataPoint],
+    logical_index: f64,
+) -> String {
+    if data_points.is_empty() || !logical_index.is_finite() {
+        return String::new();
+    }
+
+    let bounded_index = logical_index.clamp(0.0, (data_points.len() - 1) as f64);
+    let left_index = bounded_index.floor() as usize;
+    let right_index = bounded_index.ceil() as usize;
+    let Some(left) = data_points.get(left_index) else {
+        return String::new();
+    };
+
+    if left_index == right_index {
+        return TimeScale::format_time_point(left.time_point);
+    }
+
+    let Some(right) = data_points.get(right_index) else {
+        return String::new();
+    };
+    let fraction = bounded_index - left_index as f64;
+    let start = left.time_point.open_time_ms as i128;
+    let end = right.time_point.open_time_ms as i128;
+    let timestamp = (start as f64 + (end - start) as f64 * fraction).round();
+
+    if !timestamp.is_finite() || timestamp < i64::MIN as f64 || timestamp > i64::MAX as f64 {
+        return String::new();
+    }
+
+    TimeScale::format_time_label(timestamp as i64)
+}
+
 fn nice_tick_step(range: f64, target_ticks: usize) -> f64 {
     if range <= 0.0 {
         return 1.0;
@@ -459,16 +497,10 @@ impl ChartRenderer for GlowChartRenderer {
                     scene.viewport.offset_y(),
                     center_price,
                 );
-                let index_at_cursor = scene.viewport.screen_x_to_data(
-                    chart_point.x,
-                    layout.plot_width(),
-                    scene.candle_count,
-                );
-                let time_label = scene
-                    .data_points
-                    .get(index_at_cursor)
-                    .map(|point| TimeScale::format_time_point(point.time_point))
-                    .unwrap_or_default();
+                let logical_at_cursor = scene
+                    .viewport
+                    .screen_to_logical(chart_point.x, layout.plot_width());
+                let time_label = time_label_at_logical(scene.data_points, logical_at_cursor);
 
                 let price_label = format!("{:.2}", price_at_cursor);
                 painter.text(
@@ -502,6 +534,56 @@ impl ChartRenderer for GlowChartRenderer {
 mod tests {
     use super::*;
     use crate::renderer::InvalidationReason;
+
+    #[test]
+    fn crosshair_time_label_interpolates_irregular_time_intervals() {
+        use crate::domain::candle::Candle;
+        use crate::domain::chart::chart_data::ChartDataPoint;
+        use crate::domain::chart::time_point::TimePoint;
+
+        let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
+        let points = [
+            ChartDataPoint::new(
+                candle,
+                TimePoint::new(0, 60_000, 60_000).unwrap(),
+            ),
+            ChartDataPoint::new(
+                candle,
+                TimePoint::new(3_600_000, 3_660_000, 60_000).unwrap(),
+            ),
+            ChartDataPoint::new(
+                candle,
+                TimePoint::new(7_200_000, 7_260_000, 60_000).unwrap(),
+            ),
+        ];
+
+        assert_eq!(
+            time_label_at_logical(&points, 0.5),
+            "01/01 00:30 UTC"
+        );
+        assert_eq!(
+            time_label_at_logical(&points, 1.5),
+            "01/01 01:30 UTC"
+        );
+    }
+
+    #[test]
+    fn crosshair_time_label_clamps_to_history_and_handles_invalid_input() {
+        use crate::domain::candle::Candle;
+        use crate::domain::chart::chart_data::ChartDataPoint;
+        use crate::domain::chart::time_point::TimePoint;
+
+        let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
+        let points = [ChartDataPoint::new(
+            candle,
+            TimePoint::new(0, 60_000, 60_000).unwrap(),
+        )];
+
+        assert_eq!(time_label_at_logical(&points, -10.0), "01/01 00:00 UTC");
+        assert_eq!(time_label_at_logical(&points, 10.0), "01/01 00:00 UTC");
+        assert_eq!(time_label_at_logical(&points, f64::NAN), "");
+        assert_eq!(time_label_at_logical(&[], 0.0), "");
+    }
 
     #[test]
     fn series_cache_is_reused_for_unchanged_and_cursor_only_frames() {
