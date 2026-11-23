@@ -372,17 +372,16 @@ impl Viewport {
 
         let center_x_px = center_x.clamp(0.0, 1.0) * screen_width;
         let center_y_px = center_y.clamp(0.0, 1.0) * screen_height;
-        let zoom_ratio_x = new_zoom_x / self.zoom_x;
-        let zoom_ratio_y = new_zoom_y / self.zoom_y;
+        // Los offsets se expresan respecto del centro del plot. Para que
+        // el dato bajo el cursor no se mueva, hay que usar el desplazamiento
+        // del cursor respecto del centro, no la coordenada desde el borde.
+        let cursor_from_center_x = center_x_px - screen_width / 2.0;
+        let cursor_from_center_y = center_y_px - screen_height / 2.0;
 
-        let offset_x_px = self.offset_x * transforms::candle_spacing(self.zoom_x);
-        let offset_y_px = self.offset_y * screen_height * self.zoom_y;
-
-        let new_offset_x_px = center_x_px + (offset_x_px - center_x_px) * zoom_ratio_x;
-        let new_offset_y_px = center_y_px + (offset_y_px - center_y_px) * zoom_ratio_y;
-
-        self.offset_x = new_offset_x_px / transforms::candle_spacing(new_zoom_x);
-        self.offset_y = new_offset_y_px / (screen_height * new_zoom_y);
+        self.offset_x += (cursor_from_center_x / transforms::CANDLE_SPACING_BASE)
+            * (1.0 / new_zoom_x - 1.0 / self.zoom_x);
+        self.offset_y += (cursor_from_center_y / screen_height)
+            * (1.0 / new_zoom_y - 1.0 / self.zoom_y);
         self.zoom_x = new_zoom_x;
         self.zoom_y = new_zoom_y;
 
