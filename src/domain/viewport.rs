@@ -648,6 +648,40 @@ impl Viewport {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Los ejes X e Y escalan de forma independiente: cambiar el zoom X no
+    /// afecta al zoom Y y viceversa. Viewport es el único dueño del estado
+    /// de escala (zoom_x, zoom_y, offset_x, offset_y).
+    #[test]
+    fn zoom_axes_are_independent() {
+        let mut viewport = Viewport::new();
+        viewport.set_zoom_x(2.0);
+        viewport.set_zoom_y(5.0);
+        assert!((viewport.zoom_x() - 2.0).abs() < f64::EPSILON);
+        assert!((viewport.zoom_y() - 5.0).abs() < f64::EPSILON);
+
+        // Cambiar solo X no afecta Y.
+        viewport.set_zoom_x(3.0);
+        assert!((viewport.zoom_x() - 3.0).abs() < f64::EPSILON);
+        assert!((viewport.zoom_y() - 5.0).abs() < f64::EPSILON);
+    }
+
+    /// El zoom se clampea a [min_zoom, max_zoom] en ambos ejes.
+    #[test]
+    fn zoom_clamps_to_limits() {
+        let mut viewport = Viewport::new();
+        viewport.set_zoom(100.0, 100.0);
+        assert!((viewport.zoom_x() - 10.0).abs() < f64::EPSILON);
+        assert!((viewport.zoom_y() - 10.0).abs() < f64::EPSILON);
+        viewport.set_zoom(0.01, 0.01);
+        assert!((viewport.zoom_x() - 0.1).abs() < f64::EPSILON);
+        assert!((viewport.zoom_y() - 0.1).abs() < f64::EPSILON);
+    }
+}
+
 impl Default for Viewport {
     fn default() -> Self {
         Self::new()
