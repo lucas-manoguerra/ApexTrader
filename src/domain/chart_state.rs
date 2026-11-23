@@ -31,10 +31,11 @@ impl ChartState {
         }
     }
 
-    /// Agrega un punto de datos al estado del gráfico.
+    /// Agrega o actualiza una vela identificada por su timestamp de apertura.
     ///
-    /// El punto de datos debe haber sido creado mediante `ChartDataPoint::new()`,
-    /// que valida las invariantes del dominio a través de `Candle::new()`.
+    /// Si ya existe una vela con el mismo timestamp, el nuevo punto la reemplaza.
+    /// Esto permite incorporar correcciones o actualizaciones de la vela actual
+    /// sin crear índices lógicos duplicados.
     pub fn add_data_point(&mut self, data_point: ChartDataPoint) -> Result<(), ChartError> {
         tracing::debug!(
             "Agregando punto de datos: open={:.2}, high={:.2}, low={:.2}, close={:.2}, tiempo={}",
@@ -45,7 +46,14 @@ impl ChartState {
             data_point.time_point.open_time_ms
         );
 
-        self.data_points.push(data_point);
+        let timestamp_ms = data_point.time_point.open_time_ms;
+        match self
+            .data_points
+            .binary_search_by_key(&timestamp_ms, |point| point.time_point.open_time_ms)
+        {
+            Ok(index) => self.data_points[index] = data_point,
+            Err(index) => self.data_points.insert(index, data_point),
+        }
         self.rebuild_time_scale();
         self.data_revision = self.data_revision.wrapping_add(1);
         Ok(())
@@ -53,9 +61,9 @@ impl ChartState {
 
     /// Agrega varios puntos de datos al estado del gráfico.
     ///
-    /// Los puntos de datos deben estar ordenados y sin duplicados (responsabilidad del
-    /// llamante, típicamente la capa de aplicación que conecta con un
-    /// `MarketDataProvider`). Cada punto se agrega mediante `add_data_point`.
+    /// Los puntos pueden llegar desordenados o contener timestamps repetidos.
+    /// Se ordenan por tiempo y, ante duplicados, prevalece el último punto
+    /// recibido en este lote o en el historial existente.
     pub fn add_data_points(&mut self, data_points: &[ChartDataPoint]) -> Result<(), ChartError> {
         if data_points.is_empty() {
             return Ok(());
@@ -152,13 +160,29 @@ impl ChartState {
     fn rebuild_time_scale(&mut self) {
         self.data_points
             .sort_by_key(|point| point.time_point.open_time_ms);
+
+        // Una serie OHLCV solo puede tener una vela por timestamp de apertura.
+        // sort_by_key es estable: al colapsar duplicados conservamos el último
+        // punto recibido, que normalmente contiene la actualización más reciente.
+        let mut unique_points = Vec::with_capacity(self.data_points.len());
+        for point in self.data_points.drain(..) {
+            if let Some(previous) = unique_points.last_mut() {
+                if previous.time_point.open_time_ms == point.time_point.open_time_ms {
+                    *previous = point;
+                    continue;
+                }
+            }
+            unique_points.push(point);
+        }
+        self.data_points = unique_points;
+
         self.time_scale.rebuild(
             self.data_points
                 .iter()
                 .map(|point| point.time_point.open_time_ms),
         );
-        for point in &mut self.data_points {
-            point.logical_index = self.time_scale.logical_index(point.time_point.open_time_ms);
+        for (index, point) in self.data_points.iter_mut().enumerate() {
+            point.logical_index = Some(index);
         }
     }
 
@@ -250,6 +274,58 @@ mod tests {
         assert_eq!(state.data_points()[0].time_point.open_time_ms, 0);
         assert_eq!(state.data_points()[1].time_point.open_time_ms, 60_000);
     }
+    #[test]
+    fn duplicate_timestamps_replace_the_existing_candle_without_duplicate_indices() {
+        let mut state = ChartState::new();
+        let time = TimePoint::new(60_000, 120_000, 60_000).unwrap();
+        let initial = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
+        let updated = Candle::new(103.0, 108.0, 102.0, 107.0, 1_500.0).unwrap();
+
+        state
+            .add_data_point(ChartDataPoint::new(initial, time))
+            .unwrap();
+        state
+            .add_data_point(ChartDataPoint::new(updated, time))
+            .unwrap();
+
+        assert_eq!(state.len(), 1);
+        assert_eq!(state.time_scale().len(), 1);
+        assert_eq!(state.data_points()[0].close(), 107.0);
+        assert_eq!(state.data_points()[0].logical_index, Some(0));
+    }
+
+    #[test]
+    fn batch_ingestion_sorts_and_keeps_the_last_duplicate_timestamp() {
+        let mut state = ChartState::new();
+        let first = TimePoint::new(0, 60_000, 60_000).unwrap();
+        let middle = TimePoint::new(60_000, 120_000, 60_000).unwrap();
+        let last = TimePoint::new(120_000, 180_000, 60_000).unwrap();
+        let candle_a = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
+        let candle_b = Candle::new(103.0, 108.0, 102.0, 107.0, 1_500.0).unwrap();
+        let candle_c = Candle::new(107.0, 110.0, 106.0, 109.0, 1_800.0).unwrap();
+
+        state
+            .add_data_points(&[
+                ChartDataPoint::new(candle_a, last),
+                ChartDataPoint::new(candle_b, first),
+                ChartDataPoint::new(candle_c, last),
+                ChartDataPoint::new(candle_a, middle),
+            ])
+            .unwrap();
+
+        assert_eq!(state.len(), 3);
+        assert_eq!(state.time_scale().timestamps(), &[0, 60_000, 120_000]);
+        assert_eq!(
+            state
+                .data_points()
+                .iter()
+                .map(|point| point.logical_index)
+                .collect::<Vec<_>>(),
+            vec![Some(0), Some(1), Some(2)]
+        );
+        assert_eq!(state.data_points()[2].close(), 109.0);
+    }
+
     #[test]
     fn chart_state_assigns_stable_logical_indices_in_time_order() {
         let mut state = ChartState::new();
