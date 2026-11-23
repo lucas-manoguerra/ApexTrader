@@ -1,4 +1,4 @@
-use crate::domain::candle::Candle;
+use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::domain::transforms::ScreenPoint;
 use crate::domain::viewport::Viewport;
 use crate::errors::RendererError;
@@ -119,7 +119,7 @@ impl ChartRenderer for WgpuChartRenderer {
         &mut self,
         _painter: &egui::Painter,
         _rect: egui::Rect,
-        _candles: &[Candle],
+        _points: &[ChartDataPoint],
         _viewport: &Viewport,
         _crosshair_pos: Option<ScreenPoint>,
     ) -> Result<(), RendererError> {

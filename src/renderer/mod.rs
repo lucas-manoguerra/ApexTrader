@@ -1,4 +1,4 @@
-use crate::domain::candle::Candle;
+use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::domain::transforms::ScreenPoint;
 use crate::domain::viewport::Viewport;
 use crate::errors::RendererError;
@@ -15,7 +15,7 @@ pub trait ChartRenderer {
     ///
     /// `painter` es el contexto de dibujo de egui (disponible en `ui.painter()`).
     /// `rect` es el área disponible en pantalla.
-    /// `candles` son los datos prestados por `ChartState` (`&[Candle]`).
+    /// `points` son los datos de chart prestados por `ChartState` (`&[ChartDataPoint]`).
     /// `viewport` es el estado de zoom y pan prestado por `ChartState` (`&Viewport`).
     /// `crosshair_pos` es la posición del cursor en `ScreenPoint` (coordenadas
     /// relativas al rect de dibujo recibido por el renderer).
@@ -23,7 +23,7 @@ pub trait ChartRenderer {
         &mut self,
         painter: &egui::Painter,
         rect: egui::Rect,
-        candles: &[Candle],
+        points: &[ChartDataPoint],
         viewport: &Viewport,
         crosshair_pos: Option<ScreenPoint>,
     ) -> Result<(), RendererError>;
