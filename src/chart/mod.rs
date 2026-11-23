@@ -7,5 +7,7 @@
 //! responde a las interacciones, sin conocer la GPU ni la UI.
 
 pub mod coordinate;
+pub mod crosshair;
+pub mod layout;
 pub mod scale;
 pub mod visible_range;
