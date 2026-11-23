@@ -373,8 +373,7 @@ impl ChartRenderer for GlowChartRenderer {
         if let Some(crosshair) = scene.crosshair_pos {
             // ScreenPoint se expresa relativo al origen del rect completo del
             // chart; ChartLayout también usa coordenadas locales al rect.
-            let chart_point =
-                screen_to_chart_point(crosshair, layout.plot.left, layout.plot.top);
+            let chart_point = screen_to_chart_point(crosshair, layout.plot.left, layout.plot.top);
 
             if chart_point.x >= 0.0
                 && chart_point.x <= layout.plot_width()
