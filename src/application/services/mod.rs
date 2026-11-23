@@ -143,24 +143,25 @@ impl eframe::App for ApexTraderApp {
             let drawing_width = chart_layout.plot_width();
             let drawing_height = chart_layout.plot_height();
             let visible = viewport.visible_range(points.len(), drawing_width);
-            let (price_range, center_price) = if visible.is_empty() {
-                (0.0, 0.0)
+            let (price_range, center_price, max_volume) = if visible.is_empty() {
+                (0.0, 0.0, 0.0)
             } else {
+                // Una sola pasada calcula rango de precios y volumen visibles.
                 let visible_points = &points[visible.first..=visible.last];
-                let min_price = visible_points
-                    .iter()
-                    .map(|p| p.low())
-                    .fold(f64::INFINITY, f64::min);
-                let max_price = visible_points
-                    .iter()
-                    .map(|p| p.high())
-                    .fold(f64::NEG_INFINITY, f64::max);
-                let mut pr = max_price - min_price;
-                if pr == 0.0 {
-                    pr = 1.0;
-                }
-                let cp = (min_price + max_price) / 2.0;
-                (pr, cp)
+                let (min_price, max_price, max_volume) = visible_points.iter().fold(
+                    (f64::INFINITY, f64::NEG_INFINITY, 0.0_f64),
+                    |(min_price, max_price, max_volume), point| {
+                        (
+                            min_price.min(point.low()),
+                            max_price.max(point.high()),
+                            max_volume.max(point.volume()),
+                        )
+                    },
+                );
+
+                let price_range = (max_price - min_price).max(1.0);
+                let center_price = (min_price + max_price) / 2.0;
+                (price_range, center_price, max_volume)
             };
 
             let scene = ChartScene {
@@ -169,6 +170,7 @@ impl eframe::App for ApexTraderApp {
                 viewport: *viewport,
                 price_range,
                 center_price,
+                max_volume,
                 candle_count: points.len(),
                 screen_width: drawing_width,
                 screen_height: drawing_height,
