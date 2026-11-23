@@ -545,10 +545,10 @@ mod tests {
         let context = egui::Context::default();
         let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 500.0));
 
-        let _ = context.run(egui::RawInput::default(), |ctx| {
+        let _ = context.run_ui(egui::RawInput::default(), |ctx| {
             let painter = ctx.layer_painter(egui::LayerId::new(
                 egui::Order::Middle,
-                egui::Id::new("glow-series-shapes-test"),
+                egui::Id::unique(),
             ));
             renderer.draw(&painter, rect, &scene).expect("escena válida");
         });
@@ -571,10 +571,10 @@ mod tests {
         let scene = ChartScene::empty();
         let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 500.0));
 
-        let _ = context.run(egui::RawInput::default(), |ctx| {
+        let _ = context.run_ui(egui::RawInput::default(), |ctx| {
             let painter = ctx.layer_painter(egui::LayerId::new(
                 egui::Order::Middle,
-                egui::Id::new("glow-renderer-test"),
+                egui::Id::unique(),
             ));
             renderer.draw(&painter, rect, &scene).expect("escena vacía válida");
         });
