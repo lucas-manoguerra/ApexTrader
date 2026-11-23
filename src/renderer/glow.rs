@@ -1,6 +1,6 @@
 use crate::chart::layout::ChartLayout;
-use crate::domain::transforms::{self, screen_to_chart_point};
 use crate::domain::chart::time_scale::TimeScale;
+use crate::domain::transforms::{self, screen_to_chart_point};
 use crate::domain::viewport::Viewport;
 use crate::errors::RendererError;
 use crate::renderer::{ChartRenderer, ChartScene};
@@ -176,7 +176,8 @@ fn draw_time_axis(
         let Some(index) = point.logical_index else {
             continue;
         };
-        if index < visible.first || index > visible.last
+        if index < visible.first
+            || index > visible.last
             || (index - visible.first) % index_step != 0
             || last_index == Some(index)
         {
@@ -312,7 +313,10 @@ impl ChartRenderer for GlowChartRenderer {
                 .take(visible.last - visible.first + 1)
             {
                 let logical_index = point.logical_index.unwrap_or(i);
-                let screen_x = scene.viewport.logical_to_screen(logical_index as f64, drawing_width) + left;
+                let screen_x = scene
+                    .viewport
+                    .logical_to_screen(logical_index as f64, drawing_width)
+                    + left;
 
                 let y_high = price_to_y(point.high());
                 let y_low = price_to_y(point.low());
