@@ -75,12 +75,13 @@ pub fn handle_input(
 
     // Zoom por rueda, anclado al punto real del cursor dentro del plot.
     let scroll_delta = ui.input(|input| input.smooth_scroll_delta);
-    if scroll_delta.y != 0.0
+    if (scroll_delta.x != 0.0 || scroll_delta.y != 0.0)
         && let Some(pos) = ui.input(|input| input.pointer.hover_pos())
         && let Some((screen_point, chart_point)) =
             pointer_coordinates(pos, interaction_rect, &layout)
     {
         let event = InteractionEvent::Scroll(ScrollEvent {
+            delta_x: scroll_delta.x as f64,
             delta_y: scroll_delta.y as f64,
             x: chart_point.x,
             y: chart_point.y,

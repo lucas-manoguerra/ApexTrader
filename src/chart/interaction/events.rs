@@ -59,7 +59,9 @@ pub struct PointerDragEvent {
 /// Evento de scroll (rueda del mouse).
 #[derive(Debug, Clone, Copy)]
 pub struct ScrollEvent {
-    /// Delta vertical de scroll: positivo = hacia adelante (zoom in).
+    /// Delta horizontal de scroll en píxeles; positivo desplaza el historial hacia la izquierda.
+    pub delta_x: f64,
+    /// Delta vertical de scroll en píxeles; positivo acerca el eje temporal.
     pub delta_y: f64,
     /// Posición del cursor en el área de plot.
     pub x: f64,

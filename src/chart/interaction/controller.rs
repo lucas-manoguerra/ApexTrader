@@ -260,8 +260,9 @@ impl InteractionController {
         candle_count: usize,
         ev: &ScrollEvent,
     ) -> InteractionResult {
-        if !ev.delta_y.is_finite()
-            || ev.delta_y == 0.0
+        if !ev.delta_x.is_finite()
+            || !ev.delta_y.is_finite()
+            || (ev.delta_x == 0.0 && ev.delta_y == 0.0)
             || !ev.x.is_finite()
             || !ev.y.is_finite()
             || self.screen_width <= 0.0
@@ -275,26 +276,36 @@ impl InteractionController {
             return InteractionResult::default();
         }
 
-        // El scroll de egui es una magnitud de píxeles. Escalar por 100 px
-        // mantiene el zoom suave en trackpads y ruedas con distintos pasos.
-        let factor = base.powf(ev.delta_y / 100.0);
-        if !factor.is_finite() || factor <= 0.0 {
-            return InteractionResult::default();
+        let mut next = *viewport;
+
+        // La rueda vertical modifica el zoom temporal y mantiene anclada
+        // la coordenada lógica situada bajo el cursor.
+        if ev.delta_y != 0.0 {
+            // El delta de egui se expresa en píxeles; 100 px equivalen
+            // aproximadamente a un paso completo de zoom.
+            let factor = base.powf(ev.delta_y / 100.0);
+            if factor.is_finite() && factor > 0.0 {
+                next.zoom_to_at(
+                    next.zoom_x() * factor,
+                    next.zoom_y(),
+                    ev.x / self.screen_width,
+                    ev.y / self.screen_height,
+                    self.screen_width,
+                    self.screen_height,
+                );
+            }
         }
 
-        let mut next = *viewport;
-        let changed = next.zoom_to_at(
-            next.zoom_x(),
-            next.zoom_y() * factor,
-            ev.x / self.screen_width,
-            ev.y / self.screen_height,
-            self.screen_width,
-            self.screen_height,
-        );
+        // La rueda horizontal desplaza el historial sin alterar las escalas.
+        if ev.delta_x != 0.0 {
+            next.pan(-ev.delta_x, 0.0, self.screen_height);
+        }
 
+        next.clamp_zoom_to_candles(candle_count, self.screen_width);
+        next.clamp_pan_to_candles(candle_count, self.screen_width);
+
+        let changed = next != *viewport;
         if changed {
-            next.clamp_zoom_to_candles(candle_count, self.screen_width);
-            next.clamp_pan_to_candles(candle_count, self.screen_width);
             *viewport = next;
         }
 
@@ -348,23 +359,83 @@ mod tests {
     }
 
     #[test]
-    fn scroll_mutates_the_shared_viewport() {
+    fn vertical_scroll_zooms_time_axis_around_the_pointer() {
         let mut viewport = make_viewport();
         let mut controller = InteractionController::new(1920.0, 1080.0);
-        let zoom_before = viewport.zoom_y();
+        let zoom_x_before = viewport.zoom_x();
+        let zoom_y_before = viewport.zoom_y();
+        let anchor_x = 700.0;
+        let logical_under_cursor = viewport.screen_to_logical(anchor_x, 1920.0);
 
         controller.on_event(
             &mut viewport,
             100,
             &InteractionEvent::Scroll(ScrollEvent {
+                delta_x: 0.0,
                 delta_y: 100.0,
+                x: anchor_x,
+                y: 324.0,
+                modifiers: Modifiers::default(),
+            }),
+        );
+
+        assert!(viewport.zoom_x() > zoom_x_before);
+        assert_eq!(viewport.zoom_y(), zoom_y_before);
+        assert!(
+            (viewport.screen_to_logical(anchor_x, 1920.0) - logical_under_cursor).abs() < 1e-9,
+            "el zoom temporal debe conservar la coordenada lógica bajo el cursor"
+        );
+    }
+
+    #[test]
+    fn horizontal_scroll_pans_history_without_changing_zoom() {
+        let mut viewport = make_viewport();
+        let mut controller = InteractionController::new(1920.0, 1080.0);
+        let initial_offset = viewport.offset_x();
+        let initial_zoom_x = viewport.zoom_x();
+        let initial_zoom_y = viewport.zoom_y();
+
+        let result = controller.on_event(
+            &mut viewport,
+            100,
+            &InteractionEvent::Scroll(ScrollEvent {
+                delta_x: 120.0,
+                delta_y: 0.0,
                 x: 960.0,
                 y: 324.0,
                 modifiers: Modifiers::default(),
             }),
         );
 
-        assert!(viewport.zoom_y() > zoom_before);
+        assert!(result.viewport_changed);
+        assert!(viewport.offset_x() < initial_offset);
+        assert_eq!(viewport.zoom_x(), initial_zoom_x);
+        assert_eq!(viewport.zoom_y(), initial_zoom_y);
+    }
+
+    #[test]
+    fn diagonal_scroll_combines_time_zoom_and_horizontal_pan() {
+        let mut viewport = make_viewport();
+        let mut controller = InteractionController::new(1920.0, 1080.0);
+        let initial_offset = viewport.offset_x();
+        let initial_zoom_x = viewport.zoom_x();
+        let initial_zoom_y = viewport.zoom_y();
+
+        controller.on_event(
+            &mut viewport,
+            100,
+            &InteractionEvent::Scroll(ScrollEvent {
+                delta_x: 80.0,
+                delta_y: 100.0,
+                x: 700.0,
+                y: 324.0,
+                modifiers: Modifiers::default(),
+            }),
+        );
+
+        assert!(viewport.zoom_x() > initial_zoom_x);
+        assert_eq!(viewport.zoom_y(), initial_zoom_y);
+        assert!(viewport.offset_x() < initial_offset);
     }
 
     #[test]
