@@ -20,6 +20,12 @@ pub struct ScrollOptions {
     pub horizontal_mouse_wheel: bool,
     /// Habilita el desplazamiento del historial arrastrando con el botón izquierdo.
     pub primary_mouse_drag: bool,
+    /// Invierte el sentido del desplazamiento vertical con el botón izquierdo.
+    ///
+    /// Es útil en sistemas donde el dispositivo de entrada usa una dirección
+    /// de pan distinta. Está habilitado por defecto para seguir el movimiento
+    /// natural del puntero durante el arrastre vertical.
+    pub invert_vertical_pan: bool,
 }
 
 impl Default for ScrollOptions {
@@ -27,6 +33,7 @@ impl Default for ScrollOptions {
         Self {
             horizontal_mouse_wheel: true,
             primary_mouse_drag: true,
+            invert_vertical_pan: true,
         }
     }
 }

@@ -289,8 +289,16 @@ impl InteractionController {
 
                 let delta_x = ev.x - anchor_pointer_x;
                 let delta_y = ev.y - anchor_pointer_y;
+                let vertical_direction = if self.options.scroll.invert_vertical_pan {
+                    1.0
+                } else {
+                    -1.0
+                };
                 next.set_offset_x(anchor_offset_x + delta_x / spacing);
-                next.set_offset_y(anchor_offset_y - delta_y / (self.screen_height * anchor_zoom_y));
+                next.set_offset_y(
+                    anchor_offset_y
+                        + vertical_direction * delta_y / (self.screen_height * anchor_zoom_y),
+                );
                 next.clamp_pan_to_candles(candle_count, self.screen_width);
 
                 let changed = next != *viewport;
@@ -654,6 +662,7 @@ mod tests {
                 scroll: crate::chart::interaction::options::ScrollOptions {
                     horizontal_mouse_wheel: false,
                     primary_mouse_drag: true,
+                    ..crate::chart::interaction::options::ScrollOptions::default()
                 },
                 scale: crate::chart::interaction::options::ScaleOptions {
                     vertical_mouse_wheel: true,
@@ -916,6 +925,41 @@ mod tests {
             }),
         );
         assert_eq!(viewport, before_disabled_reset);
+    }
+
+    #[test]
+    fn vertical_pan_follows_pointer_direction_by_default() {
+        let mut viewport = make_viewport();
+        let mut controller = InteractionController::new(1_000.0, 600.0);
+
+        assert!(controller.options().scroll.invert_vertical_pan);
+        controller.on_event(
+            &mut viewport,
+            100,
+            &pointer_down(PointerButton::Primary, 500.0, 300.0),
+        );
+        controller.on_event(&mut viewport, 100, &pointer_drag(500.0, 350.0));
+
+        assert!(viewport.offset_y() > 0.0);
+        assert_eq!(viewport.offset_x(), 0.0);
+    }
+
+    #[test]
+    fn vertical_pan_direction_can_be_restored_to_previous_behavior() {
+        let mut viewport = make_viewport();
+        let mut options = InteractionOptions::default();
+        options.scroll.invert_vertical_pan = false;
+        let mut controller = InteractionController::with_options(1_000.0, 600.0, options);
+
+        controller.on_event(
+            &mut viewport,
+            100,
+            &pointer_down(PointerButton::Primary, 500.0, 300.0),
+        );
+        controller.on_event(&mut viewport, 100, &pointer_drag(500.0, 350.0));
+
+        assert!(viewport.offset_y() < 0.0);
+        assert_eq!(viewport.offset_x(), 0.0);
     }
 
     #[test]
