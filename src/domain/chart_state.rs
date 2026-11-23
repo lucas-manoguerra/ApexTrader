@@ -203,17 +203,25 @@ mod tests {
         let middle = TimePoint::new(60_000, 120_000, 60_000).unwrap();
         let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
 
-        state.add_data_points(&[
-            ChartDataPoint::new(candle, later),
-            ChartDataPoint::new(candle, earlier),
-            ChartDataPoint::new(candle, middle),
-        ]).unwrap();
+        state
+            .add_data_points(&[
+                ChartDataPoint::new(candle, later),
+                ChartDataPoint::new(candle, earlier),
+                ChartDataPoint::new(candle, middle),
+            ])
+            .unwrap();
 
         let points = state.data_points();
         assert_eq!(points[0].time_point.open_time_ms, 0);
         assert_eq!(points[1].time_point.open_time_ms, 60_000);
         assert_eq!(points[2].time_point.open_time_ms, 120_000);
-        assert_eq!(points.iter().map(|point| point.logical_index).collect::<Vec<_>>(), vec![Some(0), Some(1), Some(2)]);
+        assert_eq!(
+            points
+                .iter()
+                .map(|point| point.logical_index)
+                .collect::<Vec<_>>(),
+            vec![Some(0), Some(1), Some(2)]
+        );
         assert_eq!(state.time_scale().len(), 3);
     }
 
@@ -222,9 +230,10 @@ mod tests {
         let mut state = ChartState::new();
         let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
         let time = TimePoint::new(0, 60_000, 60_000).unwrap();
-        state.add_data_point(ChartDataPoint::new(candle, time)).unwrap();
+        state
+            .add_data_point(ChartDataPoint::new(candle, time))
+            .unwrap();
         state.clear();
         assert!(state.time_scale().is_empty());
     }
-
 }
