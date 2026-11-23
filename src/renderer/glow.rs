@@ -196,6 +196,7 @@ fn should_rebuild_series(
             reason,
             crate::renderer::InvalidationReason::None
                 | crate::renderer::InvalidationReason::CursorOnly
+                | crate::renderer::InvalidationReason::Overlay
         )
 }
 
@@ -481,12 +482,15 @@ mod tests {
         assert!(should_rebuild_series(false, InvalidationReason::None));
         assert!(!should_rebuild_series(true, InvalidationReason::None));
         assert!(!should_rebuild_series(true, InvalidationReason::CursorOnly));
+        assert!(
+            !should_rebuild_series(true, InvalidationReason::Overlay),
+            "un overlay no modifica la geometría de velas ni volumen"
+        );
     }
 
     #[test]
     fn series_cache_is_invalidated_by_structural_changes() {
         for reason in [
-            InvalidationReason::Overlay,
             InvalidationReason::SeriesData,
             InvalidationReason::ScaleLayout,
             InvalidationReason::Full,
@@ -502,6 +506,7 @@ mod tests {
     fn invalid_cache_is_built_even_without_an_invalidation_reason() {
         assert!(should_rebuild_series(false, InvalidationReason::None));
         assert!(should_rebuild_series(false, InvalidationReason::CursorOnly));
+        assert!(should_rebuild_series(false, InvalidationReason::Overlay));
     }
 
     #[test]
