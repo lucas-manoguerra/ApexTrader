@@ -132,12 +132,8 @@ impl eframe::App for ApexTraderApp {
 
             // Calcular máscara de invalidación basada en qué cambió entre frames.
             let data_revision = self.chart.data_revision();
-            let mask = self.calculate_invalidation_mask(
-                viewport,
-                crosshair_pos,
-                data_revision,
-                available,
-            );
+            let mask =
+                self.calculate_invalidation_mask(viewport, crosshair_pos, data_revision, available);
 
             // Calcular rango de precios y centro a partir de los puntos visibles.
             let chart_layout =
@@ -261,9 +257,7 @@ impl ApexTraderApp {
         }
 
         // Si cambió solo el crosshair, es CursorOnly (solo si no hay algo peor).
-        if crosshair_pos != self.prev_crosshair_pos
-            && mask.level == InvalidationReason::None
-        {
+        if crosshair_pos != self.prev_crosshair_pos && mask.level == InvalidationReason::None {
             mask = InvalidationMask {
                 level: InvalidationReason::CursorOnly,
             };
