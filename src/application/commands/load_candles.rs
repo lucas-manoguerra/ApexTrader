@@ -82,7 +82,6 @@ impl LoadCandles {
         let mut last_open_time: Option<i64> = None;
 
         for (index, mc) in market_candles.iter().enumerate() {
-            // Validar consistencia de símbolo.
             if mc.symbol != symbol {
                 rejected.push(IngestionRejection {
                     index,
@@ -96,7 +95,6 @@ impl LoadCandles {
                 continue;
             }
 
-            // Validar que el timestamp esté dentro del rango solicitado.
             if mc.open_time_ms < from_ms || mc.open_time_ms > to_ms {
                 rejected.push(IngestionRejection {
                     index,
@@ -109,7 +107,6 @@ impl LoadCandles {
                 continue;
             }
 
-            // Validar orden cronológico y duplicados.
             if let Some(last) = last_open_time
                 && mc.open_time_ms <= last
             {
@@ -124,7 +121,6 @@ impl LoadCandles {
                 continue;
             }
 
-            // Convertir a punto de datos (valida OHLCV e intervalo).
             match mc.to_chart_data_point() {
                 Ok(dp) => {
                     last_open_time = Some(mc.open_time_ms);
@@ -172,7 +168,6 @@ mod tests {
             "no debería haber rechazos con datos mock válidos"
         );
 
-        // Todos los puntos deben ser válidos y tener tiempo preservado.
         for dp in &result.data_points {
             assert!(dp.open().is_finite());
             assert!(dp.high().is_finite());
@@ -189,7 +184,6 @@ mod tests {
 
         let result = LoadCandles::execute(&provider, symbol, 0, 120_000).expect("velas cargadas");
 
-        // El primer punto debe tener open_time_ms == 0 (from_ms).
         assert_eq!(result.data_points[0].time_point.open_time_ms, 0);
         // Los tiempos deben ser ascendentes.
         for w in result.data_points.windows(2) {
@@ -205,7 +199,6 @@ mod tests {
         let provider = MockMarketDataProvider::new(50000.0);
         let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
 
-        // Rango invertido debe fallar.
         let err = LoadCandles::execute(&provider, symbol, 100_000, 50_000)
             .expect_err("rango invertido debe fallar");
         assert!(matches!(err, MarketError::InvalidResponse { .. }));

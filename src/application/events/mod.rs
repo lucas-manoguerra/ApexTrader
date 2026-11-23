@@ -51,13 +51,10 @@ pub fn handle_input(
     interaction_rect: egui::Rect,
     chart: &mut ChartState,
 ) {
-    // --- Manejo de input: Zoom con scroll ---
     let scroll_delta = ui.input(|i| i.smooth_scroll_delta);
     if scroll_delta.y != 0.0
         && let Some(pos) = ui.input(|i| i.pointer.hover_pos())
     {
-        // Coordenadas normalizadas relativas al área de plot (no al rect
-        // completo), usando el mismo ChartLayout que el renderer (AT-002).
         let layout = ChartLayout::compute(
             interaction_rect.width() as f64,
             interaction_rect.height() as f64,
@@ -82,7 +79,6 @@ pub fn handle_input(
         let screen_height = layout.plot_height();
 
         let vp = chart.viewport_mut();
-        // El scroll vertical afecta al eje Y (precio); el eje X no se mueve.
         vp.zoom_at(
             0.0,
             scroll_delta.y as f64,
@@ -95,7 +91,6 @@ pub fn handle_input(
         vp.clamp_pan_to_candles(candle_count, screen_width);
     }
 
-    // --- Manejo de input: Pan con arrastre ---
     if response.dragged() {
         let delta = response.drag_delta();
 
@@ -111,7 +106,6 @@ pub fn handle_input(
         vp.clamp_pan_to_candles(candle_count, screen_width);
     }
 
-    // --- Manejo de input: Crosshair sigue el cursor ---
     if let Some(pos) = ui.input(|i| i.pointer.hover_pos()) {
         let rel_x = pos.x - interaction_rect.left();
         let rel_y = pos.y - interaction_rect.top();

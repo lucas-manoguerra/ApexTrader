@@ -53,7 +53,6 @@ struct ApexTraderApp {
 
 impl eframe::App for ApexTraderApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        // Pedimos repintado continuo para que el chart se mantenga vivo.
         ui.ctx()
             .request_repaint_after(std::time::Duration::from_millis(16));
 
@@ -61,7 +60,6 @@ impl eframe::App for ApexTraderApp {
             ui.heading("ApexTrader — Chart de Velas");
             ui.separator();
 
-            // Mostrar qué renderer está activo
             ui.label(format!("Renderer: {}", self.renderer.name()));
 
             ui.separator();
@@ -96,11 +94,9 @@ impl eframe::App for ApexTraderApp {
 
             ui.separator();
 
-            // Área interactiva para el chart: aquí detectamos scroll y arrastre.
             let available = ui.available_rect_before_wrap();
             let painter = ui.painter();
 
-            // Creamos un área interactiva que cubre todo el panel disponible.
             let interaction_rect = available.shrink(0.0);
             let response = ui.interact(
                 interaction_rect,
@@ -110,20 +106,14 @@ impl eframe::App for ApexTraderApp {
 
             let mut input_handler = InputHandler::new();
 
-            // Procesar input de usuario (zoom, pan, crosshair).
-            // El bloque limita el mutable borrow de self.chart para que
-            // después se pueda prestar inmutablemente (candles, viewport).
             let crosshair_pos = {
                 let chart = &mut self.chart;
                 events::handle_input(&mut input_handler, ui, &response, interaction_rect, chart);
                 input_handler.crosshair_pos()
             };
 
-            // Después de manejar input, obtenemos el viewport inmutable para dibujar.
             let viewport = self.chart.viewport();
 
-            // Prestamos los puntos de datos del ChartState para dibujarlos.
-            // El renderer no los posee ni los modifica.
             let points = self.chart.data_points();
             if let Err(e) = self
                 .renderer
@@ -133,7 +123,6 @@ impl eframe::App for ApexTraderApp {
                 ui.colored_label(egui::Color32::RED, format!("Error: {}", e));
             }
 
-            // Mostrar estado del viewport (zoom/pan) para depuración.
             ui.label(format!(
                 "Zoom X: {:.2}x | Zoom Y: {:.2}x | Offset: ({:.2}, {:.2})",
                 viewport.zoom_x(),
@@ -142,7 +131,6 @@ impl eframe::App for ApexTraderApp {
                 viewport.offset_y()
             ));
 
-            // Mostrar estado de carga de datos de mercado.
             ui.label(format!("Carga de mercado: {:?}", self.load_state));
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
@@ -159,7 +147,6 @@ impl eframe::App for ApexTraderApp {
 /// Esta función es invocada desde `application::run()` y contiene la lógica
 /// que antes vivía directamente en `main.rs`.
 pub fn run() -> eframe::Result {
-    // Inicializar logging antes de cualquier otra operación.
     if let Err(e) = init_logging() {
         eprintln!("Advertencia: no se pudo inicializar logging: {}", e);
     }
@@ -178,7 +165,6 @@ pub fn run() -> eframe::Result {
 
             let provider = MockMarketDataProvider::new(50000.0);
             let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
-            // 200 velas de 1 minuto, terminando en el momento actual.
             let to_ms = 0;
             let from_ms = -(200i64 * 60_000);
 
@@ -236,7 +222,6 @@ fn load_symbol_into_chart(
                 result.symbol
             );
 
-            // Autoescala para que todas las velas quepan en pantalla.
             if let Some(range) = price_range_from_data_points(chart) {
                 let point_count = chart.len();
                 let screen_width = 1920.0;
@@ -250,7 +235,6 @@ fn load_symbol_into_chart(
         }
         Err(e) => {
             tracing::error!("No se pudieron cargar datos de mercado: {e}");
-            // Fallback a puntos de datos sintéticos si falla el proveedor.
             chart.clear();
             let mut price = 100.0;
             for i in 0..20 {
