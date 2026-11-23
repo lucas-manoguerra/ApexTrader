@@ -734,5 +734,4 @@ mod tests {
         assert!(!viewport.zoom_to_at(f64::NAN, 2.0, 0.5, 0.5, 100.0, 100.0));
         assert_eq!(viewport, before);
     }
-
 }
