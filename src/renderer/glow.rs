@@ -542,8 +542,10 @@ mod tests {
         let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 500.0));
 
         let _ = context.run_ui(egui::RawInput::default(), |ctx| {
-            let painter =
-                ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, egui::Id::unique("glow-renderer-candle-cache")));
+            let painter = ctx.layer_painter(egui::LayerId::new(
+                egui::Order::Middle,
+                egui::Id::unique("glow-renderer-candle-cache"),
+            ));
             renderer
                 .draw(&painter, rect, &scene)
                 .expect("escena válida");
@@ -568,8 +570,10 @@ mod tests {
         let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 500.0));
 
         let _ = context.run_ui(egui::RawInput::default(), |ctx| {
-            let painter =
-                ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, egui::Id::unique("glow-renderer-empty-cache")));
+            let painter = ctx.layer_painter(egui::LayerId::new(
+                egui::Order::Middle,
+                egui::Id::unique("glow-renderer-empty-cache"),
+            ));
             renderer
                 .draw(&painter, rect, &scene)
                 .expect("escena vacía válida");
