@@ -295,17 +295,14 @@ fn build_series_layer(scene: &ChartScene<'_>, layout: &ChartLayout) -> RenderLay
     }
 
     let plot_width = layout.plot_width();
-    let visible = scene
-        .viewport
-        .visible_range(scene.candle_count, plot_width);
+    let visible = scene.viewport.visible_range(scene.candle_count, plot_width);
     if visible.is_empty() {
         return RenderLayer::default();
     }
 
     let candle_width = crate::domain::transforms::candle_body_width(scene.viewport.zoom_x())
         .clamp(4.0, 40.0) as f32;
-    let price_pixels_per_unit =
-        layout.plot_height() / scene.price_range * scene.viewport.zoom_y();
+    let price_pixels_per_unit = layout.plot_height() / scene.price_range * scene.viewport.zoom_y();
     let volume_panel_height = layout.volume_panel.height();
 
     let price_to_y = |price: f64| -> f32 {
@@ -424,8 +421,7 @@ mod tests {
                 time_a,
             ),
             ChartDataPoint::new(
-                Candle::new(103.0, 106.0, 99.0, 101.0, 1_000.0)
-                    .expect("vela bajista válida"),
+                Candle::new(103.0, 106.0, 99.0, 101.0, 1_000.0).expect("vela bajista válida"),
                 time_b,
             ),
         ];
@@ -459,13 +455,8 @@ mod tests {
         let points = [ChartDataPoint::new(candle, time)];
         let scene = sample_scene(&points);
 
-        let frame = RenderFrame::from_scene(
-            &scene,
-            800.0,
-            500.0,
-            ScreenPoint { x: 0.0, y: 0.0 },
-            false,
-        );
+        let frame =
+            RenderFrame::from_scene(&scene, 800.0, 500.0, ScreenPoint { x: 0.0, y: 0.0 }, false);
 
         assert!(frame.layers.is_empty());
         assert!(frame.layout.is_valid());
@@ -478,13 +469,8 @@ mod tests {
         let points = [ChartDataPoint::new(candle, time)];
         let scene = sample_scene(&points);
 
-        let frame = RenderFrame::from_scene(
-            &scene,
-            0.0,
-            500.0,
-            ScreenPoint { x: 0.0, y: 0.0 },
-            true,
-        );
+        let frame =
+            RenderFrame::from_scene(&scene, 0.0, 500.0, ScreenPoint { x: 0.0, y: 0.0 }, true);
 
         assert!(!frame.layout.is_valid());
         assert!(frame.layers.is_empty());

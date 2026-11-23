@@ -1,5 +1,5 @@
 use crate::domain::chart::time_scale::TimeScale;
-use crate::domain::transforms::{self, screen_to_chart_point, ScreenPoint};
+use crate::domain::transforms::{self, ScreenPoint, screen_to_chart_point};
 use crate::domain::viewport::Viewport;
 use crate::errors::RendererError;
 use crate::renderer::{ChartRenderer, ChartScene, RenderColor, RenderFrame, RenderLayer};
@@ -244,7 +244,6 @@ fn draw_time_axis(
         last_index = Some(index);
     }
 }
-
 
 /// Convierte la geometría compartida de la serie en primitivas específicas de egui.
 fn series_layer_shapes(layer: &RenderLayer, origin: ScreenPoint) -> Vec<egui::Shape> {
