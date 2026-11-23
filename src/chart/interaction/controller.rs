@@ -100,7 +100,6 @@ impl InteractionController {
     }
 
     fn on_pointer_move(&mut self, ev: &PointerMoveEvent) -> InteractionResult {
-        // Movimiento puro: actualizar crosshair sin modificar el viewport.
         InteractionResult {
             viewport_changed: false,
             crosshair_changed: true,
@@ -111,7 +110,6 @@ impl InteractionController {
     fn on_pointer_down(&mut self, ev: &PointerDownEvent) -> InteractionResult {
         match ev.button {
             PointerButton::Primary => {
-                // Iniciar pan.
                 self.state = GestureState::Pan {
                     anchor_offset_x: self.viewport.offset_x(),
                     anchor_offset_y: self.viewport.offset_y(),
@@ -125,7 +123,6 @@ impl InteractionController {
                 }
             }
             PointerButton::Secondary => {
-                // Iniciar zoom centrado en el cursor.
                 self.state = GestureState::Zoom {
                     anchor_zoom_x: self.viewport.zoom_x(),
                     anchor_zoom_y: self.viewport.zoom_y(),
@@ -169,9 +166,6 @@ impl InteractionController {
                 anchor_screen_x: _,
                 anchor_screen_y: _,
             } => {
-                // Pan: el nuevo offset = anchor + delta_pixels / candle_spacing.
-                // El pan se aplica inversamente: arrastre a la derecha mueve
-                // el contenido a la derecha (offset_x aumenta).
                 let spacing = self.viewport.candle_spacing();
                 if spacing > 0.0 && self.screen_height > 0.0 {
                     let dy_offset = ev.dy / (self.screen_height * self.viewport.zoom_y());
@@ -193,7 +187,6 @@ impl InteractionController {
                 anchor_screen_x,
                 anchor_screen_y,
             } => {
-                // Zoom con ancla: mantener el punto bajo el cursor fijo.
                 let factor = if ev.dy < 0.0 {
                     1.0 + 0.01
                 } else if ev.dy > 0.0 {
@@ -208,11 +201,9 @@ impl InteractionController {
                     let new_zoom_y = (anchor_zoom_y * factor)
                         .clamp(self.viewport.min_zoom(), self.viewport.max_zoom());
 
-                    // Centro normalizado del ancla (0..=1).
                     let center_x = anchor_screen_x / self.screen_width;
                     let center_y = anchor_screen_y / self.screen_height;
 
-                    // Eje X: convertir el punto del ancla a datos antes del zoom.
                     let spacing_old = 20.0 * anchor_zoom_x;
                     let center_x_px = center_x * self.screen_width;
                     let offset_x_px = anchor_offset_x * spacing_old;
@@ -220,7 +211,6 @@ impl InteractionController {
                         center_x_px + (offset_x_px - center_x_px) * (new_zoom_x / anchor_zoom_x);
                     let new_offset_x = new_offset_x_px / (20.0 * new_zoom_x);
 
-                    // Eje Y: offset_y_px = offset_y * screen_height * zoom_y.
                     let offset_y_px = anchor_offset_y * self.screen_height * anchor_zoom_y;
                     let center_y_px = center_y * self.screen_height;
                     let zoom_ratio_y = new_zoom_y / anchor_zoom_y;
@@ -243,7 +233,6 @@ impl InteractionController {
     }
 
     fn on_scroll(&mut self, ev: &ScrollEvent) -> InteractionResult {
-        // Zoom anclado al cursor en el eje Y (precio) por scroll vertical.
         if ev.delta_y == 0.0 {
             return InteractionResult::default();
         }
@@ -258,11 +247,9 @@ impl InteractionController {
             .clamp(self.viewport.min_zoom(), self.viewport.max_zoom());
 
         if new_zoom_y != self.viewport.zoom_y() && self.screen_height > 0.0 {
-            // Ancla: mantener el precio bajo el cursor fijo.
             let center_y_frac = ev.y / self.screen_height;
             let center_y_px = center_y_frac * self.screen_height;
 
-            // offset_y_px actual = offset_y * screen_height * zoom_y.
             let offset_y_px =
                 self.viewport.offset_y() * self.screen_height * self.viewport.zoom_y();
             let zoom_ratio = new_zoom_y / self.viewport.zoom_y();
@@ -383,7 +370,7 @@ mod tests {
         }));
         controller.on_event(&InteractionEvent::PointerDrag(PointerDragEvent {
             dx: 0.0,
-            dy: -50.0, // hacia arriba = zoom in
+            dy: -50.0,
         }));
 
         let zoom_after = controller.viewport().zoom_y();

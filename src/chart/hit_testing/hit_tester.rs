@@ -19,12 +19,6 @@ pub struct HitTesterResult {
     pub object_index: usize,
 }
 
-/// Ejecuta hit-testing sobre una lista de objetos testables.
-///
-/// `objects` está ordenado por z-order ascendente (primero = fondo,
-/// último = frente). Se itera de atrás hacia adelante para que los
-/// objetos del frente tengan prioridad. Devuelve el hit con menor
-/// distancia; si hay empate, gana el de mayor índice (más al frente).
 pub fn hit_test_objects<'a, T>(
     objects: &'a [T],
     ctx: &HitTestContext<'_>,
@@ -38,7 +32,6 @@ where
 
     let mut best: Option<HitTesterResult> = None;
 
-    // Iterar de atrás hacia adelante (z-order: frente primero).
     for (index, object) in objects.iter().enumerate().rev() {
         if let Some(hit) = object.hit_test(ctx) {
             let candidate = HitTesterResult {
@@ -51,8 +44,6 @@ where
                     best = Some(candidate);
                 }
                 Some(current) => {
-                    // Menor distancia gana; si hay empate, el de mayor
-                    // índice (más al frente en z-order) gana.
                     if candidate.hit.distance < current.hit.distance
                         || (candidate.hit.distance - current.hit.distance).abs() < f64::EPSILON
                             && candidate.object_index > current.object_index
@@ -98,27 +89,18 @@ where
 /// la vela y de todo el cuerpo en Y.
 #[derive(Debug, Clone, Copy)]
 pub struct CandleHitTest {
-    /// Índice de la vela en la serie.
     pub index: usize,
-    /// Posición X del centro de la vela en pantalla.
     pub center_x: f64,
-    /// Posición Y del precio de apertura en pantalla.
     pub y_open: f64,
-    /// Posición Y del precio de cierre en pantalla.
     pub y_close: f64,
-    /// Precio de la vela (para el data_point del hit).
     pub price: f64,
-    /// ID de serie asociada.
     pub series_id: HitSeriesId,
-    /// Tolerancia de selección en píxeles.
     pub tolerance: f64,
 }
 
 impl HitTestable for CandleHitTest {
     fn hit_test(&self, ctx: &HitTestContext) -> Option<HitResult> {
         let dx = (ctx.screen_x - self.center_x).abs();
-        // La vela tiene ancho en X (tolerancia) y cubre todo el rango Y
-        // entre open y close (más un margen pequeño).
         let y_min = self.y_open.min(self.y_close);
         let y_max = self.y_open.max(self.y_close);
         let dy = if ctx.screen_y >= y_min - self.tolerance

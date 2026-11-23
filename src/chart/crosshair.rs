@@ -93,7 +93,6 @@ impl Crosshair {
         let center_price = params.center_price;
         let candle_count = params.candle_count;
 
-        // El cursor debe estar dentro del área de plot.
         let rel_x = cursor_x - plot_left;
         let rel_y = cursor_y - plot_top;
 
@@ -106,7 +105,6 @@ impl Crosshair {
         self.x = cursor_x;
         self.y = cursor_y;
 
-        // Índice y precio usando las mismas transformaciones que el renderer.
         let center_x = plot_width / 2.0;
         let spacing = viewport.candle_spacing();
         if spacing > 0.0 {
@@ -116,8 +114,6 @@ impl Crosshair {
             self.index = 0;
         }
 
-        // Precio bajo el cursor usando la misma transformación inversa Y
-        // que el renderer (screen_y_to_price con zoom_y y offset_y).
         self.price = screen_y_to_price(
             rel_y,
             plot_height,
@@ -255,8 +251,6 @@ mod tests {
 
     #[test]
     fn candle_is_pure_domain() {
-        // Verifica que Candle sigue siendo un tipo puro de dominio (no depende
-        // de egui/wgpu), como requiere la arquitectura.
         let c = Candle::new(100.0, 105.0, 99.0, 103.0, 1000.0).expect("vela válida");
         assert_eq!(c.open(), 100.0);
     }
