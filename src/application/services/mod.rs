@@ -12,11 +12,13 @@ use crate::domain::chart::time_point::TimePoint;
 use crate::domain::chart_state::ChartState;
 use crate::domain::price::Price;
 use crate::domain::price_range::PriceRange;
+use crate::domain::transforms::ScreenPoint;
+use crate::domain::viewport::Viewport;
 use crate::logging::init as init_logging;
 use crate::market::mock::MockMarketDataProvider;
 use crate::market::provider::MarketDataProvider;
 use crate::market::symbol::Symbol;
-use crate::renderer::{ChartRenderer, ChartScene, InvalidationMask, create_renderer};
+use crate::renderer::{ChartRenderer, ChartScene, InvalidationMask, InvalidationReason, create_renderer};
 use eframe::egui;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
@@ -49,6 +51,14 @@ struct ApexTraderApp {
     load_state: LoadState,
     /// Símbolo ingresado por el usuario para cargar datos de mercado.
     symbol_input: String,
+    /// Viewport del frame anterior (para calcular invalidation mask).
+    prev_viewport: Option<Viewport>,
+    /// Posición del crosshair del frame anterior.
+    prev_crosshair_pos: Option<ScreenPoint>,
+    /// Cantidad de puntos de datos del frame anterior.
+    prev_data_len: usize,
+    /// Rect de dibujo del frame anterior.
+    prev_rect: Option<egui::Rect>,
 }
 
 impl eframe::App for ApexTraderApp {
@@ -115,6 +125,9 @@ impl eframe::App for ApexTraderApp {
             let viewport = self.chart.viewport();
             let points = self.chart.data_points();
 
+            // Calcular máscara de invalidación basada en qué cambió entre frames.
+            let mask = self.calculate_invalidation_mask(viewport, crosshair_pos, points.len(), available);
+
             // Calcular rango de precios y centro a partir de los puntos visibles.
             let drawing_width = available.width() as f64;
             let visible = viewport.visible_range(points.len(), drawing_width);
@@ -147,13 +160,19 @@ impl eframe::App for ApexTraderApp {
                 screen_width: available.width() as f64,
                 screen_height: available.height() as f64,
                 crosshair_pos,
-                invalidation_mask: InvalidationMask::none(),
+                invalidation_mask: mask,
             };
 
             if let Err(e) = self.renderer.draw(painter, available, &scene) {
                 tracing::error!("Error renderizando chart: {}", e);
                 ui.colored_label(egui::Color32::RED, format!("Error: {}", e));
             }
+
+            // Guardar estado actual para el próximo frame.
+            self.prev_viewport = Some(*viewport);
+            self.prev_crosshair_pos = crosshair_pos;
+            self.prev_data_len = points.len();
+            self.prev_rect = Some(available);
 
             ui.label(format!(
                 "Zoom X: {:.2}x | Zoom Y: {:.2}x | Offset: ({:.2}, {:.2})",
@@ -170,6 +189,65 @@ impl eframe::App for ApexTraderApp {
                 ui.label("Scroll: zoom | Arrastre: pan");
             });
         });
+    }
+}
+
+/// Calcula la máscara de invalidación basada en qué cambió entre frames.
+///
+/// Compara el estado actual con el del frame anterior para determinar
+/// qué partes del chart necesitan ser re-renderizadas.
+impl ApexTraderApp {
+    fn calculate_invalidation_mask(
+        &self,
+        viewport: &Viewport,
+        crosshair_pos: Option<ScreenPoint>,
+        data_len: usize,
+        rect: egui::Rect,
+    ) -> InvalidationMask {
+        // Primer frame: todo es nuevo.
+        if self.prev_viewport.is_none() {
+            return InvalidationMask {
+                level: InvalidationReason::Full,
+            };
+        }
+
+        let mut mask = InvalidationMask::none();
+
+        // Si cambió el rect (resize), es ScaleLayout.
+        if let Some(prev_rect) = self.prev_rect {
+            if prev_rect != rect {
+                mask = mask.merge(InvalidationMask {
+                    level: InvalidationReason::ScaleLayout,
+                });
+            }
+        }
+
+        // Si cambió el viewport (zoom/pan), es ScaleLayout.
+        if let Some(prev_vp) = self.prev_viewport {
+            if *viewport != prev_vp {
+                mask = mask.merge(InvalidationMask {
+                    level: InvalidationReason::ScaleLayout,
+                });
+            }
+        }
+
+        // Si cambiaron los datos, es SeriesData.
+        if data_len != self.prev_data_len {
+            mask = mask.merge(InvalidationMask {
+                level: InvalidationReason::SeriesData,
+            });
+        }
+
+        // Si cambió solo el crosshair, es CursorOnly (solo si no hay algo peor).
+        if let Some(prev_ch) = self.prev_crosshair_pos {
+            if crosshair_pos != Some(prev_ch) && mask.level == InvalidationReason::None {
+                mask = InvalidationMask {
+                    level: InvalidationReason::CursorOnly,
+                };
+            }
+        }
+
+        mask
     }
 }
 
@@ -210,6 +288,10 @@ pub fn run() -> eframe::Result {
                 renderer,
                 load_state,
                 symbol_input: "BTC/USDT".to_string(),
+                prev_viewport: None,
+                prev_crosshair_pos: None,
+                prev_data_len: 0,
+                prev_rect: None,
             }))
         }),
     )

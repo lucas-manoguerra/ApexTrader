@@ -41,7 +41,7 @@ use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 /// Margen porcentual usado en auto_scale y clamping (5% cada lado).
 const MARGIN_RATIO: f64 = 0.05;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Viewport {
     /// Nivel de zoom del eje X (tiempo / índice de vela).
     /// 1.0 = sin zoom (1 unidad de precio = 1 píxel base).
