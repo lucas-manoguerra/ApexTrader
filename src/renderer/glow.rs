@@ -183,7 +183,7 @@ impl ChartRenderer for GlowChartRenderer {
         &mut self,
         painter: &egui::Painter,
         rect: egui::Rect,
-        scene: &ChartScene,
+        scene: &ChartScene<'_>,
     ) -> Result<(), RendererError> {
         if rect.width() <= 0.0 || rect.height() <= 0.0 {
             tracing::warn!("Rectángulo de dibujo vacío, no se puede renderizar");
