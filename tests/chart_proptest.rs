@@ -4,8 +4,6 @@ use apex_trader::domain::viewport::Viewport;
 use proptest::prelude::*;
 use rust_decimal::Decimal;
 
-// S5: el nivel de zoom debe permanecer siempre dentro de [min_zoom, max_zoom],
-// incluso ante valores arbitrarios de entrada.
 proptest! {
     #[test]
     fn prop_zoom_remains_within_limits(zoom in 0.0f64..1e6f64) {
@@ -17,8 +15,6 @@ proptest! {
     }
 }
 
-// S5: el pan no debe producir offsets no finitos ni hacer panic, incluso con
-// desplazamientos extremos.
 proptest! {
     #[test]
     fn prop_pan_offsets_stay_finite(dx in -1e6f64..1e6f64, dy in -1e6f64..1e6f64) {
@@ -29,8 +25,6 @@ proptest! {
     }
 }
 
-// S5: pantalla → datos → pantalla es un round-trip estable para índices dentro
-// del rango de velas cargadas.
 proptest! {
     #[test]
     fn prop_screen_to_data_round_trip(idx in 0..100usize) {
@@ -45,15 +39,6 @@ proptest! {
     }
 }
 
-// S2: zoom anclado al cursor — hacer zoom in y luego zoom out en el mismo
-// punto debe dejar el punto bajo el cursor fijo en pantalla (misma vela).
-//
-// Nota: el zoom es multiplicativo (factor 1 ± zoom_step), así que
-// (1+s)·(1-s) = 1 - s² ≠ 1 en punto flotante y el estado no vuelve bit-a-bit
-// idéntico. No exigimos restauración exacta de offsets (sería imposible);
-// exigimos lo que realmente pide S2: el índice de vela bajo el cursor no se
-// mueve. El error acumulado es sub-píxel, muy inferior al espaciamiento entre
-// velas, así que el índice entero recuperado es estable.
 proptest! {
     #[test]
     fn prop_zoom_in_out_keeps_cursor_vela_fija(
@@ -70,15 +55,11 @@ proptest! {
 
         let cursor_px = center_x * screen_width;
 
-        // Índice de vela bajo el cursor antes de cualquier zoom.
         let before = viewport.screen_x_to_data(cursor_px, screen_width, candle_count);
 
-        // Zoom in alrededor del cursor (eje Y = precio; eje X sin cambio).
         viewport.zoom_at(0.0, 1.0, center_x, center_y, screen_width, screen_height);
-        // Zoom out en el mismo punto.
         viewport.zoom_at(0.0, -1.0, center_x, center_y, screen_width, screen_height);
 
-        // El cursor debe seguir apuntando a la misma vela.
         let after = viewport.screen_x_to_data(cursor_px, screen_width, candle_count);
         assert_eq!(
             after, before,
@@ -88,8 +69,6 @@ proptest! {
     }
 }
 
-// S8: auto_scale no debe modificar el estado cuando recibe dimensiones
-// cero, negativas o no finitas.
 proptest! {
     #[test]
     fn prop_auto_scale_ignores_invalid_dimensions(
@@ -119,7 +98,6 @@ proptest! {
     }
 }
 
-// S5: visible_range devuelve first <= last cuando hay velas y el área es válida.
 proptest! {
     #[test]
     fn prop_visible_range_is_sane(candle_count in 1..1000usize, width in 1.0f64..2000.0f64) {
@@ -132,7 +110,6 @@ proptest! {
     }
 }
 
-// S5: visible_range está vacío cuando no hay velas.
 proptest! {
     #[test]
     fn prop_visible_range_empty_with_no_candles(width in 1.0f64..2000.0f64) {

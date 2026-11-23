@@ -51,7 +51,6 @@ fn chart_state_rejects_non_finite_prices() {
     let result = Candle::new(f64::NAN, 2.0, 0.5, 1.5, 0.0);
     assert!(result.is_err());
 
-    // Si la vela se crea válida, add_data_point la acepta.
     let valid = Candle::new(1.0, 2.0, 0.5, 1.5, 100.0).expect("vela válida");
     let tp = TimePoint::new(0, 60_000, 60_000).expect("intervalo válido");
     assert!(chart.add_data_point(ChartDataPoint::new(valid, tp)).is_ok());

@@ -9,11 +9,9 @@ fn pan_limited_to_candle_range_left() {
     let candle_count = 50;
     let screen_width = 1920.0;
 
-    // Hacer pan a la izquierda (offset_x negativo grande).
     viewport.set_offset_x(-1000.0);
     viewport.clamp_pan_to_candles(candle_count, screen_width);
 
-    // La primera vela (index 0) debe estar visible.
     let x_first = viewport.data_x_to_screen(0, screen_width);
     let margin = screen_width * 0.05;
     assert!(
@@ -33,11 +31,9 @@ fn pan_limited_to_candle_range_right() {
     let candle_count = 50;
     let screen_width = 1920.0;
 
-    // Hacer pan a la derecha (offset_x positivo grande).
     viewport.set_offset_x(1000.0);
     viewport.clamp_pan_to_candles(candle_count, screen_width);
 
-    // La última vela (index N-1) debe estar visible.
     let x_last = viewport.data_x_to_screen(candle_count - 1, screen_width);
     let margin = screen_width * 0.05;
     assert!(
@@ -52,7 +48,7 @@ fn pan_limited_to_candle_range_right() {
 #[test]
 fn zoom_max_limited() {
     let mut viewport = Viewport::new();
-    viewport.set_zoom(100.0, 100.0); // Intentar zoom extremo
+    viewport.set_zoom(100.0, 100.0);
 
     let candle_count = 50;
     let screen_width = 1920.0;
@@ -70,15 +66,13 @@ fn zoom_max_limited() {
 #[test]
 fn zoom_min_limited() {
     let mut viewport = Viewport::new();
-    viewport.set_zoom(0.001, 0.001); // Zoom extremadamente bajo
+    viewport.set_zoom(0.001, 0.001);
 
     let candle_count = 50;
     let screen_width = 1920.0;
 
     viewport.clamp_zoom_to_candles(candle_count, screen_width);
 
-    // Con screen_width=1920, min_zoom_by_candles = 40.0 / 1920.0 ≈ 0.0208
-    // Pero también está limitado por min_zoom=0.1 del Viewport.
     assert!(
         viewport.zoom_x() >= 0.1,
         "Zoom mínimo debe ser al menos min_zoom (0.1): zoom={}",
@@ -90,14 +84,13 @@ fn zoom_min_limited() {
 #[test]
 fn zoom_min_limited_by_screen_width() {
     let mut viewport = Viewport::new();
-    viewport.set_min_zoom(0.001); // Bajar min_zoom para probar el límite por pantalla
+    viewport.set_min_zoom(0.001);
 
     let candle_count = 50;
-    let screen_width = 50.0; // Pantalla muy pequeña
+    let screen_width = 50.0;
 
     viewport.clamp_zoom_to_candles(candle_count, screen_width);
 
-    // 40.0 / 50.0 = 0.8, así que zoom mínimo debe ser al menos 0.8
     assert!(
         viewport.zoom_x() >= 0.8,
         "Con pantalla pequeña, zoom mínimo debe ser mayor: zoom={}",
@@ -109,7 +102,7 @@ fn zoom_min_limited_by_screen_width() {
 #[test]
 fn zoom_max_limited_by_candle_spacing() {
     let mut viewport = Viewport::new();
-    viewport.set_max_zoom(100.0); // Permitir zoom muy alto
+    viewport.set_max_zoom(100.0);
 
     let candle_count = 50;
     let screen_width = 1920.0;
@@ -132,11 +125,9 @@ fn pan_single_candle_keeps_visible() {
     let candle_count = 1;
     let screen_width = 1920.0;
 
-    // Hacer pan a la derecha (offset_x positivo grande).
     viewport.set_offset_x(500.0);
     viewport.clamp_pan_to_candles(candle_count, screen_width);
 
-    // La única vela (index 0) debe estar visible dentro del margen.
     let x_first = viewport.data_x_to_screen(0, screen_width);
     let margin = screen_width * 0.05;
     assert!(
@@ -158,7 +149,6 @@ fn set_zoom_level_respects_candle_limits() {
     let candle_count = 50;
     let screen_width = 1920.0;
 
-    // Intentar zoom muy alto.
     viewport.set_zoom(50.0, 50.0);
     viewport.clamp_zoom_to_candles(candle_count, screen_width);
 

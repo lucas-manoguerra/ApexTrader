@@ -25,9 +25,6 @@ fn data_x_to_screen_respects_zoom_and_offset() {
     let x0 = viewport.data_x_to_screen(0, screen_width);
     let x1 = viewport.data_x_to_screen(1, screen_width);
 
-    // Con zoom 2.0, candle_spacing = 20.0 * 2.0 = 40.0. El offset_x se aplica
-    // por igual a ambas velas, por lo que la diferencia entre x1 y x0 es solo
-    // candle_spacing (el offset se cancela al restar).
     let expected_spacing = 20.0 * 2.0;
     assert!((x1 - x0 - expected_spacing).abs() < f64::EPSILON);
 }
@@ -62,7 +59,6 @@ fn price_to_screen_returns_pixel_y() {
     let price = Price::new(Decimal::new(50000, 2)).expect("500.00 válido");
     let y = viewport.price_to_screen(price, screen_height, range, center_price);
 
-    // Precio igual al centro → Y en el centro de la pantalla
     assert!((y - screen_height / 2.0).abs() < f64::EPSILON);
 }
 
@@ -89,7 +85,6 @@ fn price_to_screen_inverts_y_axis() {
         center_price,
     );
 
-    // Precio más bajo → Y más grande (más abajo en pantalla)
     assert!(y_low > y_high);
 }
 
@@ -127,7 +122,6 @@ fn screen_y_to_price_falls_back_to_center() {
     let max = Price::new(Decimal::new(60000, 2)).expect("600.00 válido");
     let range = PriceRange::new(min, max).expect("rango válido");
 
-    // Y muy abajo de la pantalla produce precio muy bajo (negativo → inválido para Price)
     let y_far_below = 10000.0;
     let recovered = viewport.screen_y_to_price(y_far_below, screen_height, range, center_price);
     assert_eq!(recovered, center_price);
