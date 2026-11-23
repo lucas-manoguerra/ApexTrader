@@ -5,21 +5,12 @@
 //! describen los gestos que soporta actualmente ApexTrader en escritorio.
 
 /// Configuración de todas las interacciones del chart.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct InteractionOptions {
     /// Gestos que desplazan el historial sin cambiar el zoom.
     pub scroll: ScrollOptions,
     /// Gestos que modifican el nivel de zoom.
     pub scale: ScaleOptions,
-}
-
-impl Default for InteractionOptions {
-    fn default() -> Self {
-        Self {
-            scroll: ScrollOptions::default(),
-            scale: ScaleOptions::default(),
-        }
-    }
 }
 
 /// Opciones de navegación temporal.
