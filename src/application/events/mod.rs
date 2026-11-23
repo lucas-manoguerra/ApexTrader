@@ -176,4 +176,45 @@ fn pointer_coordinates_unbounded(
         layout.plot.top,
     );
     (screen_point, chart_point)
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn interaction_rect() -> egui::Rect {
+        egui::Rect::from_min_size(egui::pos2(100.0, 60.0), egui::vec2(800.0, 600.0))
+    }
+
+    #[test]
+    fn pointer_coordinates_convert_global_pointer_to_local_plot_space() {
+        let rect = interaction_rect();
+        let layout = ChartLayout::compute(rect.width() as f64, rect.height() as f64);
+        let expected_x = layout.plot_width() * 0.35;
+        let expected_y = layout.plot_height() * 0.70;
+        let pos = egui::pos2(
+            rect.left() as f32 + (layout.plot.left + expected_x) as f32,
+            rect.top() as f32 + (layout.plot.top + expected_y) as f32,
+        );
+
+        let (screen, chart) =
+            pointer_coordinates(pos, rect, &layout).expect("el puntero está dentro del plot");
+
+        assert!((screen.x - (layout.plot.left + expected_x)).abs() < 1e-3);
+        assert!((screen.y - (layout.plot.top + expected_y)).abs() < 1e-3);
+        assert!((chart.x - expected_x).abs() < 1e-3);
+        assert!((chart.y - expected_y).abs() < 1e-3);
+    }
+
+    #[test]
+    fn pointer_in_axis_margin_is_not_a_plot_interaction() {
+        let rect = interaction_rect();
+        let layout = ChartLayout::compute(rect.width() as f64, rect.height() as f64);
+        let pos = egui::pos2(
+            rect.left() as f32 + (layout.plot.left / 2.0) as f32,
+            rect.top() as f32 + (layout.plot.top + layout.plot.height() / 2.0) as f32,
+        );
+
+        assert!(pointer_coordinates(pos, rect, &layout).is_none());
+    }
+}
+
 }
