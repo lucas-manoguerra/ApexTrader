@@ -98,12 +98,30 @@ pub fn handle_input(
         }
     }
 
-    // Capturar el inicio de pan antes de procesar el primer movimiento.
+    // Capturar el inicio de pan o zoom antes del primer movimiento.
     if response.drag_started_by(egui::PointerButton::Primary) {
         if let Some(pos) = response.interact_pointer_pos() {
             if let Some((_, point)) = pointer_coordinates(pos, interaction_rect, &layout) {
                 let event = InteractionEvent::PointerDown(PointerDownEvent {
                     button: PointerButton::Primary,
+                    x: point.x,
+                    y: point.y,
+                    modifiers: Modifiers::default(),
+                });
+                input_handler.controller.on_event(
+                    chart.viewport_mut(),
+                    candle_count,
+                    &event,
+                );
+            }
+        }
+    }
+
+    if response.drag_started_by(egui::PointerButton::Secondary) {
+        if let Some(pos) = response.interact_pointer_pos() {
+            if let Some((_, point)) = pointer_coordinates(pos, interaction_rect, &layout) {
+                let event = InteractionEvent::PointerDown(PointerDownEvent {
+                    button: PointerButton::Secondary,
                     x: point.x,
                     y: point.y,
                     modifiers: Modifiers::default(),
@@ -129,9 +147,26 @@ pub fn handle_input(
         }
     }
 
+    if response.dragged_by(egui::PointerButton::Secondary) {
+        if let Some(pos) = response.interact_pointer_pos() {
+            let (_, point) = pointer_coordinates_unbounded(pos, interaction_rect, &layout);
+            let event = InteractionEvent::PointerDrag(PointerDragEvent {
+                x: point.x,
+                y: point.y,
+            });
+            input_handler.controller.on_event(chart.viewport_mut(), candle_count, &event);
+        }
+    }
+
     if response.drag_stopped_by(egui::PointerButton::Primary) {
         let event = InteractionEvent::PointerUp(PointerUpEvent {
             button: PointerButton::Primary,
+        });
+        input_handler.controller.on_event(chart.viewport_mut(), candle_count, &event);
+    }
+    if response.drag_stopped_by(egui::PointerButton::Secondary) {
+        let event = InteractionEvent::PointerUp(PointerUpEvent {
+            button: PointerButton::Secondary,
         });
         input_handler.controller.on_event(chart.viewport_mut(), candle_count, &event);
     }
