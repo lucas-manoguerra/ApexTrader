@@ -50,6 +50,78 @@ impl TimeScale {
         self.timestamps_ms.binary_search(&timestamp_ms).ok()
     }
 
+    /// Reconstruye una escala temporal común a varias series.
+    ///
+    /// Cada serie puede tener una frecuencia o timestamps distintos. La escala
+    /// contiene la unión ordenada de todos los timestamps y elimina duplicados;
+    /// cada serie puede consultar luego su posición con `logical_index`.
+    pub fn rebuild_from_series<I, S>(&mut self, series: I)
+    where
+        I: IntoIterator<Item = S>,
+        S: IntoIterator<Item = i64>,
+    {
+        self.rebuild(series.into_iter().flatten());
+    }
+
+    /// Convierte un intervalo temporal inclusivo en un intervalo lógico.
+    ///
+    /// Los extremos se interpolan entre timestamps irregulares y el intervalo
+    /// se recorta al historial disponible. Devuelve `None` si no hay historial,
+    /// el intervalo está invertido o no intersecta los datos.
+    pub fn time_range_to_logical_range(
+        &self,
+        start_time_ms: i64,
+        end_time_ms: i64,
+    ) -> Option<(f64, f64)> {
+        let first = *self.timestamps_ms.first()?;
+        let last = *self.timestamps_ms.last()?;
+        if start_time_ms > end_time_ms || end_time_ms < first || start_time_ms > last {
+            return None;
+        }
+
+        let clipped_start = start_time_ms.max(first);
+        let clipped_end = end_time_ms.min(last);
+        Some((
+            self.time_to_logical(clipped_start)?,
+            self.time_to_logical(clipped_end)?,
+        ))
+    }
+
+    /// Devuelve los índices enteros cuyos timestamps pertenecen al intervalo
+    /// temporal inclusivo. No incluye posiciones interpoladas sin una vela.
+    pub fn indices_in_time_range(
+        &self,
+        start_time_ms: i64,
+        end_time_ms: i64,
+    ) -> Option<std::ops::RangeInclusive<usize>> {
+        if self.timestamps_ms.is_empty() || start_time_ms > end_time_ms {
+            return None;
+        }
+
+        let first = self.timestamps_ms.partition_point(|time| *time < start_time_ms);
+        let after_last = self.timestamps_ms.partition_point(|time| *time <= end_time_ms);
+        (first < after_last).then_some(first..=after_last - 1)
+    }
+
+    /// Convierte un intervalo lógico (posiblemente fraccionario) a timestamps.
+    pub fn logical_range_to_time_range(
+        &self,
+        first_logical: f64,
+        last_logical: f64,
+    ) -> Option<(i64, i64)> {
+        if !first_logical.is_finite()
+            || !last_logical.is_finite()
+            || first_logical > last_logical
+        {
+            return None;
+        }
+
+        Some((
+            self.logical_to_time(first_logical)?,
+            self.logical_to_time(last_logical)?,
+        ))
+    }
+
     /// Convierte un timestamp en una coordenada lógica fraccionaria.
     ///
     /// Los intervalos sin datos quedan comprimidos: el tiempo entre dos
@@ -187,6 +259,48 @@ mod tests {
         assert_eq!(scale.logical_to_time(3.0), Some(3_660_000));
         assert_eq!(scale.logical_to_time(4.0), None);
         assert_eq!(scale.logical_to_time(f64::NAN), None);
+    }
+
+    #[test]
+    fn shared_scale_merges_irregular_series_and_assigns_common_indices() {
+        let mut scale = TimeScale::new();
+        scale.rebuild_from_series([
+            vec![10, 20, 30],
+            vec![15, 30, 45, 60],
+            vec![20, 40],
+        ]);
+
+        assert_eq!(scale.timestamps(), &[10, 15, 20, 30, 40, 45, 60]);
+        assert_eq!(scale.logical_index(20), Some(2));
+        assert_eq!(scale.logical_index(45), Some(5));
+        assert_eq!(scale.logical_index(25), None);
+    }
+
+    #[test]
+    fn temporal_ranges_map_to_interpolated_and_existing_logical_positions() {
+        let mut scale = TimeScale::new();
+        scale.rebuild([10, 15, 20, 30, 45, 60]);
+
+        assert_eq!(
+            scale.time_range_to_logical_range(16, 46),
+            Some((1.2, 4.066666666666666))
+        );
+        assert_eq!(scale.indices_in_time_range(16, 46), Some(2..=4));
+        assert_eq!(scale.time_range_to_logical_range(-10, 15), Some((0.0, 1.0)));
+        assert_eq!(scale.indices_in_time_range(31, 44), None);
+        assert_eq!(scale.time_range_to_logical_range(61, 90), None);
+        assert_eq!(scale.time_range_to_logical_range(30, 20), None);
+    }
+
+    #[test]
+    fn logical_ranges_round_trip_to_irregular_timestamps() {
+        let scale = scale();
+        assert_eq!(
+            scale.logical_range_to_time_range(0.5, 2.5),
+            Some((30_000, 3_630_000))
+        );
+        assert_eq!(scale.logical_range_to_time_range(2.5, 1.5), None);
+        assert_eq!(scale.logical_range_to_time_range(f64::NAN, 1.0), None);
     }
 
     #[test]
