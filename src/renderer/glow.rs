@@ -371,42 +371,39 @@ impl ChartRenderer for GlowChartRenderer {
         );
 
         if let Some(crosshair) = scene.crosshair_pos {
-            let left_f64 = left;
-            let right_f64 = right;
-            let top_f64 = top;
-            let bottom_f64 = bottom_precios;
+            // ScreenPoint se expresa relativo al origen del rect completo del
+            // chart; ChartLayout también usa coordenadas locales al rect.
+            let chart_point =
+                screen_to_chart_point(crosshair, layout.plot.left, layout.plot.top);
 
-            if crosshair.x >= left_f64
-                && crosshair.x <= right_f64
-                && crosshair.y >= top_f64
-                && crosshair.y <= bottom_f64
+            if chart_point.x >= 0.0
+                && chart_point.x <= layout.plot_width()
+                && chart_point.y >= 0.0
+                && chart_point.y <= layout.plot_height()
             {
+                let crosshair_screen_x = crosshair.x + ox;
+                let crosshair_screen_y = crosshair.y + oy;
                 let crosshair_color = egui::Color32::from_rgb(255, 165, 0);
 
                 painter.line_segment(
                     [
-                        egui::pos2(crosshair.x as f32, top_f64 as f32),
-                        egui::pos2(crosshair.x as f32, bottom_f64 as f32),
+                        egui::pos2(crosshair_screen_x as f32, top as f32),
+                        egui::pos2(crosshair_screen_x as f32, bottom_precios as f32),
                     ],
                     egui::Stroke::new(1.0, crosshair_color),
                 );
 
                 painter.line_segment(
                     [
-                        egui::pos2(left as f32, crosshair.y as f32),
-                        egui::pos2(right as f32, crosshair.y as f32),
+                        egui::pos2(left as f32, crosshair_screen_y as f32),
+                        egui::pos2(right as f32, crosshair_screen_y as f32),
                     ],
                     egui::Stroke::new(1.0, crosshair_color),
                 );
 
-                let screen_width_drawing = right_f64 - left_f64;
-                let screen_height_drawing = bottom_f64 - top_f64;
-
-                let chart_point = screen_to_chart_point(crosshair, left_f64, top_f64);
-
                 let price_at_cursor = transforms::screen_y_to_price(
                     chart_point.y,
-                    screen_height_drawing,
+                    layout.plot_height(),
                     price_range,
                     scene.viewport.zoom_y(),
                     scene.viewport.offset_y(),
@@ -414,13 +411,13 @@ impl ChartRenderer for GlowChartRenderer {
                 );
                 let index_at_cursor = scene.viewport.screen_x_to_data(
                     chart_point.x,
-                    screen_width_drawing,
+                    layout.plot_width(),
                     scene.candle_count,
                 );
 
                 let price_label = format!("{:.2}", price_at_cursor);
                 painter.text(
-                    egui::pos2((left - 6.0) as f32, crosshair.y as f32),
+                    egui::pos2((left - 6.0) as f32, crosshair_screen_y as f32),
                     egui::Align2::RIGHT_CENTER,
                     price_label,
                     egui::FontId::proportional(11.0),
@@ -429,7 +426,7 @@ impl ChartRenderer for GlowChartRenderer {
 
                 let index_label = format!("{}", index_at_cursor);
                 painter.text(
-                    egui::pos2(crosshair.x as f32, (bottom_f64 + 4.0) as f32),
+                    egui::pos2(crosshair_screen_x as f32, (bottom_precios + 4.0) as f32),
                     egui::Align2::CENTER_TOP,
                     index_label,
                     egui::FontId::proportional(11.0),
