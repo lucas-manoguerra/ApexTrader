@@ -1,4 +1,5 @@
 use crate::domain::chart::chart_data::ChartDataPoint;
+use crate::domain::chart::time_scale::TimeScale;
 use crate::domain::viewport::Viewport;
 use crate::errors::ChartError;
 
@@ -13,6 +14,8 @@ use crate::errors::ChartError;
 pub struct ChartState {
     data_points: Vec<ChartDataPoint>,
     viewport: Viewport,
+    /// Mapeo compartido entre timestamps e índices lógicos.
+    time_scale: TimeScale,
     /// Versión monótona de los datos para invalidar cachés incluso si la longitud no cambia.
     data_revision: u64,
 }
@@ -23,6 +26,7 @@ impl ChartState {
         Self {
             data_points: Vec::new(),
             viewport: Viewport::new(),
+            time_scale: TimeScale::new(),
             data_revision: 0,
         }
     }
@@ -42,6 +46,7 @@ impl ChartState {
         );
 
         self.data_points.push(data_point);
+        self.rebuild_time_scale();
         self.data_revision = self.data_revision.wrapping_add(1);
         Ok(())
     }
@@ -52,9 +57,12 @@ impl ChartState {
     /// llamante, típicamente la capa de aplicación que conecta con un
     /// `MarketDataProvider`). Cada punto se agrega mediante `add_data_point`.
     pub fn add_data_points(&mut self, data_points: &[ChartDataPoint]) -> Result<(), ChartError> {
-        for data_point in data_points {
-            self.add_data_point(*data_point)?;
+        if data_points.is_empty() {
+            return Ok(());
         }
+        self.data_points.extend_from_slice(data_points);
+        self.rebuild_time_scale();
+        self.data_revision = self.data_revision.wrapping_add(1);
         Ok(())
     }
 
@@ -65,6 +73,7 @@ impl ChartState {
     pub fn clear(&mut self) {
         if !self.data_points.is_empty() {
             self.data_points.clear();
+            self.time_scale = TimeScale::new();
             self.data_revision = self.data_revision.wrapping_add(1);
         }
     }
@@ -77,6 +86,23 @@ impl ChartState {
             self.data_points.len()
         );
         &self.data_points
+    }
+
+    /// Devuelve la escala temporal compartida del chart.
+    pub fn time_scale(&self) -> &TimeScale {
+        &self.time_scale
+    }
+
+    /// Reconstruye los índices lógicos después de cambiar los datos.
+    fn rebuild_time_scale(&mut self) {
+        self.time_scale.rebuild(
+            self.data_points
+                .iter()
+                .map(|point| point.time_point.open_time_ms),
+        );
+        for point in &mut self.data_points {
+            point.logical_index = self.time_scale.logical_index(point.time_point.open_time_ms);
+        }
     }
 
     /// Devuelve un préstamo inmutable del viewport (`borrowing`).
