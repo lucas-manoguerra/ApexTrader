@@ -235,7 +235,7 @@ impl InteractionController {
                 next.set_offset_x(anchor_offset_x);
                 next.set_offset_y(anchor_offset_y);
 
-                let changed = next.zoom_to_at(
+                next.zoom_to_at(
                     anchor_zoom_x * factor,
                     anchor_zoom_y * factor,
                     anchor_pointer_x / self.screen_width,
@@ -244,9 +244,12 @@ impl InteractionController {
                     self.screen_height,
                 );
 
+                // Aunque el nivel calculado vuelva al zoom inicial, next puede
+                // diferir del viewport actual por un frame anterior del gesto.
+                next.clamp_zoom_to_candles(candle_count, self.screen_width);
+                next.clamp_pan_to_candles(candle_count, self.screen_width);
+                let changed = next != *viewport;
                 if changed {
-                    next.clamp_zoom_to_candles(candle_count, self.screen_width);
-                    next.clamp_pan_to_candles(candle_count, self.screen_width);
                     *viewport = next;
                 }
 
@@ -454,6 +457,31 @@ mod tests {
         );
         assert!((data_x_before - data_x_after).abs() < 1e-9);
         assert!((price_before - price_after).abs() < 1e-9);
+    }
+
+    #[test]
+    fn zoom_drag_returns_to_its_initial_state_when_pointer_returns_to_anchor() {
+        let mut viewport = make_viewport();
+        let initial = viewport;
+        let mut controller = InteractionController::new(1920.0, 1080.0);
+        let anchor_x = 800.0;
+        let anchor_y = 420.0;
+
+        controller.on_event(
+            &mut viewport,
+            100,
+            &pointer_down(PointerButton::Secondary, anchor_x, anchor_y),
+        );
+        controller.on_event(&mut viewport, 100, &pointer_drag(anchor_x, anchor_y - 40.0));
+        assert!(viewport.zoom_y() > initial.zoom_y());
+
+        controller.on_event(&mut viewport, 100, &pointer_drag(anchor_x, anchor_y - 80.0));
+        controller.on_event(&mut viewport, 100, &pointer_drag(anchor_x, anchor_y));
+
+        assert_eq!(viewport.zoom_x(), initial.zoom_x());
+        assert_eq!(viewport.zoom_y(), initial.zoom_y());
+        assert!((viewport.offset_x() - initial.offset_x()).abs() < 1e-9);
+        assert!((viewport.offset_y() - initial.offset_y()).abs() < 1e-9);
     }
 
     #[test]
