@@ -121,8 +121,8 @@ impl RealtimeMarketDataProvider for MockRealtimeMarketDataProvider {
                 MarketError::InvalidResponse("no se pudo crear la vela activa realtime".to_string())
             })?;
         let close = previous_price * tick_return.exp();
-        let wick_range =
-            previous_price * (0.000_025 + unit_noise(self.seed, tick_index, 0x9FB2_1C65_1E98_DF25) * 0.000_11);
+        let wick_range = previous_price
+            * (0.000_025 + unit_noise(self.seed, tick_index, 0x9FB2_1C65_1E98_DF25) * 0.000_11);
         let upper_wick =
             normal_noise(self.seed, tick_index, 0xC13F_A9A9_02A6_328F).abs() * wick_range;
         let lower_wick =
