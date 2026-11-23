@@ -298,15 +298,14 @@ impl Viewport {
     ) {
         if !delta_x.is_finite()
             || !delta_y.is_finite()
-            || !center_x.is_finite()
-            || !center_y.is_finite()
+            || (delta_x == 0.0 && delta_y == 0.0)
             || !screen_width.is_finite()
             || !screen_height.is_finite()
+            || screen_width <= 0.0
+            || screen_height <= 0.0
+            || !center_x.is_finite()
+            || !center_y.is_finite()
         {
-            return;
-        }
-
-        if delta_x == 0.0 && delta_y == 0.0 {
             return;
         }
 
@@ -325,25 +324,64 @@ impl Viewport {
             1.0
         };
 
-        let new_zoom_x = (self.zoom_x * factor_x).clamp(self.min_zoom, self.max_zoom);
-        let new_zoom_y = (self.zoom_y * factor_y).clamp(self.min_zoom, self.max_zoom);
+        self.zoom_to_at(
+            self.zoom_x * factor_x,
+            self.zoom_y * factor_y,
+            center_x,
+            center_y,
+            screen_width,
+            screen_height,
+        );
+    }
 
-        // Convertir coordenadas normalizadas 0..=1 a píxeles de pantalla.
-        let center_x_px = center_x * screen_width;
-        let center_y_px = center_y * screen_height;
+    /// Establece ambos niveles de zoom preservando el punto bajo el cursor.
+    ///
+    /// center_x y center_y son fracciones normalizadas del área de plot.
+    /// Centraliza la transformación de offsets para que los distintos tipos
+    /// de gesto utilicen exactamente la misma fórmula.
+    ///
+    /// Devuelve true si el viewport cambió.
+    pub fn zoom_to_at(
+        &mut self,
+        zoom_x: f64,
+        zoom_y: f64,
+        center_x: f64,
+        center_y: f64,
+        screen_width: f64,
+        screen_height: f64,
+    ) -> bool {
+        if !zoom_x.is_finite()
+            || !zoom_y.is_finite()
+            || zoom_x <= 0.0
+            || zoom_y <= 0.0
+            || !center_x.is_finite()
+            || !center_y.is_finite()
+            || !screen_width.is_finite()
+            || !screen_height.is_finite()
+            || screen_width <= 0.0
+            || screen_height <= 0.0
+        {
+            return false;
+        }
 
-        let zoom_ratio_x = new_zoom_x / self.zoom_x;
-        let zoom_ratio_y = new_zoom_y / self.zoom_y;
+        let new_zoom_x = zoom_x.clamp(self.min_zoom, self.max_zoom);
+        let new_zoom_y = zoom_y.clamp(self.min_zoom, self.max_zoom);
+        if new_zoom_x == self.zoom_x && new_zoom_y == self.zoom_y {
+            return false;
+        }
 
-        let offset_x_px = self.offset_x * transforms::candle_spacing(self.zoom_x);
-        let offset_y_px = self.offset_y * screen_height * self.zoom_y;
+        let center_x_px = center_x.clamp(0.0, 1.0) * screen_width;
+        let center_y_px = center_y.clamp(0.0, 1.0) * screen_height;
+        // Los offsets se expresan respecto del centro del plot. Para que
+        // el dato bajo el cursor no se mueva, hay que usar el desplazamiento
+        // del cursor respecto del centro, no la coordenada desde el borde.
+        let cursor_from_center_x = center_x_px - screen_width / 2.0;
+        let cursor_from_center_y = center_y_px - screen_height / 2.0;
 
-        let new_offset_x_px = center_x_px + (offset_x_px - center_x_px) * zoom_ratio_x;
-        let new_offset_y_px = center_y_px + (offset_y_px - center_y_px) * zoom_ratio_y;
-
-        self.offset_x = new_offset_x_px / transforms::candle_spacing(new_zoom_x);
-        self.offset_y = new_offset_y_px / (screen_height * new_zoom_y);
-
+        self.offset_x += (cursor_from_center_x / transforms::CANDLE_SPACING_BASE)
+            * (1.0 / new_zoom_x - 1.0 / self.zoom_x);
+        self.offset_y +=
+            (cursor_from_center_y / screen_height) * (1.0 / new_zoom_y - 1.0 / self.zoom_y);
         self.zoom_x = new_zoom_x;
         self.zoom_y = new_zoom_y;
 
@@ -354,6 +392,7 @@ impl Viewport {
             self.offset_x,
             self.offset_y
         );
+        true
     }
 
     /// Aplica un desplazamiento (pan) al viewport.
@@ -618,6 +657,12 @@ impl Viewport {
     }
 }
 
+impl Default for Viewport {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -644,10 +689,49 @@ mod tests {
         assert!((viewport.zoom_x() - 0.1).abs() < f64::EPSILON);
         assert!((viewport.zoom_y() - 0.1).abs() < f64::EPSILON);
     }
-}
+    #[test]
+    fn zoom_to_at_preserves_the_data_point_under_the_cursor() {
+        let mut viewport = Viewport::new();
+        viewport.set_zoom(1.5, 1.25);
+        viewport.set_offset_x(8.0);
+        viewport.set_offset_y(-0.35);
 
-impl Default for Viewport {
-    fn default() -> Self {
-        Self::new()
+        let width = 1200.0;
+        let height = 700.0;
+        let x_px = width * 0.37;
+        let y_px = height * 0.63;
+        let data_x_before = (x_px - width / 2.0) / viewport.candle_spacing() - viewport.offset_x();
+        let price_before = transforms::screen_y_to_price(
+            y_px,
+            height,
+            1000.0,
+            viewport.zoom_y(),
+            viewport.offset_y(),
+            50000.0,
+        );
+
+        assert!(viewport.zoom_to_at(2.2, 1.8, 0.37, 0.63, width, height));
+
+        let data_x_after = (x_px - width / 2.0) / viewport.candle_spacing() - viewport.offset_x();
+        let price_after = transforms::screen_y_to_price(
+            y_px,
+            height,
+            1000.0,
+            viewport.zoom_y(),
+            viewport.offset_y(),
+            50000.0,
+        );
+
+        assert!((data_x_before - data_x_after).abs() < 1e-9);
+        assert!((price_before - price_after).abs() < 1e-9);
+    }
+
+    #[test]
+    fn zoom_to_at_rejects_invalid_dimensions_and_zoom() {
+        let mut viewport = Viewport::new();
+        let before = viewport;
+        assert!(!viewport.zoom_to_at(2.0, 2.0, 0.5, 0.5, 0.0, 100.0));
+        assert!(!viewport.zoom_to_at(f64::NAN, 2.0, 0.5, 0.5, 100.0, 100.0));
+        assert_eq!(viewport, before);
     }
 }

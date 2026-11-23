@@ -2,6 +2,8 @@
 name = "apex-trader"
 version = "0.1.0"
 edition = "2024"
+# This application is not a publishable crate; a project license must be chosen separately.
+publish = false
 
 [dependencies]
 # UI y ventana (ya funcionando)

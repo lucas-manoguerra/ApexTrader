@@ -122,15 +122,20 @@ pub struct RenderGeometry {
 
 /// La escena completa del chart: qué dibujar, sin decir cómo.
 #[derive(Debug, Clone)]
-pub struct ChartScene {
-    /// Puntos de datos del chart.
-    pub data_points: Vec<ChartDataPoint>,
+pub struct ChartScene<'a> {
+    /// Vista prestada de los puntos de datos propiedad de ChartState.
+    ///
+    /// La escena no clona ni toma posesión de las velas; su vida útil queda
+    /// limitada al préstamo entregado por la aplicación en este frame.
+    pub data_points: &'a [ChartDataPoint],
     /// Viewport (zoom y pan).
     pub viewport: Viewport,
     /// Rango de precios visible (máximo - mínimo).
     pub price_range: f64,
     /// Precio central de zoom.
     pub center_price: f64,
+    /// Volumen máximo entre las velas visibles.
+    pub max_volume: f64,
     /// Cantidad de velas cargadas.
     pub candle_count: usize,
     /// Ancho del área de dibujo (píxeles).
@@ -198,14 +203,15 @@ impl InvalidationMask {
     }
 }
 
-impl ChartScene {
+impl<'a> ChartScene<'a> {
     /// Crea una `ChartScene` vacía.
     pub fn empty() -> Self {
         Self {
-            data_points: Vec::new(),
+            data_points: &[],
             viewport: Viewport::new(),
             price_range: 0.0,
             center_price: 0.0,
+            max_volume: 0.0,
             candle_count: 0,
             screen_width: 0.0,
             screen_height: 0.0,
@@ -215,8 +221,49 @@ impl ChartScene {
     }
 }
 
-impl Default for ChartScene {
+impl<'a> Default for ChartScene<'a> {
     fn default() -> Self {
         Self::empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::candle::Candle;
+    use crate::domain::chart::time_point::TimePoint;
+
+    #[test]
+    fn chart_scene_borrows_data_without_copying_the_history() {
+        let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).expect("vela válida");
+        let time_point = TimePoint::new(0, 60_000, 60_000).expect("intervalo válido");
+        let points = [ChartDataPoint::new(candle, time_point)];
+        let original_ptr = points.as_ptr();
+
+        let scene = ChartScene {
+            data_points: &points,
+            viewport: Viewport::new(),
+            price_range: 6.0,
+            center_price: 102.0,
+            max_volume: 1_000.0,
+            candle_count: points.len(),
+            screen_width: 800.0,
+            screen_height: 500.0,
+            crosshair_pos: None,
+            invalidation_mask: InvalidationMask::none(),
+        };
+
+        assert_eq!(scene.data_points.as_ptr(), original_ptr);
+        assert_eq!(scene.data_points.len(), 1);
+        assert_eq!(scene.data_points[0].close(), 103.0);
+    }
+
+    #[test]
+    fn empty_scene_uses_an_empty_borrowed_slice() {
+        let scene = ChartScene::empty();
+
+        assert!(scene.data_points.is_empty());
+        assert_eq!(scene.candle_count, 0);
+        assert_eq!(scene.max_volume, 0.0);
     }
 }

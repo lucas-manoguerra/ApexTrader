@@ -4,9 +4,7 @@
 //! en la lista se dibujan encima, por lo que se prueban primero) y devuelve
 //! el mejor hit, o `None` si ningún elemento está bajo el cursor.
 
-use crate::chart::hit_testing::result::{
-    HitKind, HitResult, HitSeriesId, HitTestContext,
-};
+use crate::chart::hit_testing::result::{HitKind, HitResult, HitSeriesId, HitTestContext};
 use crate::chart::hit_testing::r#trait::HitTestable;
 use crate::domain::transforms::ScreenPoint;
 
@@ -19,10 +17,7 @@ pub struct HitTesterResult {
     pub object_index: usize,
 }
 
-pub fn hit_test_objects<'a, T>(
-    objects: &'a [T],
-    ctx: &HitTestContext<'_>,
-) -> Option<HitTesterResult>
+pub fn hit_test_objects<T>(objects: &[T], ctx: &HitTestContext<'_>) -> Option<HitTesterResult>
 where
     T: HitTestable,
 {
@@ -60,10 +55,7 @@ where
 
 /// Devuelve todos los hits (no solo el mejor), ordenados por z-order
 /// descendente (frente primero).
-pub fn hit_test_all<'a, T>(
-    objects: &'a [T],
-    ctx: &HitTestContext<'_>,
-) -> Vec<(usize, HitResult)>
+pub fn hit_test_all<T>(objects: &[T], ctx: &HitTestContext<'_>) -> Vec<(usize, HitResult)>
 where
     T: HitTestable,
 {
@@ -103,12 +95,13 @@ impl HitTestable for CandleHitTest {
         let dx = (ctx.screen_x - self.center_x).abs();
         let y_min = self.y_open.min(self.y_close);
         let y_max = self.y_open.max(self.y_close);
-        let dy = if ctx.screen_y >= y_min - self.tolerance
-            && ctx.screen_y <= y_max + self.tolerance
+        let dy = if ctx.screen_y >= y_min - self.tolerance && ctx.screen_y <= y_max + self.tolerance
         {
             0.0
         } else {
-            (ctx.screen_y - y_min).abs().min((ctx.screen_y - y_max).abs())
+            (ctx.screen_y - y_min)
+                .abs()
+                .min((ctx.screen_y - y_max).abs())
         };
 
         let distance = (dx * dx + dy * dy).sqrt();
@@ -153,15 +146,7 @@ mod tests {
         screen_x: f64,
         screen_y: f64,
     ) -> HitTestContext<'a> {
-        HitTestContext::new(
-            viewport,
-            layout,
-            screen_x,
-            screen_y,
-            100.0,
-            50000.0,
-            100,
-        )
+        HitTestContext::new(viewport, layout, screen_x, screen_y, 100.0, 50000.0, 100)
     }
 
     #[test]

@@ -122,7 +122,7 @@ impl ChartRenderer for WgpuChartRenderer {
         &mut self,
         _painter: &egui::Painter,
         _rect: egui::Rect,
-        _scene: &ChartScene,
+        _scene: &ChartScene<'_>,
     ) -> Result<(), RendererError> {
         // wgpu no puede dibujar sin surface ni pipeline. Retorna Err para que
         // el caller use glow como fallback.

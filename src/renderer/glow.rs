@@ -9,11 +9,20 @@ use rust_decimal::prelude::FromPrimitive;
 /// Renderizador de chart usando el Painter de egui (backend glow/OpenGL).
 ///
 /// Este es el renderer que funciona actualmente en tu GPU Intel UHD 630.
-pub struct GlowChartRenderer;
+pub struct GlowChartRenderer {
+    /// Shapes de velas y volumen calculadas en el último frame estructural.
+    /// egui exige volver a emitirlas en cada frame; por eso se reproducen
+    /// desde esta caché cuando solo cambia el crosshair.
+    cached_series_shapes: Vec<egui::Shape>,
+    series_cache_valid: bool,
+}
 
 impl GlowChartRenderer {
     pub fn new() -> Self {
-        Self
+        Self {
+            cached_series_shapes: Vec::new(),
+            series_cache_valid: false,
+        }
     }
 }
 
@@ -183,7 +192,7 @@ impl ChartRenderer for GlowChartRenderer {
         &mut self,
         painter: &egui::Painter,
         rect: egui::Rect,
-        scene: &ChartScene,
+        scene: &ChartScene<'_>,
     ) -> Result<(), RendererError> {
         if rect.width() <= 0.0 || rect.height() <= 0.0 {
             tracing::warn!("Rectángulo de dibujo vacío, no se puede renderizar");
@@ -199,6 +208,8 @@ impl ChartRenderer for GlowChartRenderer {
         );
 
         if scene.data_points.is_empty() {
+            self.cached_series_shapes.clear();
+            self.series_cache_valid = true;
             tracing::trace!("No hay puntos para renderizar");
             return Ok(());
         }
@@ -229,32 +240,15 @@ impl ChartRenderer for GlowChartRenderer {
             return Ok(());
         }
 
-        let visible_points = &scene.data_points[visible.first..=visible.last];
-        let min_price = visible_points
-            .iter()
-            .map(|p| p.low())
-            .fold(f64::INFINITY, f64::min);
-        let max_price = visible_points
-            .iter()
-            .map(|p| p.high())
-            .fold(f64::NEG_INFINITY, f64::max);
-        let mut price_range = max_price - min_price;
-        if price_range == 0.0 {
-            price_range = 1.0;
-        }
-
-        let max_volume = visible_points
-            .iter()
-            .map(|p| p.volume())
-            .fold(0.0f64, f64::max);
-
-        let center_price = (min_price + max_price) / 2.0;
+        // La aplicación ya preparó estas métricas en una sola pasada
+        // sobre el rango visible; el renderer no vuelve a recorrer las velas.
+        let price_range = scene.price_range;
+        let center_price = scene.center_price;
+        let max_volume = scene.max_volume;
 
         tracing::trace!(
-            "Rango de precios (visible): min={:.2}, max={:.2}, range={:.2}, center={:.2}, \
+            "Rango de precios (visible): range={:.2}, center={:.2}, \
              max_volumen={:.2}, velas={}..={}",
-            min_price,
-            max_price,
             price_range,
             center_price,
             max_volume,
@@ -283,50 +277,76 @@ impl ChartRenderer for GlowChartRenderer {
             (relative * screen_height) as f32
         };
 
-        for (i, point) in scene.data_points
-            .iter()
-            .enumerate()
-            .skip(visible.first)
-            .take(visible.last - visible.first + 1)
-        {
-            let screen_x = scene.viewport.data_x_to_screen(i, drawing_width) + left;
-
-            let y_high = price_to_y(point.high());
-            let y_low = price_to_y(point.low());
-            let y_open = price_to_y(point.open());
-            let y_close = price_to_y(point.close());
-
-            let color = if point.close() >= point.open() {
-                egui::Color32::GREEN
-            } else {
-                egui::Color32::RED
-            };
-
-            painter.line_segment(
-                [
-                    egui::pos2(screen_x as f32, y_high),
-                    egui::pos2(screen_x as f32, y_low),
-                ],
-                egui::Stroke::new(1.0, color),
+        let rebuild_series = !self.series_cache_valid
+            || !matches!(
+                scene.invalidation_mask.level,
+                crate::renderer::InvalidationReason::None
+                    | crate::renderer::InvalidationReason::CursorOnly
             );
 
-            let body_height = (y_close - y_open).abs().max(2.0);
-            let body_y = y_open.min(y_close);
-            let body_rect = egui::Rect::from_min_size(
-                egui::pos2(screen_x as f32 - candle_width / 2.0, body_y),
-                egui::vec2(candle_width, body_height),
-            );
+        if rebuild_series {
+            self.cached_series_shapes.clear();
+            self.cached_series_shapes
+                .reserve((visible.last - visible.first + 1).saturating_mul(3));
 
-            painter.rect_filled(body_rect, 1.0, color);
+            for (i, point) in scene
+                .data_points
+                .iter()
+                .enumerate()
+                .skip(visible.first)
+                .take(visible.last - visible.first + 1)
+            {
+                let screen_x = scene.viewport.data_x_to_screen(i, drawing_width) + left;
 
-            let volume_height = volume_to_height(point.volume());
-            let volume_y = volumen_bottom - volume_height as f64;
-            let volume_rect = egui::Rect::from_min_size(
-                egui::pos2(screen_x as f32 - candle_width / 2.0, volume_y as f32),
-                egui::vec2(candle_width, volume_height.max(1.0)),
-            );
-            painter.rect_filled(volume_rect, 0.0, color);
+                let y_high = price_to_y(point.high());
+                let y_low = price_to_y(point.low());
+                let y_open = price_to_y(point.open());
+                let y_close = price_to_y(point.close());
+
+                let color = if point.close() >= point.open() {
+                    egui::Color32::GREEN
+                } else {
+                    egui::Color32::RED
+                };
+
+                self.cached_series_shapes.push(egui::Shape::line_segment(
+                    [
+                        egui::pos2(screen_x as f32, y_high),
+                        egui::pos2(screen_x as f32, y_low),
+                    ],
+                    egui::Stroke::new(1.0, color),
+                ));
+
+                let body_height = (y_close - y_open).abs().max(2.0);
+                let body_y = y_open.min(y_close);
+                let body_rect = egui::Rect::from_min_size(
+                    egui::pos2(screen_x as f32 - candle_width / 2.0, body_y),
+                    egui::vec2(candle_width, body_height),
+                );
+                self.cached_series_shapes.push(egui::Shape::rect_filled(
+                    body_rect,
+                    egui::CornerRadius::same(1),
+                    color,
+                ));
+
+                let volume_height = volume_to_height(point.volume());
+                let volume_y = volumen_bottom - volume_height as f64;
+                let volume_rect = egui::Rect::from_min_size(
+                    egui::pos2(screen_x as f32 - candle_width / 2.0, volume_y as f32),
+                    egui::vec2(candle_width, volume_height.max(1.0)),
+                );
+                self.cached_series_shapes.push(egui::Shape::rect_filled(
+                    volume_rect,
+                    egui::CornerRadius::ZERO,
+                    color,
+                ));
+            }
+            self.series_cache_valid = true;
         }
+
+        // egui limpia la lista de shapes en cada frame: reproducimos la caché
+        // para mantener visible la serie sin recalcular cada vela.
+        painter.extend(self.cached_series_shapes.iter().cloned());
 
         let font_id = egui::FontId::proportional(11.0);
         let left_f64 = left;
@@ -370,54 +390,52 @@ impl ChartRenderer for GlowChartRenderer {
         );
 
         if let Some(crosshair) = scene.crosshair_pos {
-            let left_f64 = left;
-            let right_f64 = right;
-            let top_f64 = top;
-            let bottom_f64 = bottom_precios;
+            // ScreenPoint se expresa relativo al origen del rect completo del
+            // chart; ChartLayout también usa coordenadas locales al rect.
+            let chart_point = screen_to_chart_point(crosshair, layout.plot.left, layout.plot.top);
 
-            if crosshair.x >= left_f64
-                && crosshair.x <= right_f64
-                && crosshair.y >= top_f64
-                && crosshair.y <= bottom_f64
+            if chart_point.x >= 0.0
+                && chart_point.x <= layout.plot_width()
+                && chart_point.y >= 0.0
+                && chart_point.y <= layout.plot_height()
             {
+                let crosshair_screen_x = crosshair.x + ox;
+                let crosshair_screen_y = crosshair.y + oy;
                 let crosshair_color = egui::Color32::from_rgb(255, 165, 0);
 
                 painter.line_segment(
                     [
-                        egui::pos2(crosshair.x as f32, top_f64 as f32),
-                        egui::pos2(crosshair.x as f32, bottom_f64 as f32),
+                        egui::pos2(crosshair_screen_x as f32, top as f32),
+                        egui::pos2(crosshair_screen_x as f32, bottom_precios as f32),
                     ],
                     egui::Stroke::new(1.0, crosshair_color),
                 );
 
                 painter.line_segment(
                     [
-                        egui::pos2(left as f32, crosshair.y as f32),
-                        egui::pos2(right as f32, crosshair.y as f32),
+                        egui::pos2(left as f32, crosshair_screen_y as f32),
+                        egui::pos2(right as f32, crosshair_screen_y as f32),
                     ],
                     egui::Stroke::new(1.0, crosshair_color),
                 );
 
-                let screen_width_drawing = right_f64 - left_f64;
-                let screen_height_drawing = bottom_f64 - top_f64;
-
-                let chart_point = screen_to_chart_point(crosshair, left_f64, top_f64);
-
                 let price_at_cursor = transforms::screen_y_to_price(
                     chart_point.y,
-                    screen_height_drawing,
+                    layout.plot_height(),
                     price_range,
                     scene.viewport.zoom_y(),
                     scene.viewport.offset_y(),
                     center_price,
                 );
-                let index_at_cursor = scene
-                    .viewport
-                    .screen_x_to_data(chart_point.x, screen_width_drawing, scene.candle_count);
+                let index_at_cursor = scene.viewport.screen_x_to_data(
+                    chart_point.x,
+                    layout.plot_width(),
+                    scene.candle_count,
+                );
 
                 let price_label = format!("{:.2}", price_at_cursor);
                 painter.text(
-                    egui::pos2((left - 6.0) as f32, crosshair.y as f32),
+                    egui::pos2((left - 6.0) as f32, crosshair_screen_y as f32),
                     egui::Align2::RIGHT_CENTER,
                     price_label,
                     egui::FontId::proportional(11.0),
@@ -426,7 +444,7 @@ impl ChartRenderer for GlowChartRenderer {
 
                 let index_label = format!("{}", index_at_cursor);
                 painter.text(
-                    egui::pos2(crosshair.x as f32, (bottom_f64 + 4.0) as f32),
+                    egui::pos2(crosshair_screen_x as f32, (bottom_precios + 4.0) as f32),
                     egui::Align2::CENTER_TOP,
                     index_label,
                     egui::FontId::proportional(11.0),

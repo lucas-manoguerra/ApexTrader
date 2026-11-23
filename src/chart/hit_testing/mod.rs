@@ -14,7 +14,7 @@ pub mod hit_tester;
 pub mod result;
 pub mod r#trait;
 
-pub use hit_tester::{hit_test_all, hit_test_objects, HitTesterResult};
+pub use hit_tester::{HitTesterResult, hit_test_all, hit_test_objects};
 pub use result::{
     HitAxis, HitDrawingId, HitKind, HitMarkerId, HitOverlayId, HitResult, HitSeriesId,
     HitTestContext,

@@ -1,76 +1,90 @@
 # Verificación de documentación de librerías — ApexTrader
 #
-# Valida que las tareas ODD y el código registren qué librerías externas se
-# usan y en qué versión, para asegurar que los agentes consulten la docs
-# oficial antes de implementar y no usen implementaciones viejas.
+# Valida que las tareas ODD registren documentación y versiones de librerías
+# externas mencionadas por el proyecto.
 #
 # Uso: pwsh -File scripts/verify_lib_docs.ps1
 # Exit code: 0 = OK, 1 = inconsistencia detectada
 
 $ErrorActionPreference = "Stop"
 $exitCode = 0
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$cargoTomlPath = Join-Path $repoRoot "Cargo.toml"
+$tasksDir = Join-Path $repoRoot "odd/tasks"
 
 Write-Host "=== Verificación de documentación de librerías — ApexTrader ===" -ForegroundColor Cyan
 
-# --- Leer versiones declaradas en Cargo.toml ---
-$cargoToml = Get-Content -Path (Resolve-Path "../Cargo.toml") -Raw
-$declaredDeps = @{}
+if (-not (Test-Path -LiteralPath $cargoTomlPath -PathType Leaf)) {
+    Write-Error "No se encontró Cargo.toml en: $cargoTomlPath"
+    exit 1
+}
 
-# Extraer líneas de dependencias simples: name = "version"
-$lines = $cargoToml -split "`n"
-foreach ($line in $lines) {
-    if ($line -match '^\s*([a-zA-Z0-9_-]+)\s*=\s*"([^"]+)"') {
-        $declaredDeps[$matches[1]] = $matches[2]
+# --- Leer dependencias declaradas en las secciones de Cargo ---
+$cargoToml = Get-Content -LiteralPath $cargoTomlPath -Raw
+$declaredDeps = @{}
+$insideDependencySection = $false
+
+foreach ($line in ($cargoToml -split '\r?\n')) {
+    if ($line -match '^\s*\[(dependencies|dev-dependencies|build-dependencies)(\.[^\]]+)?\]\s*$') {
+        $insideDependencySection = $true
+        continue
     }
-    # También manejo dependencias con tabla: name = { version = "..." }
-    if ($line -match '^\s*([a-zA-Z0-9_-]+)\s*=\s*\{') {
-        $depName = $matches[1]
-        # Buscar versión en las siguientes líneas hasta el cierre de la tabla
+    if ($line -match '^\s*\[') {
+        $insideDependencySection = $false
+        continue
+    }
+    if (-not $insideDependencySection -or $line -match '^\s*#' -or $line -match '^\s*$') {
+        continue
+    }
+
+    # Admite tanto crate = "version" como crate = { version = "..." }.
+    if ($line -match '^\s*([a-zA-Z0-9_-]+)\s*=\s*(?:"([^"]+)"|\{[^}]*\bversion\s*=\s*"([^"]+)")') {
+        $crate = $matches[1]
+        $version = if ($matches[2]) { $matches[2] } else { $matches[3] }
+        $declaredDeps[$crate] = $version
     }
 }
 
 Write-Host "Dependencias declaradas en Cargo.toml:" -ForegroundColor Yellow
-foreach ($k in $declaredDeps.Keys | Sort-Object) {
-    Write-Host "  $k = $($declaredDeps[$k])"
+foreach ($dependency in ($declaredDeps.Keys | Sort-Object)) {
+    Write-Host "  $dependency = $($declaredDeps[$dependency])"
 }
 
-# --- Verificar que odd/tasks/ tenga referencias a librerías consultadas ---
-$tasksDir = Resolve-Path "../odd/tasks"
-if (-not (Test-Path $tasksDir)) {
-    Write-Host "No hay carpeta odd/tasks/, omitiendo verificación de tareas." -ForegroundColor Yellow
+# --- Verificar referencias en las tareas ODD ---
+if (-not (Test-Path -LiteralPath $tasksDir -PathType Container)) {
+    Write-Host "No existe odd/tasks/: no hay tareas ODD que verificar." -ForegroundColor Yellow
     exit 0
 }
 
-$taskFiles = Get-ChildItem -Path $tasksDir -Filter "*.md" -Recurse
+$taskFiles = Get-ChildItem -LiteralPath $tasksDir -Filter "*.md" -File -Recurse
 foreach ($taskFile in $taskFiles) {
-    $content = Get-Content -Path $taskFile.FullName -Raw
-    $taskName = $taskFile.BaseName
-
-    # Buscar si menciona crates externos o versiones
+    $content = Get-Content -LiteralPath $taskFile.FullName -Raw
     $mentionsCrates = $false
+
     foreach ($crate in $declaredDeps.Keys) {
-        if ($content -match "\b$crate\b") {
+        if ($content -match "(?i)\b$([regex]::Escape($crate))\b") {
             $mentionsCrates = $true
             break
         }
     }
 
     if ($mentionsCrates) {
-        # Si menciona crates, debe tener una sección de "Librerías consultadas" o similar
         $hasDocRef = $content -match "(?i)(docs\.rs|documentación oficial|librerías consultadas|versión consultada|APIs usadas)"
         if (-not $hasDocRef) {
-            Write-Host "Tarea '$taskName' menciona crates externos pero no registra documentación consultada." -ForegroundColor Red
-            Write-Host "  Agregar una sección con: crates usados, versión exacta, docs.rs consultada, APIs usadas." -ForegroundColor Red
+            Write-Host "Tarea '$($taskFile.BaseName)' menciona dependencias sin registrar documentación consultada." -ForegroundColor Red
+            Write-Host "  Registrar crates, versión, documentación oficial y APIs usadas." -ForegroundColor Red
             $exitCode = 1
         } else {
-            Write-Host "Tarea '$taskName': OK — registra documentación de librerías." -ForegroundColor Green
+            Write-Host "Tarea '$($taskFile.BaseName)': OK — registra documentación." -ForegroundColor Green
         }
     }
 }
 
 if ($exitCode -eq 0) {
-    Write-Host "`n=== Todas las tareas registran documentación de librerías ===" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "=== Verificación de documentación completada ===" -ForegroundColor Green
 } else {
-    Write-Host "`n=== INCONSISTENCIAS ENCONTRADAS ===" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "=== INCONSISTENCIAS ENCONTRADAS ===" -ForegroundColor Red
 }
 exit $exitCode

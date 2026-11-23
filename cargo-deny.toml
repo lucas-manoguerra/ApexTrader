@@ -1,20 +1,25 @@
-# cargo-deny configuration for ApexTrader
+# cargo-deny configuration for ApexTrader (schema v2)
 #
-# Audits dependencies for licenses, vulnerabilities, and notices.
-# Run with: cargo deny check
+# Run with: cargo deny --config cargo-deny.toml --locked check
 # Install: cargo install cargo-deny
+#
+# In cargo-deny >= 0.18, advisories are denied by default and licenses must
+# be explicitly allowed. This prevents an unknown or copyleft license from
+# silently passing because of a permissive default.
+
+[advisories]
+# Block unmaintained direct dependencies and any yanked crate version.
+# Vulnerability, unsoundness and notice advisories are denied by default.
+unmaintained = "workspace"
+yanked = "deny"
+ignore = []
 
 [licenses]
-# Licenses we explicitly deny in the project.
-# AGPL-family licenses are viral and incompatible with a proprietary trading terminal.
-deny = [
-    "AGPL-3.0-only",
-    "AGPL-3.0-or-later",
-]
-
-# Licenses that require manual review before approval.
-review = [
+# Explicitly approved license expressions. All others (including AGPL-family
+# licenses) are denied by default and must be reviewed before being added.
+allow = [
     "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
     "MIT",
     "BSD-2-Clause",
     "BSD-3-Clause",
@@ -22,43 +27,12 @@ review = [
     "MPL-2.0",
     "Unlicense",
     "Zlib",
+    "Unicode-3.0",
 ]
+confidence-threshold = 0.8
 
-# The default action for licenses not listed above.
-# "allow" = permit without review; "deny" = block; "review" = flag for review.
-default = "allow"
-
-[vulnerabilities]
-# The advisory database to use.
-advisories = {
-  db = {
-    # Cache the advisory database for one day to avoid re-downloading on every CI run.
-    cached-until = "2026-12-01T00:00:00Z" 
-  }
-}
-
-# Unmaintained crates are a supply-chain risk for a long-lived trading terminal.
-# Warn when a dependency hasn't been updated in over 2 years.
-unmaintained = {
-  threshold = "2y" 
-}
-
-[yanked]
-# Deny using yanked versions of crates.
-deny = {
-  # Allow yanked versions that were yanked for non-security reasons (e.g. accidental publish).
-  allow = [ 
-    # Example: "serde_json" 
-  ] 
-}
-
-[notice]
-# URLs to the license files of dependencies we redistribute (if any).
-# Add entries here when we bundle third-party software in releases.
-# urls = [
-#   "https://example.com/dependency/LICENSE",
-# ]
-
-[banner]
-# Show a banner in the output when deny finds issues.
-enable = true
+# The workspace contains a private desktop application without a selected
+# redistribution license. Do not invent a license for it; external crates
+# are still checked against the explicit allowlist above.
+[licenses.private]
+ignore = true

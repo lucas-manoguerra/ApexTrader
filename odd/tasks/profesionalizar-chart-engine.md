@@ -54,6 +54,12 @@ coordenadas y límites del viewport.
   `cargo test --workspace`, `clippy -D warnings`, `cargo fmt --check` y
   `tests/architecture.rs` todos verdes.
 
+## Referencias oficiales de dependencias
+
+Referencia de API para las pruebas de propiedades incluidas en esta etapa:
+
+- proptest: https://docs.rs/proptest/1/proptest/
+
 ## Log
 
 L1: Continuación de la auditoría técnica de ApexTrader v0.1.0. Etapas 1 y 2

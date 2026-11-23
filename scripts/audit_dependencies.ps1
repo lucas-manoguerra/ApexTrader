@@ -1,48 +1,46 @@
 # Auditoría de dependencias — ApexTrader
 #
-# Ejecuta cargo-audit y cargo-deny si están instalados.
-# Si una herramienta no está instalada, informa pero no falla el script
-# (para no bloquear CI prematuramente antes de instalar las herramientas).
+# Requiere cargo-audit y cargo-deny. La CI instala versiones precompiladas
+# antes de ejecutar este script; una herramienta ausente es un error real.
 #
 # Uso: pwsh -File scripts/audit_dependencies.ps1
-# Exit code: 0 = OK, 1 = vulnerabilidades o licencias prohibidas encontradas
+# Exit code: 0 = auditorías OK, 1 = herramienta ausente o problema detectado
 
-$ErrorActionPreference = "Continue"
-$exitCode = 0
+$ErrorActionPreference = "Stop"
 
 Write-Host "=== Auditoría de dependencias — ApexTrader ===" -ForegroundColor Cyan
 
-# --- cargo-audit: vulnerabilidades conocidas ---
-Write-Host "`n[1/2] Ejecutando cargo audit (vulnerabilidades)..." -ForegroundColor Yellow
-$auditPath = Get-Command cargo-audit -ErrorAction SilentlyContinue
-if ($auditPath) {
-    $result = cargo audit --exit-code 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "VULNERABILIDADES ENCONTRADAS:" -ForegroundColor Red
-        Write-Host $result -ForegroundColor Red
-        $exitCode = 1
-    } else {
-        Write-Host "cargo audit: sin vulnerabilidades conocidas." -ForegroundColor Green
+$requiredTools = @("cargo-audit", "cargo-deny")
+$missingTools = @(
+    $requiredTools | Where-Object {
+        -not (Get-Command $_ -ErrorAction SilentlyContinue)
     }
-} else {
-    Write-Host "cargo-audit no está instalado. Instalar con: cargo install cargo-audit" -ForegroundColor Yellow
+)
+
+if ($missingTools.Count -gt 0) {
+    Write-Host "Faltan herramientas obligatorias: $($missingTools -join ', ')" -ForegroundColor Red
+    Write-Host "Instalar con: cargo install cargo-audit; cargo install cargo-deny" -ForegroundColor Yellow
+    exit 1
 }
 
-# --- cargo-deny: licencias, yanked, unmaintained ---
-Write-Host "`n[2/2] Ejecutando cargo deny check (licencias, yanked, unmaintained)..." -ForegroundColor Yellow
-$denyPath = Get-Command cargo-deny -ErrorAction SilentlyContinue
-if ($denyPath) {
-    $result = cargo deny check 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "cargo deny detectó problemas:" -ForegroundColor Red
-        Write-Host $result -ForegroundColor Red
-        $exitCode = 1
-    } else {
-        Write-Host "cargo deny: sin problemas de licencias/vulnerabilidades." -ForegroundColor Green
-    }
-} else {
-    Write-Host "cargo-deny no está instalado. Instalar con: cargo install cargo-deny" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[1/2] Ejecutando cargo audit (vulnerabilidades conocidas)..." -ForegroundColor Yellow
+& cargo audit
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "cargo audit detectó vulnerabilidades o no pudo completar la auditoría." -ForegroundColor Red
+    exit $LASTEXITCODE
 }
+Write-Host "cargo audit: sin vulnerabilidades conocidas." -ForegroundColor Green
 
-Write-Host "`n=== Fin de auditoría ===" -ForegroundColor Cyan
-exit $exitCode
+Write-Host ""
+Write-Host "[2/2] Ejecutando cargo deny check (licencias, advisories y dependencias yanked)..." -ForegroundColor Yellow
+& cargo deny --config cargo-deny.toml --locked check
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "cargo deny detectó problemas o no pudo completar la auditoría." -ForegroundColor Red
+    exit $LASTEXITCODE
+}
+Write-Host "cargo deny: verificaciones completadas sin problemas." -ForegroundColor Green
+
+Write-Host ""
+Write-Host "=== Auditoría de dependencias completada ===" -ForegroundColor Cyan
+exit 0

@@ -47,7 +47,7 @@ S13: `Price` uses `Decimal`, while `Candle` stores `f64`. "Lo importante es que 
 | T5 | S1, S9, S12 | inline | done | c5b1b2f |
 | T6 | S7, S12 | inline | done | ac67b37 |
 | T7 | S1, S5, S8, S12 | inline | done | c5b1b2f |
-| T8 | S2, S12 | inline | done | 3fb7672 |
+| T8 | S2, S12 | inline | done | 3fb7672 + refactor/chart-engine-foundations |
 | T9 | S3, S12 | inline | done | c9f3ae5 |
 | T10 | S3, S9, S12 | inline | done | fa71a69 |
 | T11 | S9, S12 | inline | done | cdf9c6d |
@@ -73,6 +73,19 @@ T13: Rendering architecture: ChartScene/RenderFrame/RenderGeometry/RenderLayer i
 T14: Invalidation mask: full, scale/layout, series data, overlay, cursor-only distinction.
 T15: Typed, validated, extensible options architecture (chart, time scale, price scale, pane, series, crosshair).
 T16: Panes foundation: multiple independent panes, independent heights, multiple series per pane, independent price scales.
+
+## Referencias oficiales de dependencias
+
+Referencias de API para las decisiones de implementación descritas en esta tarea
+(consultar la versión fijada por Cargo.lock al trabajar en cada cambio):
+
+- egui: https://docs.rs/egui/0.37/egui/
+- wgpu: https://docs.rs/wgpu/30/wgpu/
+- winit: https://docs.rs/winit/0.30.13/winit/
+- proptest: https://docs.rs/proptest/1/proptest/
+- rust_decimal: https://docs.rs/rust_decimal/1.43/rust_decimal/
+
+L12: Integración del sistema de interacción en la aplicación. `InputHandler` persiste entre frames y actúa como adaptador egui; `InteractionController` ya no posee un `Viewport` duplicado y cada evento modifica el viewport prestado por `ChartState`. Los eventos de arrastre usan posiciones absolutas respecto del plot; pan no acumula deltas entre frames. `Viewport::zoom_to_at` centraliza el zoom anclado y tiene pruebas que preservan el punto bajo el cursor en ambos ejes. El crosshair se conserva relativo al rect del chart y Glow suma el origen del rect solo al dibujar. Botón izquierdo controla pan, botón derecho controla zoom y rueda controla zoom vertical. El controlador cancela los gestos al cambiar el tamaño del plot. T8 completo.
 
 ## Log
 

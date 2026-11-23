@@ -6,6 +6,7 @@
 
 use crate::application::commands::load_candles::LoadCandles;
 use crate::application::events::{self, InputHandler};
+use crate::chart::layout::ChartLayout;
 use crate::domain::candle::Candle;
 use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::domain::chart::time_point::TimePoint;
@@ -18,7 +19,9 @@ use crate::logging::init as init_logging;
 use crate::market::mock::MockMarketDataProvider;
 use crate::market::provider::MarketDataProvider;
 use crate::market::symbol::Symbol;
-use crate::renderer::{ChartRenderer, ChartScene, InvalidationMask, InvalidationReason, create_renderer};
+use crate::renderer::{
+    ChartRenderer, ChartScene, InvalidationMask, InvalidationReason, create_renderer,
+};
 use eframe::egui;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
@@ -48,6 +51,7 @@ enum LoadState {
 struct ApexTraderApp {
     chart: ChartState,
     renderer: Box<dyn ChartRenderer>,
+    input_handler: InputHandler,
     load_state: LoadState,
     /// Símbolo ingresado por el usuario para cargar datos de mercado.
     symbol_input: String,
@@ -55,17 +59,14 @@ struct ApexTraderApp {
     prev_viewport: Option<Viewport>,
     /// Posición del crosshair del frame anterior.
     prev_crosshair_pos: Option<ScreenPoint>,
-    /// Cantidad de puntos de datos del frame anterior.
-    prev_data_len: usize,
+    /// Revisión de datos del frame anterior.
+    prev_data_revision: u64,
     /// Rect de dibujo del frame anterior.
     prev_rect: Option<egui::Rect>,
 }
 
 impl eframe::App for ApexTraderApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        ui.ctx()
-            .request_repaint_after(std::time::Duration::from_millis(16));
-
         egui::CentralPanel::default().show(ui, |ui| {
             ui.heading("ApexTrader — Chart de Velas");
             ui.separator();
@@ -114,51 +115,68 @@ impl eframe::App for ApexTraderApp {
                 egui::Sense::click_and_drag(),
             );
 
-            let mut input_handler = InputHandler::new();
-
             let crosshair_pos = {
                 let chart = &mut self.chart;
-                events::handle_input(&mut input_handler, ui, &response, interaction_rect, chart);
-                input_handler.crosshair_pos()
+                events::handle_input(
+                    &mut self.input_handler,
+                    ui,
+                    &response,
+                    interaction_rect,
+                    chart,
+                );
+                self.input_handler.crosshair_pos()
             };
 
             let viewport = self.chart.viewport();
             let points = self.chart.data_points();
 
             // Calcular máscara de invalidación basada en qué cambió entre frames.
-            let mask = self.calculate_invalidation_mask(viewport, crosshair_pos, points.len(), available);
+            let data_revision = self.chart.data_revision();
+            let mask =
+                self.calculate_invalidation_mask(viewport, crosshair_pos, data_revision, available);
 
             // Calcular rango de precios y centro a partir de los puntos visibles.
-            let drawing_width = available.width() as f64;
+            let chart_layout =
+                ChartLayout::compute(available.width() as f64, available.height() as f64);
+            let drawing_width = chart_layout.plot_width();
+            let drawing_height = chart_layout.plot_height();
             let visible = viewport.visible_range(points.len(), drawing_width);
-            let (price_range, center_price) = if visible.is_empty() {
-                (0.0, 0.0)
+            let (price_range, center_price, max_volume) = if visible.is_empty() {
+                (0.0, 0.0, 0.0)
             } else {
+                // Una sola pasada calcula rango de precios y volumen visibles.
                 let visible_points = &points[visible.first..=visible.last];
-                let min_price = visible_points
-                    .iter()
-                    .map(|p| p.low())
-                    .fold(f64::INFINITY, f64::min);
-                let max_price = visible_points
-                    .iter()
-                    .map(|p| p.high())
-                    .fold(f64::NEG_INFINITY, f64::max);
-                let mut pr = max_price - min_price;
-                if pr == 0.0 {
-                    pr = 1.0;
-                }
-                let cp = (min_price + max_price) / 2.0;
-                (pr, cp)
+                let (min_price, max_price, max_volume) = visible_points.iter().fold(
+                    (f64::INFINITY, f64::NEG_INFINITY, 0.0_f64),
+                    |(min_price, max_price, max_volume), point| {
+                        (
+                            min_price.min(point.low()),
+                            max_price.max(point.high()),
+                            max_volume.max(point.volume()),
+                        )
+                    },
+                );
+
+                let raw_price_range = max_price - min_price;
+                let price_range = if raw_price_range == 0.0 {
+                    1.0
+                } else {
+                    raw_price_range
+                };
+                let center_price = (min_price + max_price) / 2.0;
+                (price_range, center_price, max_volume)
             };
 
             let scene = ChartScene {
-                data_points: points.to_vec(),
+                // ChartScene toma un préstamo de ChartState; no duplica el historial.
+                data_points: points,
                 viewport: *viewport,
                 price_range,
                 center_price,
+                max_volume,
                 candle_count: points.len(),
-                screen_width: available.width() as f64,
-                screen_height: available.height() as f64,
+                screen_width: drawing_width,
+                screen_height: drawing_height,
                 crosshair_pos,
                 invalidation_mask: mask,
             };
@@ -171,7 +189,7 @@ impl eframe::App for ApexTraderApp {
             // Guardar estado actual para el próximo frame.
             self.prev_viewport = Some(*viewport);
             self.prev_crosshair_pos = crosshair_pos;
-            self.prev_data_len = points.len();
+            self.prev_data_revision = data_revision;
             self.prev_rect = Some(available);
 
             ui.label(format!(
@@ -186,7 +204,7 @@ impl eframe::App for ApexTraderApp {
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
                 ui.label(format!("Puntos: {}", points.len()));
-                ui.label("Scroll: zoom | Arrastre: pan");
+                ui.label("Scroll: zoom Y | Arrastre izquierdo: pan | derecho: zoom");
             });
         });
     }
@@ -201,7 +219,7 @@ impl ApexTraderApp {
         &self,
         viewport: &Viewport,
         crosshair_pos: Option<ScreenPoint>,
-        data_len: usize,
+        data_revision: u64,
         rect: egui::Rect,
     ) -> InvalidationMask {
         // Primer frame: todo es nuevo.
@@ -214,37 +232,35 @@ impl ApexTraderApp {
         let mut mask = InvalidationMask::none();
 
         // Si cambió el rect (resize), es ScaleLayout.
-        if let Some(prev_rect) = self.prev_rect {
-            if prev_rect != rect {
-                mask = mask.merge(InvalidationMask {
-                    level: InvalidationReason::ScaleLayout,
-                });
-            }
+        if let Some(prev_rect) = self.prev_rect
+            && prev_rect != rect
+        {
+            mask = mask.merge(InvalidationMask {
+                level: InvalidationReason::ScaleLayout,
+            });
         }
 
         // Si cambió el viewport (zoom/pan), es ScaleLayout.
-        if let Some(prev_vp) = self.prev_viewport {
-            if *viewport != prev_vp {
-                mask = mask.merge(InvalidationMask {
-                    level: InvalidationReason::ScaleLayout,
-                });
-            }
+        if let Some(prev_vp) = self.prev_viewport
+            && *viewport != prev_vp
+        {
+            mask = mask.merge(InvalidationMask {
+                level: InvalidationReason::ScaleLayout,
+            });
         }
 
         // Si cambiaron los datos, es SeriesData.
-        if data_len != self.prev_data_len {
+        if data_revision != self.prev_data_revision {
             mask = mask.merge(InvalidationMask {
                 level: InvalidationReason::SeriesData,
             });
         }
 
         // Si cambió solo el crosshair, es CursorOnly (solo si no hay algo peor).
-        if let Some(prev_ch) = self.prev_crosshair_pos {
-            if crosshair_pos != Some(prev_ch) && mask.level == InvalidationReason::None {
-                mask = InvalidationMask {
-                    level: InvalidationReason::CursorOnly,
-                };
-            }
+        if crosshair_pos != self.prev_crosshair_pos && mask.level == InvalidationReason::None {
+            mask = InvalidationMask {
+                level: InvalidationReason::CursorOnly,
+            };
         }
 
         mask
@@ -282,15 +298,17 @@ pub fn run() -> eframe::Result {
 
             // Crear renderer (intenta wgpu, cae a glow si falla)
             let renderer = create_renderer();
+            let data_revision = chart.data_revision();
 
             Ok(Box::new(ApexTraderApp {
                 chart,
                 renderer,
+                input_handler: InputHandler::new(),
                 load_state,
                 symbol_input: "BTC/USDT".to_string(),
                 prev_viewport: None,
                 prev_crosshair_pos: None,
-                prev_data_len: 0,
+                prev_data_revision: data_revision,
                 prev_rect: None,
             }))
         }),

@@ -93,6 +93,12 @@ impl Crosshair {
         let center_price = params.center_price;
         let candle_count = params.candle_count;
 
+        if candle_count == 0 {
+            self.visible = false;
+            self.index = 0;
+            return;
+        }
+
         let rel_x = cursor_x - plot_left;
         let rel_y = cursor_y - plot_top;
 
@@ -183,6 +189,29 @@ mod tests {
         };
         ch.update(0.0, 500.0, params, &viewport);
         assert!(!ch.visible);
+    }
+
+    #[test]
+    fn crosshair_with_no_candles_is_invisible() {
+        let mut ch = Crosshair {
+            visible: true,
+            ..Crosshair::default()
+        };
+        let layout = make_layout();
+        let viewport = make_viewport();
+        let cx = layout.plot.left + layout.plot.width() / 2.0;
+        let cy = layout.plot.top + layout.plot.height() / 2.0;
+        let params = CrosshairUpdateParams {
+            layout: &layout,
+            price_range: 100.0,
+            center_price: 50000.0,
+            candle_count: 0,
+        };
+
+        ch.update(cx, cy, params, &viewport);
+
+        assert!(!ch.visible);
+        assert_eq!(ch.index, 0);
     }
 
     #[test]

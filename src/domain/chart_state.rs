@@ -13,6 +13,8 @@ use crate::errors::ChartError;
 pub struct ChartState {
     data_points: Vec<ChartDataPoint>,
     viewport: Viewport,
+    /// Versión monótona de los datos para invalidar cachés incluso si la longitud no cambia.
+    data_revision: u64,
 }
 
 impl ChartState {
@@ -21,6 +23,7 @@ impl ChartState {
         Self {
             data_points: Vec::new(),
             viewport: Viewport::new(),
+            data_revision: 0,
         }
     }
 
@@ -39,6 +42,7 @@ impl ChartState {
         );
 
         self.data_points.push(data_point);
+        self.data_revision = self.data_revision.wrapping_add(1);
         Ok(())
     }
 
@@ -59,7 +63,10 @@ impl ChartState {
     /// Útil para recargar datos de un nuevo símbolo sin acumular datos
     /// anteriores.
     pub fn clear(&mut self) {
-        self.data_points.clear();
+        if !self.data_points.is_empty() {
+            self.data_points.clear();
+            self.data_revision = self.data_revision.wrapping_add(1);
+        }
     }
 
     /// Devuelve un préstamo inmutable de los puntos de datos (`borrowing`).
@@ -85,6 +92,11 @@ impl ChartState {
         &mut self.viewport
     }
 
+    /// Revisión monótona que cambia cada vez que se modifica la colección de datos.
+    pub fn data_revision(&self) -> u64 {
+        self.data_revision
+    }
+
     pub fn len(&self) -> usize {
         self.data_points.len()
     }
@@ -105,6 +117,35 @@ mod tests {
     use super::*;
     use crate::domain::candle::Candle;
     use crate::domain::chart::time_point::TimePoint;
+
+    #[test]
+    fn data_revision_changes_when_points_are_added_and_cleared() {
+        let mut state = ChartState::new();
+        let initial_revision = state.data_revision();
+
+        let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
+        let time = TimePoint::new(0, 60_000, 60_000).unwrap();
+        state
+            .add_data_point(ChartDataPoint::new(candle, time))
+            .unwrap();
+
+        let after_insert = state.data_revision();
+        assert_ne!(after_insert, initial_revision);
+
+        state.clear();
+        assert_ne!(state.data_revision(), after_insert);
+        assert!(state.is_empty());
+    }
+
+    #[test]
+    fn clearing_an_already_empty_chart_does_not_change_revision() {
+        let mut state = ChartState::new();
+        let initial_revision = state.data_revision();
+
+        state.clear();
+
+        assert_eq!(state.data_revision(), initial_revision);
+    }
 
     #[test]
     fn add_data_points_stores_all() {
