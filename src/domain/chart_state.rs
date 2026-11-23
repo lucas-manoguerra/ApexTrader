@@ -119,6 +119,33 @@ mod tests {
     use crate::domain::chart::time_point::TimePoint;
 
     #[test]
+    fn data_revision_changes_when_points_are_added_and_cleared() {
+        let mut state = ChartState::new();
+        let initial_revision = state.data_revision();
+
+        let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
+        let time = TimePoint::new(0, 60_000, 60_000).unwrap();
+        state.add_data_point(ChartDataPoint::new(candle, time)).unwrap();
+
+        let after_insert = state.data_revision();
+        assert_ne!(after_insert, initial_revision);
+
+        state.clear();
+        assert_ne!(state.data_revision(), after_insert);
+        assert!(state.is_empty());
+    }
+
+    #[test]
+    fn clearing_an_already_empty_chart_does_not_change_revision() {
+        let mut state = ChartState::new();
+        let initial_revision = state.data_revision();
+
+        state.clear();
+
+        assert_eq!(state.data_revision(), initial_revision);
+    }
+
+    #[test]
     fn add_data_points_stores_all() {
         let mut state = ChartState::new();
         let candle1 = Candle::new(100.0, 105.0, 99.0, 103.0, 1000.0).unwrap();
