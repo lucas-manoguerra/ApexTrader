@@ -187,6 +187,18 @@ fn draw_time_axis(
     }
 }
 
+fn should_rebuild_series(
+    cache_valid: bool,
+    reason: crate::renderer::InvalidationReason,
+) -> bool {
+    !cache_valid
+        || !matches!(
+            reason,
+            crate::renderer::InvalidationReason::None
+                | crate::renderer::InvalidationReason::CursorOnly
+        )
+}
+
 impl ChartRenderer for GlowChartRenderer {
     fn draw(
         &mut self,
@@ -277,12 +289,8 @@ impl ChartRenderer for GlowChartRenderer {
             (relative * screen_height) as f32
         };
 
-        let rebuild_series = !self.series_cache_valid
-            || !matches!(
-                scene.invalidation_mask.level,
-                crate::renderer::InvalidationReason::None
-                    | crate::renderer::InvalidationReason::CursorOnly
-            );
+        let rebuild_series =
+            should_rebuild_series(self.series_cache_valid, scene.invalidation_mask.level);
 
         if rebuild_series {
             self.cached_series_shapes.clear();
@@ -459,5 +467,62 @@ impl ChartRenderer for GlowChartRenderer {
 
     fn name(&self) -> &str {
         "glow (egui Painter)"
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::renderer::InvalidationReason;
+
+    #[test]
+    fn series_cache_is_reused_for_unchanged_and_cursor_only_frames() {
+        assert!(!should_rebuild_series(false, InvalidationReason::None) == false);
+        assert!(!should_rebuild_series(true, InvalidationReason::None));
+        assert!(!should_rebuild_series(true, InvalidationReason::CursorOnly));
+    }
+
+    #[test]
+    fn series_cache_is_invalidated_by_structural_changes() {
+        for reason in [
+            InvalidationReason::Overlay,
+            InvalidationReason::SeriesData,
+            InvalidationReason::ScaleLayout,
+            InvalidationReason::Full,
+        ] {
+            assert!(
+                should_rebuild_series(true, reason),
+                "la invalidación {reason:?} debe regenerar la serie"
+            );
+        }
+    }
+
+    #[test]
+    fn invalid_cache_is_built_even_without_an_invalidation_reason() {
+        assert!(should_rebuild_series(false, InvalidationReason::None));
+        assert!(should_rebuild_series(false, InvalidationReason::CursorOnly));
+    }
+
+    #[test]
+    fn empty_scene_clears_previously_cached_shapes() {
+        let mut renderer = GlowChartRenderer {
+            cached_series_shapes: vec![egui::Shape::Noop],
+            series_cache_valid: true,
+        };
+        let context = egui::Context::default();
+        let scene = ChartScene::empty();
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 500.0));
+
+        let _ = context.run(egui::RawInput::default(), |ctx| {
+            let painter = ctx.layer_painter(egui::LayerId::new(
+                egui::Order::Middle,
+                egui::Id::new("glow-renderer-test"),
+            ));
+            renderer.draw(&painter, rect, &scene).expect("escena vacía válida");
+        });
+
+        assert!(renderer.cached_series_shapes.is_empty());
+        assert!(renderer.series_cache_valid);
     }
 }
