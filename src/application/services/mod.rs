@@ -164,7 +164,8 @@ impl eframe::App for ApexTraderApp {
             };
 
             let scene = ChartScene {
-                data_points: points.to_vec(),
+                // ChartScene toma un préstamo de ChartState; no duplica el historial.
+                data_points: points,
                 viewport: *viewport,
                 price_range,
                 center_price,
