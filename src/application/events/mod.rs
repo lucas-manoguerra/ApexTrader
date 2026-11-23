@@ -7,7 +7,7 @@
 use crate::chart::interaction::controller::InteractionController;
 use crate::chart::interaction::events::{
     InteractionEvent, Modifiers, PointerButton, PointerDownEvent, PointerDragEvent,
-    PointerMoveEvent, PointerUpEvent, ScrollEvent,
+    PointerUpEvent, ScrollEvent,
 };
 use crate::chart::layout::ChartLayout;
 use crate::domain::chart_state::ChartState;
@@ -75,11 +75,11 @@ pub fn handle_input(
 
     // Zoom por rueda, anclado al punto real del cursor dentro del plot.
     let scroll_delta = ui.input(|input| input.smooth_scroll_delta);
-    if scroll_delta.y != 0.0 {
-        if let Some(pos) = ui.input(|input| input.pointer.hover_pos()) {
-            if let Some((screen_point, chart_point)) =
-                pointer_coordinates(pos, interaction_rect, &layout)
-            {
+    if scroll_delta.y != 0.0
+        && let Some(pos) = ui.input(|input| input.pointer.hover_pos())
+        && let Some((screen_point, chart_point)) =
+            pointer_coordinates(pos, interaction_rect, &layout)
+    {
                 let event = InteractionEvent::Scroll(ScrollEvent {
                     delta_y: scroll_delta.y as f64,
                     x: chart_point.x,
@@ -92,14 +92,13 @@ pub fn handle_input(
 
                 // Mantener el crosshair en la ubicación del puntero.
                 input_handler.crosshair_pos = Some(screen_point);
-            }
-        }
     }
 
     // Capturar el inicio de pan o zoom antes del primer movimiento.
-    if response.drag_started_by(egui::PointerButton::Primary) {
-        if let Some(pos) = response.interact_pointer_pos() {
-            if let Some((_, point)) = pointer_coordinates(pos, interaction_rect, &layout) {
+    if response.drag_started_by(egui::PointerButton::Primary)
+        && let Some(pos) = response.interact_pointer_pos()
+        && let Some((_, point)) = pointer_coordinates(pos, interaction_rect, &layout)
+    {
                 let event = InteractionEvent::PointerDown(PointerDownEvent {
                     button: PointerButton::Primary,
                     x: point.x,
@@ -109,13 +108,12 @@ pub fn handle_input(
                 input_handler
                     .controller
                     .on_event(chart.viewport_mut(), candle_count, &event);
-            }
-        }
     }
 
-    if response.drag_started_by(egui::PointerButton::Secondary) {
-        if let Some(pos) = response.interact_pointer_pos() {
-            if let Some((_, point)) = pointer_coordinates(pos, interaction_rect, &layout) {
+    if response.drag_started_by(egui::PointerButton::Secondary)
+        && let Some(pos) = response.interact_pointer_pos()
+        && let Some((_, point)) = pointer_coordinates(pos, interaction_rect, &layout)
+    {
                 let event = InteractionEvent::PointerDown(PointerDownEvent {
                     button: PointerButton::Secondary,
                     x: point.x,
@@ -125,13 +123,12 @@ pub fn handle_input(
                 input_handler
                     .controller
                     .on_event(chart.viewport_mut(), candle_count, &event);
-            }
-        }
     }
 
     // Pan con posición absoluta: no se suma drag_delta frame tras frame.
-    if response.dragged_by(egui::PointerButton::Primary) {
-        if let Some(pos) = response.interact_pointer_pos() {
+    if response.dragged_by(egui::PointerButton::Primary)
+        && let Some(pos) = response.interact_pointer_pos()
+    {
             let (_, point) = pointer_coordinates_unbounded(pos, interaction_rect, &layout);
             let event = InteractionEvent::PointerDrag(PointerDragEvent {
                 x: point.x,
@@ -140,11 +137,11 @@ pub fn handle_input(
             input_handler
                 .controller
                 .on_event(chart.viewport_mut(), candle_count, &event);
-        }
     }
 
-    if response.dragged_by(egui::PointerButton::Secondary) {
-        if let Some(pos) = response.interact_pointer_pos() {
+    if response.dragged_by(egui::PointerButton::Secondary)
+        && let Some(pos) = response.interact_pointer_pos()
+    {
             let (_, point) = pointer_coordinates_unbounded(pos, interaction_rect, &layout);
             let event = InteractionEvent::PointerDrag(PointerDragEvent {
                 x: point.x,
@@ -225,8 +222,8 @@ mod tests {
         let expected_x = layout.plot_width() * 0.35;
         let expected_y = layout.plot_height() * 0.70;
         let pos = egui::pos2(
-            rect.left() as f32 + (layout.plot.left + expected_x) as f32,
-            rect.top() as f32 + (layout.plot.top + expected_y) as f32,
+            rect.left() + (layout.plot.left + expected_x) as f32,
+            rect.top() + (layout.plot.top + expected_y) as f32,
         );
 
         let (screen, chart) =
@@ -243,8 +240,8 @@ mod tests {
         let rect = interaction_rect();
         let layout = ChartLayout::compute(rect.width() as f64, rect.height() as f64);
         let pos = egui::pos2(
-            rect.left() as f32 + (layout.plot.left / 2.0) as f32,
-            rect.top() as f32 + (layout.plot.top + layout.plot.height() / 2.0) as f32,
+            rect.left() + (layout.plot.left / 2.0) as f32,
+            rect.top() + (layout.plot.top + layout.plot.height() / 2.0) as f32,
         );
 
         assert!(pointer_coordinates(pos, rect, &layout).is_none());
