@@ -148,18 +148,22 @@ fn draw_volume_axis(
     }
 }
 
+struct TimeAxisParams<'a> {
+    viewport: &'a Viewport,
+    data_points: &'a [crate::domain::chart::chart_data::ChartDataPoint],
+    logical_count: usize,
+}
+
 fn draw_time_axis(
     painter: &egui::Painter,
     left: f64,
     right: f64,
     bottom: f64,
-    viewport: &Viewport,
-    data_points: &[crate::domain::chart::chart_data::ChartDataPoint],
-    logical_count: usize,
+    params: TimeAxisParams<'_>,
     font_id: egui::FontId,
 ) {
     let screen_width = right - left;
-    let visible = viewport.visible_range(logical_count, screen_width);
+    let visible = params.viewport.visible_range(params.logical_count, screen_width);
     if visible.is_empty() {
         return;
     }
@@ -172,19 +176,19 @@ fn draw_time_axis(
     };
 
     let mut last_index = None;
-    for point in data_points {
+    for point in params.data_points {
         let Some(index) = point.logical_index else {
             continue;
         };
         if index < visible.first
             || index > visible.last
-            || (index - visible.first) % index_step != 0
+            || !(index - visible.first).is_multiple_of(index_step)
             || last_index == Some(index)
         {
             continue;
         }
 
-        let screen_x = viewport.logical_to_screen(index as f64, screen_width) + left;
+        let screen_x = params.viewport.logical_to_screen(index as f64, screen_width) + left;
         let label = TimeScale::format_time_point(point.time_point);
         painter.text(
             egui::pos2(screen_x as f32, (bottom + 6.0) as f32),
@@ -404,9 +408,11 @@ impl ChartRenderer for GlowChartRenderer {
             left_f64,
             right_f64,
             bottom_precios,
-            &scene.viewport,
-            scene.data_points,
-            scene.candle_count,
+            TimeAxisParams {
+                viewport: &scene.viewport,
+                data_points: scene.data_points,
+                logical_count: scene.candle_count,
+            },
             font_id,
         );
 
@@ -560,7 +566,7 @@ mod tests {
         let context = egui::Context::default();
         let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 500.0));
 
-        let _ = context.run_ui(egui::RawInput::default(), |ctx| {
+        let mut output = context.run_ui(egui::RawInput::default(), |ctx| {
             let painter = ctx.layer_painter(egui::LayerId::new(
                 egui::Order::Middle,
                 egui::Id::unique("glow-renderer-candle-cache"),
@@ -569,6 +575,8 @@ mod tests {
                 .draw(&painter, rect, &scene)
                 .expect("escena válida");
         });
+
+        output.textures_delta.clear();
 
         assert_eq!(
             renderer.cached_series_shapes.len(),
@@ -597,6 +605,8 @@ mod tests {
                 .draw(&painter, rect, &scene)
                 .expect("escena vacía válida");
         });
+
+        output.textures_delta.clear();
 
         assert!(renderer.cached_series_shapes.is_empty());
         assert!(renderer.series_cache_valid);
