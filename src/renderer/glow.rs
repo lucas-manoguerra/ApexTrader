@@ -187,10 +187,7 @@ fn draw_time_axis(
     }
 }
 
-fn should_rebuild_series(
-    cache_valid: bool,
-    reason: crate::renderer::InvalidationReason,
-) -> bool {
+fn should_rebuild_series(cache_valid: bool, reason: crate::renderer::InvalidationReason) -> bool {
     !cache_valid
         || !matches!(
             reason,
@@ -471,7 +468,6 @@ impl ChartRenderer for GlowChartRenderer {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -550,7 +546,9 @@ mod tests {
                 egui::Order::Middle,
                 egui::Id::unique(),
             ));
-            renderer.draw(&painter, rect, &scene).expect("escena válida");
+            renderer
+                .draw(&painter, rect, &scene)
+                .expect("escena válida");
         });
 
         assert_eq!(
@@ -576,7 +574,9 @@ mod tests {
                 egui::Order::Middle,
                 egui::Id::unique(),
             ));
-            renderer.draw(&painter, rect, &scene).expect("escena vacía válida");
+            renderer
+                .draw(&painter, rect, &scene)
+                .expect("escena vacía válida");
         });
 
         assert!(renderer.cached_series_shapes.is_empty());
