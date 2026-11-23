@@ -166,11 +166,11 @@ impl ChartState {
         // punto recibido, que normalmente contiene la actualización más reciente.
         let mut unique_points: Vec<ChartDataPoint> = Vec::with_capacity(self.data_points.len());
         for point in self.data_points.drain(..) {
-            if let Some(previous) = unique_points.last_mut() {
-                if previous.time_point.open_time_ms == point.time_point.open_time_ms {
-                    *previous = point;
-                    continue;
-                }
+            if let Some(previous) = unique_points.last_mut()
+                && previous.time_point.open_time_ms == point.time_point.open_time_ms
+            {
+                *previous = point;
+                continue;
             }
             unique_points.push(point);
         }
