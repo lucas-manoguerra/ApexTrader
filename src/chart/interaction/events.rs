@@ -47,11 +47,13 @@ pub struct PointerUpEvent {
     pub button: PointerButton,
 }
 
-/// Evento de arrastre (delta desde el frame anterior, en píxeles).
+/// Evento de arrastre con posición absoluta dentro del área de plot.
 #[derive(Debug, Clone, Copy)]
 pub struct PointerDragEvent {
-    pub dx: f64,
-    pub dy: f64,
+    /// Posición X actual en píxeles del área de plot.
+    pub x: f64,
+    /// Posición Y actual en píxeles del área de plot.
+    pub y: f64,
 }
 
 /// Evento de scroll (rueda del mouse).
