@@ -86,11 +86,9 @@ pub fn handle_input(
                     y: chart_point.y,
                     modifiers: Modifiers::default(),
                 });
-                input_handler.controller.on_event(
-                    chart.viewport_mut(),
-                    candle_count,
-                    &event,
-                );
+                input_handler
+                    .controller
+                    .on_event(chart.viewport_mut(), candle_count, &event);
 
                 // Mantener el crosshair en la ubicación del puntero.
                 input_handler.crosshair_pos = Some(screen_point);
@@ -108,11 +106,9 @@ pub fn handle_input(
                     y: point.y,
                     modifiers: Modifiers::default(),
                 });
-                input_handler.controller.on_event(
-                    chart.viewport_mut(),
-                    candle_count,
-                    &event,
-                );
+                input_handler
+                    .controller
+                    .on_event(chart.viewport_mut(), candle_count, &event);
             }
         }
     }
@@ -126,11 +122,9 @@ pub fn handle_input(
                     y: point.y,
                     modifiers: Modifiers::default(),
                 });
-                input_handler.controller.on_event(
-                    chart.viewport_mut(),
-                    candle_count,
-                    &event,
-                );
+                input_handler
+                    .controller
+                    .on_event(chart.viewport_mut(), candle_count, &event);
             }
         }
     }
@@ -143,7 +137,9 @@ pub fn handle_input(
                 x: point.x,
                 y: point.y,
             });
-            input_handler.controller.on_event(chart.viewport_mut(), candle_count, &event);
+            input_handler
+                .controller
+                .on_event(chart.viewport_mut(), candle_count, &event);
         }
     }
 
@@ -154,7 +150,9 @@ pub fn handle_input(
                 x: point.x,
                 y: point.y,
             });
-            input_handler.controller.on_event(chart.viewport_mut(), candle_count, &event);
+            input_handler
+                .controller
+                .on_event(chart.viewport_mut(), candle_count, &event);
         }
     }
 
@@ -162,13 +160,17 @@ pub fn handle_input(
         let event = InteractionEvent::PointerUp(PointerUpEvent {
             button: PointerButton::Primary,
         });
-        input_handler.controller.on_event(chart.viewport_mut(), candle_count, &event);
+        input_handler
+                .controller
+                .on_event(chart.viewport_mut(), candle_count, &event);
     }
     if response.drag_stopped_by(egui::PointerButton::Secondary) {
         let event = InteractionEvent::PointerUp(PointerUpEvent {
             button: PointerButton::Secondary,
         });
-        input_handler.controller.on_event(chart.viewport_mut(), candle_count, &event);
+        input_handler
+                .controller
+                .on_event(chart.viewport_mut(), candle_count, &event);
     }
 
     // El crosshair usa ScreenPoint relativo al rect completo, mientras que
@@ -184,8 +186,7 @@ fn pointer_coordinates(
     interaction_rect: egui::Rect,
     layout: &ChartLayout,
 ) -> Option<(ScreenPoint, ChartPoint)> {
-    let (screen_point, chart_point) =
-        pointer_coordinates_unbounded(pos, interaction_rect, layout);
+    let (screen_point, chart_point) = pointer_coordinates_unbounded(pos, interaction_rect, layout);
     if chart_point.x < 0.0
         || chart_point.y < 0.0
         || chart_point.x > layout.plot_width()
@@ -205,11 +206,7 @@ fn pointer_coordinates_unbounded(
         x: (pos.x - interaction_rect.left()) as f64,
         y: (pos.y - interaction_rect.top()) as f64,
     };
-    let chart_point = screen_to_chart_point(
-        screen_point,
-        layout.plot.left,
-        layout.plot.top,
-    );
+    let chart_point = screen_to_chart_point(screen_point, layout.plot.left, layout.plot.top);
     (screen_point, chart_point)
 }
 
