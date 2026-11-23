@@ -99,7 +99,10 @@ impl TimeScale {
         let start = self.timestamps_ms[left] as i128;
         let end = self.timestamps_ms[right] as i128;
         let interpolated = start as f64 + (end - start) as f64 * fraction;
-        if !interpolated.is_finite() || interpolated < i64::MIN as f64 || interpolated > i64::MAX as f64 {
+        if !interpolated.is_finite()
+            || interpolated < i64::MIN as f64
+            || interpolated > i64::MAX as f64
+        {
             return None;
         }
         Some(interpolated.round() as i64)
@@ -127,9 +130,8 @@ fn civil_from_days(days_since_epoch: i64) -> (i64, u32, u32) {
     let z = days_since_epoch + 719_468;
     let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
     let day_of_era = z - era * 146_097;
-    let year_of_era = (day_of_era - day_of_era / 1_460 + day_of_era / 36_524
-        - day_of_era / 146_096)
-        / 365;
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
     let mut year = year_of_era + era * 400;
     let day_of_year = day_of_era
         - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
@@ -216,5 +218,4 @@ mod tests {
             }
         }
     }
-
 }
