@@ -560,12 +560,8 @@ fn load_symbol_into_chart(
                         tracing::error!("No se pudo cargar el histórico de fallback: {error}");
                     }
                     if let Some(range) = price_range_from_data_points(chart) {
-                        chart.viewport_mut().auto_scale(
-                            range,
-                            chart.len(),
-                            1920.0,
-                            1080.0,
-                        );
+                        let point_count = chart.len();
+                        chart.viewport_mut().auto_scale(range, point_count, 1920.0, 1080.0);
                     }
                 }
                 Err(fallback_error) => {
