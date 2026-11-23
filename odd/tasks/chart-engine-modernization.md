@@ -47,7 +47,7 @@ S13: `Price` uses `Decimal`, while `Candle` stores `f64`. "Lo importante es que 
 | T5 | S1, S9, S12 | inline | done | c5b1b2f |
 | T6 | S7, S12 | inline | done | ac67b37 |
 | T7 | S1, S5, S8, S12 | inline | done | c5b1b2f |
-| T8 | S2, S12 | inline | done | 3fb7672 |
+| T8 | S2, S12 | inline | in progress | 3fb7672 + refactor/chart-engine-foundations |
 | T9 | S3, S12 | inline | done | c9f3ae5 |
 | T10 | S3, S9, S12 | inline | done | fa71a69 |
 | T11 | S9, S12 | inline | done | cdf9c6d |
@@ -84,6 +84,8 @@ Referencias de API para las decisiones de implementación descritas en esta tare
 - winit: https://docs.rs/winit/0.30.13/winit/
 - proptest: https://docs.rs/proptest/1/proptest/
 - rust_decimal: https://docs.rs/rust_decimal/1.43/rust_decimal/
+
+L12: Integración inicial del sistema de interacción en la aplicación. `InputHandler` persiste entre frames y actúa como adaptador egui; `InteractionController` ya no posee un `Viewport` duplicado y cada evento modifica el viewport prestado por `ChartState`. Los eventos de arrastre usan posiciones absolutas respecto del plot; pan no acumula deltas entre frames. Se agregó `Viewport::zoom_to_at` como operación compartida para zoom anclado y pruebas de preservación del punto bajo el cursor, además de cancelación del gesto al cambiar el tamaño del plot. El crosshair se conserva relativo al rect del chart y Glow suma el origen del rect solo al dibujar. T8 permanece en progreso: falta conectar el gesto de zoom por arrastre secundario a la interfaz egui; el zoom por rueda ya usa el controlador unificado.
 
 ## Log
 
