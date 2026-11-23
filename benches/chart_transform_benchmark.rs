@@ -34,7 +34,6 @@ fn bench_viewport_transforms(iterations: usize) {
     let price_range = PriceRange::new(min_price, max_price).expect("rango válido");
     let center_price = Price::new(Decimal::new(5000000, 2)).expect("50000.00 válido");
 
-    // Generamos N velas sintéticas con precios realistas (BTC/USD-style)
     let mut candles_prices: Vec<(f64, f64, f64, f64)> = Vec::with_capacity(iterations);
     let mut price = 50000.0;
     for i in 0..iterations {
@@ -49,8 +48,6 @@ fn bench_viewport_transforms(iterations: usize) {
 
     let start = Instant::now();
 
-    // Camino crítico: transformar cada vela a coordenadas de pantalla
-    // usando las funciones reales de Viewport.
     for (i, (open, high, low, close)) in candles_prices.iter().enumerate() {
         let _screen_x = viewport.data_x_to_screen(i, screen_width);
         let _y_high = viewport.price_to_screen(
@@ -78,7 +75,6 @@ fn bench_viewport_transforms(iterations: usize) {
             center_price,
         );
 
-        // black_box evita que el optimizador elimine el cálculo como código muerto.
         black_box((_screen_x, _y_high, _y_low, _y_open, _y_close));
     }
 
@@ -92,7 +88,6 @@ fn bench_viewport_transforms(iterations: usize) {
 }
 
 fn main() {
-    // Diferentes tamaños para detectar degradación no lineal (ej. O(n²) accidental)
     for count in [1_000, 10_000, 100_000, 500_000] {
         bench_viewport_transforms(count);
     }
