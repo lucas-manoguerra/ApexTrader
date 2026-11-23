@@ -285,10 +285,7 @@ mod tests {
         let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
         let points = [
             ChartDataPoint::new(candle, TimePoint::new(0, 60_000, 60_000).unwrap()),
-            ChartDataPoint::new(
-                candle,
-                TimePoint::new(60_000, 120_000, 60_000).unwrap(),
-            ),
+            ChartDataPoint::new(candle, TimePoint::new(60_000, 120_000, 60_000).unwrap()),
             ChartDataPoint::new(
                 candle,
                 TimePoint::new(3_600_000, 3_660_000, 60_000).unwrap(),
