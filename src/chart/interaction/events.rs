@@ -1,0 +1,92 @@
+//! Eventos de interacción normalizados.
+//!
+//! El dominio no conoce `egui`: la capa de aplicación traduce eventos de
+//! egui a estos tipos antes de pasarlos al `InteractionController`.
+
+/// Botón del puntero.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PointerButton {
+    /// Botón principal (izquierdo).
+    Primary,
+    /// Botón secundario (derecho).
+    Secondary,
+    /// Botón medio / rueda.
+    Middle,
+    /// Otro botón.
+    Other(u8),
+}
+
+/// Teclas modificadoras activas durante un evento.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Modifiers {
+    pub shift: bool,
+    pub ctrl: bool,
+    pub alt: bool,
+}
+
+/// Evento de movimiento del puntero.
+#[derive(Debug, Clone, Copy)]
+pub struct PointerMoveEvent {
+    /// Posición en coordenadas del área de plot (píxeles, 0..=width).
+    pub x: f64,
+    pub y: f64,
+}
+
+/// Evento de pulsación de botón del puntero.
+#[derive(Debug, Clone, Copy)]
+pub struct PointerDownEvent {
+    pub button: PointerButton,
+    pub x: f64,
+    pub y: f64,
+    pub modifiers: Modifiers,
+}
+
+/// Evento de liberación de botón del puntero.
+#[derive(Debug, Clone, Copy)]
+pub struct PointerUpEvent {
+    pub button: PointerButton,
+}
+
+/// Evento de arrastre (delta desde el frame anterior, en píxeles).
+#[derive(Debug, Clone, Copy)]
+pub struct PointerDragEvent {
+    pub dx: f64,
+    pub dy: f64,
+}
+
+/// Evento de scroll (rueda del mouse).
+#[derive(Debug, Clone, Copy)]
+pub struct ScrollEvent {
+    /// Delta vertical de scroll: positivo = hacia adelante (zoom in).
+    pub delta_y: f64,
+    /// Posición del cursor en el área de plot.
+    pub x: f64,
+    pub y: f64,
+    pub modifiers: Modifiers,
+}
+
+/// Evento de interacción unificado.
+#[derive(Debug, Clone, Copy)]
+pub enum InteractionEvent {
+    /// El puntero se movió a una nueva posición.
+    PointerMove(PointerMoveEvent),
+    /// Se presionó un botón del puntero.
+    PointerDown(PointerDownEvent),
+    /// Se soltó un botón del puntero.
+    PointerUp(PointerUpEvent),
+    /// El puntero se arrastró (delta desde el frame anterior).
+    PointerDrag(PointerDragEvent),
+    /// Evento de scroll (rueda del mouse).
+    Scroll(ScrollEvent),
+}
+
+/// Resultado de procesar un evento de interacción.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct InteractionResult {
+    /// `true` si el viewport cambió y requiere redibujado.
+    pub viewport_changed: bool,
+    /// `true` si el crosshair cambió de posición.
+    pub crosshair_changed: bool,
+    /// Nueva posición del crosshair en coordenadas del área de plot.
+    pub crosshair_pos: Option<(f64, f64)>,
+}
