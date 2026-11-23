@@ -7,6 +7,8 @@
 use crate::application::commands::load_candles::LoadCandles;
 use crate::application::events::{self, InputHandler};
 use crate::domain::candle::Candle;
+use crate::domain::chart::chart_data::ChartDataPoint;
+use crate::domain::chart::time_point::TimePoint;
 use crate::domain::chart_state::ChartState;
 use crate::domain::price::Price;
 use crate::domain::price_range::PriceRange;
@@ -120,12 +122,12 @@ impl eframe::App for ApexTraderApp {
             // Después de manejar input, obtenemos el viewport inmutable para dibujar.
             let viewport = self.chart.viewport();
 
-            // Prestamos las velas del ChartState para dibujarlas.
-            // El renderer no las posee ni las modifica.
-            let candles = self.chart.candles();
+            // Prestamos los puntos de datos del ChartState para dibujarlos.
+            // El renderer no los posee ni los modifica.
+            let points = self.chart.data_points();
             if let Err(e) = self
                 .renderer
-                .draw(painter, available, candles, viewport, crosshair_pos)
+                .draw(painter, available, points, viewport, crosshair_pos)
             {
                 tracing::error!("Error renderizando chart: {}", e);
                 ui.colored_label(egui::Color32::RED, format!("Error: {}", e));
@@ -144,7 +146,7 @@ impl eframe::App for ApexTraderApp {
             ui.label(format!("Carga de mercado: {:?}", self.load_state));
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
-                ui.label(format!("Velas: {}", candles.len()));
+                ui.label(format!("Puntos: {}", points.len()));
                 ui.label("Scroll: zoom | Arrastre: pan");
             });
         });
@@ -210,33 +212,45 @@ fn load_symbol_into_chart(
 ) -> LoadState {
     match LoadCandles::execute(provider, symbol, from_ms, to_ms) {
         Ok(result) => {
+            if !result.is_clean() {
+                tracing::warn!(
+                    "Ingestión con {} rechazado(s) de {} punto(s) recibido(s) para {}",
+                    result.rejected.len(),
+                    result.total_received(),
+                    result.symbol
+                );
+                for r in &result.rejected {
+                    tracing::warn!("  índice {} ({} ms): {}", r.index, r.open_time_ms, r.reason);
+                }
+            }
+
             chart.clear();
-            for c in &result.candles {
-                if let Err(e) = chart.add_candle(*c) {
-                    tracing::error!("No se pudo agregar vela: {}", e);
+            for dp in &result.data_points {
+                if let Err(e) = chart.add_data_point(*dp) {
+                    tracing::error!("No se pudo agregar punto de datos: {}", e);
                 }
             }
             tracing::info!(
-                "ChartState inicializado con {} velas del mercado ({})",
+                "ChartState inicializado con {} puntos de datos del mercado ({})",
                 chart.len(),
                 result.symbol
             );
 
             // Autoescala para que todas las velas quepan en pantalla.
-            if let Some(range) = price_range_from_candles(chart) {
-                let candle_count = chart.len();
+            if let Some(range) = price_range_from_data_points(chart) {
+                let point_count = chart.len();
                 let screen_width = 1920.0;
                 let screen_height = 1080.0;
                 chart
                     .viewport_mut()
-                    .auto_scale(range, candle_count, screen_width, screen_height);
+                    .auto_scale(range, point_count, screen_width, screen_height);
             }
 
             LoadState::Loaded { count: chart.len() }
         }
         Err(e) => {
             tracing::error!("No se pudieron cargar datos de mercado: {e}");
-            // Fallback a velas sintéticas si falla el proveedor.
+            // Fallback a puntos de datos sintéticos si falla el proveedor.
             chart.clear();
             let mut price = 100.0;
             for i in 0..20 {
@@ -246,15 +260,21 @@ fn load_symbol_into_chart(
                 let high = open.max(close) + change.abs() * 0.3;
                 let low = open.min(close) - change.abs() * 0.3;
                 let volume = 1000.0 + (i as f64 * 0.5).sin().abs() * 500.0;
-                if let Ok(candle) = Candle::new(open, high, low, close, volume)
-                    && let Err(e) = chart.add_candle(candle)
-                {
-                    tracing::error!("No se pudo agregar vela {}: {}", i, e);
+                let open_time_ms = i as i64 * 60_000;
+                let close_time_ms = open_time_ms + 60_000 - 1;
+                if let Some(tp) = TimePoint::new(open_time_ms, close_time_ms, 60_000) {
+                    if let Ok(candle) = Candle::new(open, high, low, close, volume) {
+                        if let Err(e) = chart.add_data_point(ChartDataPoint::new(candle, tp)) {
+                            tracing::error!("No se pudo agregar punto de datos {}: {}", i, e);
+                        }
+                    } else {
+                        tracing::error!("No se pudo crear vela sintética {}: {}", i, open);
+                    }
                 }
                 price = close;
             }
             tracing::info!(
-                "ChartState inicializado con {} velas (fallback)",
+                "ChartState inicializado con {} puntos de datos (fallback)",
                 chart.len()
             );
             LoadState::Error(e.to_string())
@@ -301,21 +321,21 @@ fn configure_fonts(ctx: &egui::Context) {
     ctx.set_fonts(font_defs);
 }
 
-/// Calcula el `PriceRange` (mínimo/máximo) de las velas del chart.
+/// Calcula el `PriceRange` (mínimo/máximo) de los puntos de datos del chart.
 ///
-/// Devuelve `None` si no hay velas.
-fn price_range_from_candles(chart: &ChartState) -> Option<PriceRange> {
-    let candles = chart.candles();
-    if candles.is_empty() {
+/// Devuelve `None` si no hay puntos de datos.
+fn price_range_from_data_points(chart: &ChartState) -> Option<PriceRange> {
+    let points = chart.data_points();
+    if points.is_empty() {
         return None;
     }
 
     let mut min_price = f64::INFINITY;
     let mut max_price = f64::NEG_INFINITY;
 
-    for c in candles {
-        min_price = min_price.min(c.low());
-        max_price = max_price.max(c.high());
+    for p in points {
+        min_price = min_price.min(p.low());
+        max_price = max_price.max(p.high());
     }
 
     let min = Price::new(Decimal::from_f64(min_price).expect("precio mínimo convertible"))
