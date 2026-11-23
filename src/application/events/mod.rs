@@ -5,6 +5,7 @@
 //! el controlador opera sobre el Viewport propiedad de ChartState.
 
 use crate::chart::interaction::controller::InteractionController;
+use crate::chart::interaction::options::InteractionOptions;
 use crate::chart::interaction::events::{
     InteractionEvent, Modifiers, PointerButton, PointerDownEvent, PointerDragEvent, PointerUpEvent,
     ScrollEvent,
@@ -25,10 +26,28 @@ pub struct InputHandler {
 
 impl InputHandler {
     pub fn new() -> Self {
+        Self::with_options(InteractionOptions::default())
+    }
+
+    /// Crea el adaptador de entrada con opciones de interacción explícitas.
+    pub fn with_options(options: InteractionOptions) -> Self {
         Self {
-            controller: InteractionController::new(0.0, 0.0),
+            controller: InteractionController::with_options(0.0, 0.0, options),
             crosshair_pos: None,
         }
+    }
+
+    /// Devuelve las opciones de interacción activas.
+    pub fn options(&self) -> InteractionOptions {
+        self.controller.options()
+    }
+
+    /// Actualiza las opciones de interacción.
+    ///
+    /// Si cambia la configuración, el controlador cancela cualquier gesto
+    /// activo para evitar continuar con anclas obsoletas.
+    pub fn set_options(&mut self, options: InteractionOptions) {
+        self.controller.set_options(options);
     }
 
     /// Devuelve la posición del crosshair relativa al rect completo del chart.
@@ -213,6 +232,17 @@ mod tests {
 
     fn interaction_rect() -> egui::Rect {
         egui::Rect::from_min_size(egui::pos2(100.0, 60.0), egui::vec2(800.0, 600.0))
+    }
+
+    #[test]
+    fn input_handler_exposes_and_updates_interaction_options() {
+        let mut input_handler = InputHandler::new();
+        let mut options = InteractionOptions::default();
+        options.scale.vertical_mouse_wheel = false;
+
+        input_handler.set_options(options);
+
+        assert_eq!(input_handler.options(), options);
     }
 
     #[test]

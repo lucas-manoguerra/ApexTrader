@@ -221,7 +221,9 @@ impl eframe::App for ApexTraderApp {
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
                 ui.label(format!("Puntos: {}", points.len()));
-                ui.label("Scroll: zoom Y | Arrastre izquierdo: pan | derecho: zoom");
+                ui.label(
+                    "Rueda vertical: zoom temporal | horizontal: pan | Arrastre izquierdo: pan | derecho: zoom",
+                );
             });
         });
     }

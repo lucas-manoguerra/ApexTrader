@@ -8,6 +8,7 @@ use crate::chart::interaction::events::{
     InteractionEvent, InteractionResult, PointerButton, PointerDownEvent, PointerDragEvent,
     PointerMoveEvent, PointerUpEvent, ScrollEvent,
 };
+use crate::chart::interaction::options::InteractionOptions;
 use crate::domain::viewport::Viewport;
 
 /// Estado de un gesto en curso. Las posiciones del puntero son absolutas
@@ -42,15 +43,42 @@ pub struct InteractionController {
     state: GestureState,
     screen_width: f64,
     screen_height: f64,
+    options: InteractionOptions,
 }
 
 impl InteractionController {
     /// Crea un controlador para las dimensiones iniciales del área de plot.
     pub fn new(screen_width: f64, screen_height: f64) -> Self {
+        Self::with_options(screen_width, screen_height, InteractionOptions::default())
+    }
+
+    /// Crea un controlador con una política explícita de interacción.
+    pub fn with_options(
+        screen_width: f64,
+        screen_height: f64,
+        options: InteractionOptions,
+    ) -> Self {
         Self {
             state: GestureState::Idle,
             screen_width: valid_dimension(screen_width),
             screen_height: valid_dimension(screen_height),
+            options,
+        }
+    }
+
+    /// Devuelve una copia de las opciones activas.
+    pub fn options(&self) -> InteractionOptions {
+        self.options
+    }
+
+    /// Reemplaza las opciones activas y cancela cualquier gesto en curso.
+    ///
+    /// Cancelar el gesto evita que un ancla creada con una política anterior
+    /// siga modificando el viewport después de cambiar la configuración.
+    pub fn set_options(&mut self, options: InteractionOptions) {
+        if self.options != options {
+            self.options = options;
+            self.state = GestureState::Idle;
         }
     }
 
@@ -103,7 +131,7 @@ impl InteractionController {
         }
 
         match ev.button {
-            PointerButton::Primary => {
+            PointerButton::Primary if self.options.scroll.primary_mouse_drag => {
                 self.state = GestureState::Pan {
                     button: ev.button,
                     anchor_offset_x: viewport.offset_x(),
@@ -113,7 +141,7 @@ impl InteractionController {
                     anchor_pointer_y: ev.y,
                 };
             }
-            PointerButton::Secondary => {
+            PointerButton::Secondary if self.options.scale.secondary_mouse_drag => {
                 self.state = GestureState::Zoom {
                     button: ev.button,
                     anchor_zoom_x: viewport.zoom_x(),
@@ -124,7 +152,10 @@ impl InteractionController {
                     anchor_pointer_y: ev.y,
                 };
             }
-            PointerButton::Middle | PointerButton::Other(_) => {
+            PointerButton::Primary
+            | PointerButton::Secondary
+            | PointerButton::Middle
+            | PointerButton::Other(_) => {
                 return InteractionResult::default();
             }
         }
@@ -262,7 +293,6 @@ impl InteractionController {
     ) -> InteractionResult {
         if !ev.delta_x.is_finite()
             || !ev.delta_y.is_finite()
-            || (ev.delta_x == 0.0 && ev.delta_y == 0.0)
             || !ev.x.is_finite()
             || !ev.y.is_finite()
             || self.screen_width <= 0.0
@@ -271,8 +301,19 @@ impl InteractionController {
             return InteractionResult::default();
         }
 
-        let base = 1.0 + viewport.zoom_step();
-        if !base.is_finite() || base <= 0.0 {
+        // Cada eje de la rueda se filtra de forma independiente para que
+        // scroll y scale puedan configurarse sin acoplar sus comportamientos.
+        let horizontal_delta = if self.options.scroll.horizontal_mouse_wheel {
+            ev.delta_x
+        } else {
+            0.0
+        };
+        let vertical_delta = if self.options.scale.vertical_mouse_wheel {
+            ev.delta_y
+        } else {
+            0.0
+        };
+        if horizontal_delta == 0.0 && vertical_delta == 0.0 {
             return InteractionResult::default();
         }
 
@@ -280,25 +321,28 @@ impl InteractionController {
 
         // La rueda vertical modifica el zoom temporal y mantiene anclada
         // la coordenada lógica situada bajo el cursor.
-        if ev.delta_y != 0.0 {
-            // El delta de egui se expresa en píxeles; 100 px equivalen
-            // aproximadamente a un paso completo de zoom.
-            let factor = base.powf(ev.delta_y / 100.0);
-            if factor.is_finite() && factor > 0.0 {
-                next.zoom_to_at(
-                    next.zoom_x() * factor,
-                    next.zoom_y(),
-                    ev.x / self.screen_width,
-                    ev.y / self.screen_height,
-                    self.screen_width,
-                    self.screen_height,
-                );
+        if vertical_delta != 0.0 {
+            let base = 1.0 + viewport.zoom_step();
+            if base.is_finite() && base > 0.0 {
+                // El delta de egui se expresa en píxeles; 100 px equivalen
+                // aproximadamente a un paso completo de zoom.
+                let factor = base.powf(vertical_delta / 100.0);
+                if factor.is_finite() && factor > 0.0 {
+                    next.zoom_to_at(
+                        next.zoom_x() * factor,
+                        next.zoom_y(),
+                        ev.x / self.screen_width,
+                        ev.y / self.screen_height,
+                        self.screen_width,
+                        self.screen_height,
+                    );
+                }
             }
         }
 
         // La rueda horizontal desplaza el historial sin alterar las escalas.
-        if ev.delta_x != 0.0 {
-            next.pan(-ev.delta_x, 0.0, self.screen_height);
+        if horizontal_delta != 0.0 {
+            next.pan(-horizontal_delta, 0.0, self.screen_height);
         }
 
         next.clamp_zoom_to_candles(candle_count, self.screen_width);
@@ -436,6 +480,129 @@ mod tests {
         assert!(viewport.zoom_x() > initial_zoom_x);
         assert_eq!(viewport.zoom_y(), initial_zoom_y);
         assert!(viewport.offset_x() < initial_offset);
+    }
+
+    #[test]
+    fn scroll_and_scale_wheel_options_are_independent() {
+        let mut viewport = make_viewport();
+        let initial = viewport;
+        let mut options = InteractionOptions::default();
+        options.scroll.horizontal_mouse_wheel = false;
+        let mut controller = InteractionController::with_options(1920.0, 1080.0, options);
+
+        let mut zoom_only = initial;
+        let mut zoom_only_controller = InteractionController::with_options(
+            1920.0,
+            1080.0,
+            InteractionOptions {
+                scroll: crate::chart::interaction::options::ScrollOptions {
+                    horizontal_mouse_wheel: false,
+                    primary_mouse_drag: true,
+                },
+                scale: crate::chart::interaction::options::ScaleOptions {
+                    vertical_mouse_wheel: true,
+                    secondary_mouse_drag: true,
+                },
+            },
+        );
+        zoom_only_controller.on_event(
+            &mut zoom_only,
+            100,
+            &InteractionEvent::Scroll(ScrollEvent {
+                delta_x: 0.0,
+                delta_y: 100.0,
+                x: 700.0,
+                y: 324.0,
+                modifiers: Modifiers::default(),
+            }),
+        );
+        let zoom_before = initial.zoom_x();
+
+        controller.on_event(
+            &mut viewport,
+            100,
+            &InteractionEvent::Scroll(ScrollEvent {
+                delta_x: 120.0,
+                delta_y: 100.0,
+                x: 700.0,
+                y: 324.0,
+                modifiers: Modifiers::default(),
+            }),
+        );
+
+        assert_eq!(viewport, zoom_only, "la opción desactivada no debe añadir pan");
+        assert!(viewport.zoom_x() > zoom_before);
+
+        options.scroll.horizontal_mouse_wheel = true;
+        options.scale.vertical_mouse_wheel = false;
+        controller.set_options(options);
+        let offset_before = viewport.offset_x();
+        let zoom_before = viewport.zoom_x();
+
+        controller.on_event(
+            &mut viewport,
+            100,
+            &InteractionEvent::Scroll(ScrollEvent {
+                delta_x: 120.0,
+                delta_y: 100.0,
+                x: 700.0,
+                y: 324.0,
+                modifiers: Modifiers::default(),
+            }),
+        );
+
+        assert!(viewport.offset_x() < offset_before);
+        assert_eq!(viewport.zoom_x(), zoom_before);
+    }
+
+    #[test]
+    fn primary_pan_and_secondary_scale_drags_can_be_disabled_independently() {
+        let mut viewport = make_viewport();
+        let initial = viewport;
+        let mut options = InteractionOptions::default();
+        options.scroll.primary_mouse_drag = false;
+        let mut controller = InteractionController::with_options(1920.0, 1080.0, options);
+
+        controller.on_event(
+            &mut viewport,
+            100,
+            &pointer_down(PointerButton::Primary, 100.0, 100.0),
+        );
+        assert!(!controller.is_gesture_active());
+        controller.on_event(&mut viewport, 100, &pointer_drag(150.0, 100.0));
+        assert_eq!(viewport, initial);
+
+        options.scroll.primary_mouse_drag = true;
+        options.scale.secondary_mouse_drag = false;
+        controller.set_options(options);
+        controller.on_event(
+            &mut viewport,
+            100,
+            &pointer_down(PointerButton::Secondary, 800.0, 420.0),
+        );
+        assert!(!controller.is_gesture_active());
+        controller.on_event(&mut viewport, 100, &pointer_drag(800.0, 380.0));
+        assert_eq!(viewport, initial);
+    }
+
+    #[test]
+    fn changing_options_cancels_an_active_gesture() {
+        let mut viewport = make_viewport();
+        let mut controller = InteractionController::new(1920.0, 1080.0);
+        controller.on_event(
+            &mut viewport,
+            100,
+            &pointer_down(PointerButton::Primary, 100.0, 100.0),
+        );
+        assert!(controller.is_gesture_active());
+
+        let mut options = controller.options();
+        options.scroll.primary_mouse_drag = false;
+        controller.set_options(options);
+
+        assert!(!controller.is_gesture_active());
+        controller.on_event(&mut viewport, 100, &pointer_drag(150.0, 100.0));
+        assert_eq!(viewport.offset_x(), 0.0);
     }
 
     #[test]

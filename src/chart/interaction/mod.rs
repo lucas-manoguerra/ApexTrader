@@ -7,3 +7,6 @@
 
 pub mod controller;
 pub mod events;
+pub mod options;
+
+pub use options::{InteractionOptions, ScaleOptions, ScrollOptions};
