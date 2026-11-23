@@ -83,8 +83,6 @@ impl WgpuChartRenderer {
         _width: u32,
         _height: u32,
     ) -> Result<(), RendererError> {
-        // Stub: surface no creada todavía. Cuando dispongamos del window handle
-        // de winit, se implementará con la API correcta de wgpu 30.
         warn!("init_surface stub: surface no creada todavía. Se usará glow como fallback.");
         Ok(())
     }
@@ -108,8 +106,6 @@ impl WgpuChartRenderer {
     /// Presenta el frame actual (swap chain).
     /// En wgpu 30, SurfaceTexture::Drop hace el present automáticamente.
     pub fn present(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        // wgpu 30: SurfaceTexture se presenta automáticamente al ser dropeada.
-        // No hay método .present() explícito.
         Ok(())
     }
 }
@@ -123,17 +119,12 @@ impl ChartRenderer for WgpuChartRenderer {
         _viewport: &Viewport,
         _crosshair_pos: Option<ScreenPoint>,
     ) -> Result<(), RendererError> {
-        // Si no hay surface, no podemos dibujar con wgpu.
-        // Devolvemos Err para que el caller sepa que wgpu no está listo
-        // y se use glow como fallback.
         if self.surface.is_none() || self.pipeline.is_none() {
             return Err(RendererError::BackendInitFailed(
                 "wgpu surface no inicializada".to_string(),
             ));
         }
 
-        // Cuando la surface esté inicializada, aquí se renderizará con wgpu.
-        // Por ahora, retorna Ok como placeholder.
         Ok(())
     }
 
