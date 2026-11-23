@@ -84,9 +84,7 @@ impl InteractionController {
             InteractionEvent::PointerMove(ev) => self.on_pointer_move(ev),
             InteractionEvent::PointerDown(ev) => self.on_pointer_down(viewport, ev),
             InteractionEvent::PointerUp(ev) => self.on_pointer_up(ev),
-            InteractionEvent::PointerDrag(ev) => {
-                self.on_pointer_drag(viewport, candle_count, ev)
-            }
+            InteractionEvent::PointerDrag(ev) => self.on_pointer_drag(viewport, candle_count, ev),
             InteractionEvent::Scroll(ev) => self.on_scroll(viewport, candle_count, ev),
         }
     }
@@ -99,11 +97,7 @@ impl InteractionController {
         }
     }
 
-    fn on_pointer_down(
-        &mut self,
-        viewport: &Viewport,
-        ev: &PointerDownEvent,
-    ) -> InteractionResult {
+    fn on_pointer_down(&mut self, viewport: &Viewport, ev: &PointerDownEvent) -> InteractionResult {
         if !ev.x.is_finite() || !ev.y.is_finite() {
             return InteractionResult::default();
         }
@@ -183,9 +177,7 @@ impl InteractionController {
                 let delta_x = ev.x - anchor_pointer_x;
                 let delta_y = ev.y - anchor_pointer_y;
                 next.set_offset_x(anchor_offset_x + delta_x / spacing);
-                next.set_offset_y(
-                    anchor_offset_y - delta_y / (self.screen_height * anchor_zoom_y),
-                );
+                next.set_offset_y(anchor_offset_y - delta_y / (self.screen_height * anchor_zoom_y));
                 next.clamp_pan_to_candles(candle_count, self.screen_width);
 
                 let changed = next != *viewport;
@@ -381,7 +373,11 @@ mod tests {
         let mut controller = InteractionController::new(1920.0, 1080.0);
         let initial_offset = viewport.offset_x();
 
-        controller.on_event(&mut viewport, 100, &pointer_down(PointerButton::Primary, 100.0, 100.0));
+        controller.on_event(
+            &mut viewport,
+            100,
+            &pointer_down(PointerButton::Primary, 100.0, 100.0),
+        );
         controller.on_event(&mut viewport, 100, &pointer_drag(150.0, 100.0));
         let offset_at_150 = viewport.offset_x();
 
@@ -397,7 +393,11 @@ mod tests {
         let mut viewport = make_viewport();
         let mut controller = InteractionController::new(1920.0, 1080.0);
 
-        controller.on_event(&mut viewport, 100, &pointer_down(PointerButton::Primary, 100.0, 100.0));
+        controller.on_event(
+            &mut viewport,
+            100,
+            &pointer_down(PointerButton::Primary, 100.0, 100.0),
+        );
         controller.on_event(
             &mut viewport,
             100,
@@ -445,8 +445,7 @@ mod tests {
         let zoom_two_steps = viewport.zoom_y();
 
         assert!(zoom_two_steps > zoom_one_step);
-        let data_x_after =
-            (anchor_x - 960.0) / viewport.candle_spacing() - viewport.offset_x();
+        let data_x_after = (anchor_x - 960.0) / viewport.candle_spacing() - viewport.offset_x();
         let price_after = transforms::screen_y_to_price(
             anchor_y,
             1080.0,
@@ -488,7 +487,11 @@ mod tests {
     fn resize_cancels_an_active_gesture() {
         let mut viewport = make_viewport();
         let mut controller = InteractionController::new(1920.0, 1080.0);
-        controller.on_event(&mut viewport, 100, &pointer_down(PointerButton::Primary, 100.0, 100.0));
+        controller.on_event(
+            &mut viewport,
+            100,
+            &pointer_down(PointerButton::Primary, 100.0, 100.0),
+        );
         assert!(controller.is_gesture_active());
 
         controller.set_screen_size(1280.0, 720.0);
