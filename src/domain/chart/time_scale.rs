@@ -194,4 +194,27 @@ mod tests {
         assert_eq!(TimeScale::format_time_label(86_400_000), "02/01 00:00 UTC");
         assert_eq!(TimeScale::format_time_label(-1), "31/12 23:59 UTC");
     }
+    proptest::proptest! {
+        #[test]
+        fn exact_timestamps_round_trip_to_consecutive_logical_indices(
+            mut timestamps in proptest::collection::vec(-10_000_000i64..10_000_000i64, 1..100)
+        ) {
+            timestamps.sort_unstable();
+            timestamps.dedup();
+            let mut scale = TimeScale::new();
+            scale.rebuild(timestamps.clone());
+
+            for (expected_index, timestamp) in timestamps.iter().enumerate() {
+                proptest::prop_assert_eq!(
+                    scale.time_to_logical(*timestamp),
+                    Some(expected_index as f64)
+                );
+                proptest::prop_assert_eq!(
+                    scale.logical_to_time(expected_index as f64),
+                    Some(*timestamp)
+                );
+            }
+        }
+    }
+
 }
