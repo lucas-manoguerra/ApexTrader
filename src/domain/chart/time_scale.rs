@@ -98,8 +98,12 @@ impl TimeScale {
             return None;
         }
 
-        let first = self.timestamps_ms.partition_point(|time| *time < start_time_ms);
-        let after_last = self.timestamps_ms.partition_point(|time| *time <= end_time_ms);
+        let first = self
+            .timestamps_ms
+            .partition_point(|time| *time < start_time_ms);
+        let after_last = self
+            .timestamps_ms
+            .partition_point(|time| *time <= end_time_ms);
         (first < after_last).then_some(first..=after_last - 1)
     }
 
@@ -109,10 +113,7 @@ impl TimeScale {
         first_logical: f64,
         last_logical: f64,
     ) -> Option<(i64, i64)> {
-        if !first_logical.is_finite()
-            || !last_logical.is_finite()
-            || first_logical > last_logical
-        {
+        if !first_logical.is_finite() || !last_logical.is_finite() || first_logical > last_logical {
             return None;
         }
 
@@ -264,11 +265,7 @@ mod tests {
     #[test]
     fn shared_scale_merges_irregular_series_and_assigns_common_indices() {
         let mut scale = TimeScale::new();
-        scale.rebuild_from_series([
-            vec![10, 20, 30],
-            vec![15, 30, 45, 60],
-            vec![20, 40],
-        ]);
+        scale.rebuild_from_series([vec![10, 20, 30], vec![15, 30, 45, 60], vec![20, 40]]);
 
         assert_eq!(scale.timestamps(), &[10, 15, 20, 30, 40, 45, 60]);
         assert_eq!(scale.logical_index(20), Some(2));
