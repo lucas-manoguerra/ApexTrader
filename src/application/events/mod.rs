@@ -80,18 +80,17 @@ pub fn handle_input(
         && let Some((screen_point, chart_point)) =
             pointer_coordinates(pos, interaction_rect, &layout)
     {
-                let event = InteractionEvent::Scroll(ScrollEvent {
-                    delta_y: scroll_delta.y as f64,
-                    x: chart_point.x,
-                    y: chart_point.y,
-                    modifiers: Modifiers::default(),
-                });
-                input_handler
-                    .controller
-                    .on_event(chart.viewport_mut(), candle_count, &event);
+        let event = InteractionEvent::Scroll(ScrollEvent {
+            delta_y: scroll_delta.y as f64,
+            x: chart_point.x,
+            y: chart_point.y,
+            modifiers: Modifiers::default(),
+        });
+        input_handler
+            .controller
+            .on_event(chart.viewport_mut(), candle_count, &event);
 
-                // Mantener el crosshair en la ubicación del puntero.
-                input_handler.crosshair_pos = Some(screen_point);
+        input_handler.crosshair_pos = Some(screen_point);
     }
 
     // Capturar el inicio de pan o zoom antes del primer movimiento.
@@ -99,58 +98,58 @@ pub fn handle_input(
         && let Some(pos) = response.interact_pointer_pos()
         && let Some((_, point)) = pointer_coordinates(pos, interaction_rect, &layout)
     {
-                let event = InteractionEvent::PointerDown(PointerDownEvent {
-                    button: PointerButton::Primary,
-                    x: point.x,
-                    y: point.y,
-                    modifiers: Modifiers::default(),
-                });
-                input_handler
-                    .controller
-                    .on_event(chart.viewport_mut(), candle_count, &event);
+        let event = InteractionEvent::PointerDown(PointerDownEvent {
+            button: PointerButton::Primary,
+            x: point.x,
+            y: point.y,
+            modifiers: Modifiers::default(),
+        });
+        input_handler
+            .controller
+            .on_event(chart.viewport_mut(), candle_count, &event);
     }
 
     if response.drag_started_by(egui::PointerButton::Secondary)
         && let Some(pos) = response.interact_pointer_pos()
         && let Some((_, point)) = pointer_coordinates(pos, interaction_rect, &layout)
     {
-                let event = InteractionEvent::PointerDown(PointerDownEvent {
-                    button: PointerButton::Secondary,
-                    x: point.x,
-                    y: point.y,
-                    modifiers: Modifiers::default(),
-                });
-                input_handler
-                    .controller
-                    .on_event(chart.viewport_mut(), candle_count, &event);
+        let event = InteractionEvent::PointerDown(PointerDownEvent {
+            button: PointerButton::Secondary,
+            x: point.x,
+            y: point.y,
+            modifiers: Modifiers::default(),
+        });
+        input_handler
+            .controller
+            .on_event(chart.viewport_mut(), candle_count, &event);
     }
 
-    // Pan con posición absoluta: no se suma drag_delta frame tras frame.
+    // Los eventos de arrastre contienen posiciones absolutas: el controlador
+    // calcula siempre el desplazamiento desde el punto de inicio del gesto.
     if response.dragged_by(egui::PointerButton::Primary)
         && let Some(pos) = response.interact_pointer_pos()
     {
-            let (_, point) = pointer_coordinates_unbounded(pos, interaction_rect, &layout);
-            let event = InteractionEvent::PointerDrag(PointerDragEvent {
-                x: point.x,
-                y: point.y,
-            });
-            input_handler
-                .controller
-                .on_event(chart.viewport_mut(), candle_count, &event);
+        let (_, point) = pointer_coordinates_unbounded(pos, interaction_rect, &layout);
+        let event = InteractionEvent::PointerDrag(PointerDragEvent {
+            x: point.x,
+            y: point.y,
+        });
+        input_handler
+            .controller
+            .on_event(chart.viewport_mut(), candle_count, &event);
     }
 
     if response.dragged_by(egui::PointerButton::Secondary)
         && let Some(pos) = response.interact_pointer_pos()
     {
-            let (_, point) = pointer_coordinates_unbounded(pos, interaction_rect, &layout);
-            let event = InteractionEvent::PointerDrag(PointerDragEvent {
-                x: point.x,
-                y: point.y,
-            });
-            input_handler
-                .controller
-                .on_event(chart.viewport_mut(), candle_count, &event);
-        }
+        let (_, point) = pointer_coordinates_unbounded(pos, interaction_rect, &layout);
+        let event = InteractionEvent::PointerDrag(PointerDragEvent {
+            x: point.x,
+            y: point.y,
+        });
+        input_handler
+            .controller
+            .on_event(chart.viewport_mut(), candle_count, &event);
     }
 
     if response.drag_stopped_by(egui::PointerButton::Primary) {
@@ -170,8 +169,8 @@ pub fn handle_input(
             .on_event(chart.viewport_mut(), candle_count, &event);
     }
 
-    // El crosshair usa ScreenPoint relativo al rect completo, mientras que
-    // las coordenadas de interacción del controlador son relativas al plot.
+    // El crosshair se guarda relativo al rect completo del chart; las
+    // coordenadas del controlador, en cambio, son relativas al plot.
     input_handler.crosshair_pos = ui
         .input(|input| input.pointer.hover_pos())
         .and_then(|pos| pointer_coordinates(pos, interaction_rect, &layout))
