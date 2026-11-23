@@ -765,7 +765,6 @@ mod tests {
         assert_eq!(viewport.offset_x(), 0.0);
     }
 
-
     #[test]
     fn time_axis_drag_zooms_horizontally_around_the_anchor() {
         let mut viewport = make_viewport();
@@ -822,11 +821,8 @@ mod tests {
                 y: anchor_y,
             }),
         );
-        let result = controller.on_event(
-            &mut viewport,
-            100,
-            &pointer_drag(anchor_x + 40.0, anchor_y),
-        );
+        let result =
+            controller.on_event(&mut viewport, 100, &pointer_drag(anchor_x + 40.0, anchor_y));
         let scaled_price_after =
             (300.0 - anchor_y) / (600.0 * viewport.zoom_y()) + viewport.offset_y();
 
