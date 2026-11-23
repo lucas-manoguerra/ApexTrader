@@ -281,10 +281,9 @@ mod tests {
         let mut scale = TimeScale::new();
         scale.rebuild([10, 15, 20, 30, 45, 60]);
 
-        assert_eq!(
-            scale.time_range_to_logical_range(16, 46),
-            Some((1.2, 4.066666666666666))
-        );
+        let (first, last) = scale.time_range_to_logical_range(16, 46).unwrap();
+        assert!((first - 1.2).abs() < 1e-12);
+        assert!((last - (4.0 + 1.0 / 15.0)).abs() < 1e-12);
         assert_eq!(scale.indices_in_time_range(16, 46), Some(2..=4));
         assert_eq!(scale.time_range_to_logical_range(-10, 15), Some((0.0, 1.0)));
         assert_eq!(scale.indices_in_time_range(31, 44), None);
