@@ -512,7 +512,42 @@ impl Viewport {
     ///
     /// Devuelve la coordenada X en píxeles de pantalla. Usa `zoom_x` (eje X).
     pub fn data_x_to_screen(&self, index: usize, screen_width: f64) -> f64 {
-        transforms::data_x_to_screen(index, screen_width, self.zoom_x, self.offset_x)
+        self.logical_to_screen(index as f64, screen_width)
+    }
+
+    /// Convierte una coordenada lógica (posiblemente fraccionaria) a píxeles.
+    pub fn logical_to_screen(&self, logical_index: f64, screen_width: f64) -> f64 {
+        if !logical_index.is_finite() || !screen_width.is_finite() || screen_width <= 0.0 {
+            return screen_width / 2.0;
+        }
+        screen_width / 2.0 + (logical_index + self.offset_x) * self.candle_spacing()
+    }
+
+    /// Convierte una coordenada de pantalla a una coordenada lógica fraccionaria.
+    pub fn screen_to_logical(&self, screen_x: f64, screen_width: f64) -> f64 {
+        if !screen_x.is_finite() || !screen_width.is_finite() || screen_width <= 0.0 {
+            return 0.0;
+        }
+        (screen_x - screen_width / 2.0) / self.candle_spacing() - self.offset_x
+    }
+
+    /// Ajusta el eje temporal para mostrar todo el historial con un margen
+    /// horizontal del 5%. El eje de precios no se modifica.
+    pub fn fit_content(&mut self, logical_count: usize, screen_width: f64) -> bool {
+        if logical_count == 0 || !screen_width.is_finite() || screen_width <= 0.0 {
+            return false;
+        }
+
+        let desired_spacing = if logical_count == 1 {
+            transforms::CANDLE_SPACING_BASE
+        } else {
+            screen_width * 0.90 / (logical_count - 1) as f64
+        };
+        let desired_zoom = desired_spacing / transforms::CANDLE_SPACING_BASE;
+        let previous = (self.zoom_x, self.offset_x);
+        self.set_zoom_x(desired_zoom);
+        self.set_offset_x(-((logical_count - 1) as f64) / 2.0);
+        previous != (self.zoom_x, self.offset_x)
     }
 
     /// Convierte una coordenada de pantalla X a un índice de vela (coordenada de datos X).
@@ -523,13 +558,12 @@ impl Viewport {
     /// Devuelve el índice de vela más cercano (basado en 0), clampado a
     /// `[0, candle_count - 1]`. Usa `zoom_x` (eje X).
     pub fn screen_x_to_data(&self, screen_x: f64, screen_width: f64, candle_count: usize) -> usize {
-        transforms::screen_x_to_data(
-            screen_x,
-            screen_width,
-            self.zoom_x,
-            self.offset_x,
-            candle_count,
-        )
+        if candle_count == 0 {
+            return 0;
+        }
+        self.screen_to_logical(screen_x, screen_width)
+            .round()
+            .clamp(0.0, candle_count.saturating_sub(1) as f64) as usize
     }
 
     /// Convierte un precio (coordenada de datos Y) a coordenada de pantalla.
