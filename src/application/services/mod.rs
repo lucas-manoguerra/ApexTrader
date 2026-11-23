@@ -16,7 +16,7 @@ use crate::logging::init as init_logging;
 use crate::market::mock::MockMarketDataProvider;
 use crate::market::provider::MarketDataProvider;
 use crate::market::symbol::Symbol;
-use crate::renderer::{ChartRenderer, ChartScene, create_renderer};
+use crate::renderer::{ChartRenderer, ChartScene, InvalidationMask, create_renderer};
 use eframe::egui;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
@@ -147,6 +147,7 @@ impl eframe::App for ApexTraderApp {
                 screen_width: available.width() as f64,
                 screen_height: available.height() as f64,
                 crosshair_pos,
+                invalidation_mask: InvalidationMask::none(),
             };
 
             if let Err(e) = self.renderer.draw(painter, available, &scene) {

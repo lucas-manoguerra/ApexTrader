@@ -139,6 +139,63 @@ pub struct ChartScene {
     pub screen_height: f64,
     /// Posición del crosshair en pantalla, si hay uno activo.
     pub crosshair_pos: Option<ScreenPoint>,
+    /// Máscara de invalidación: qué partes del chart necesitan ser re-renderizadas.
+    pub invalidation_mask: InvalidationMask,
+}
+
+/// Motivo por el cual el chart necesita ser re-renderizado.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum InvalidationReason {
+    /// No hay cambios; nada que re-renderizar.
+    #[default]
+    None,
+    /// Solo el cursor/crosshair se movió; los datos no cambiaron.
+    CursorOnly,
+    /// Se superpuso un overlay o dibujo nuevo; el resto del chart es igual.
+    Overlay,
+    /// Cambiaron los datos de las velas (nuevos símbolos, recarga).
+    SeriesData,
+    /// Cambiaron escala, layout o dimensiones (zoom, pan, resize).
+    ScaleLayout,
+    /// Cambio total; hay que re-renderizar todo desde cero.
+    Full,
+}
+
+/// Máscara de invalidación para el renderizado.
+///
+/// Permite al renderer saber qué partes del chart son caras de regenerar
+/// y cuáles se pueden reusar del frame anterior.
+///
+/// Jerarquía de costo (de menor a mayor):
+///   `None` < `CursorOnly` < `Overlay` < `SeriesData` < `ScaleLayout` < `Full`
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct InvalidationMask {
+    /// Nivel más alto de invalidación detectado.
+    pub level: InvalidationReason,
+}
+
+impl InvalidationMask {
+    /// Máscara vacía: no hay cambios.
+    pub fn none() -> Self {
+        Self {
+            level: InvalidationReason::None,
+        }
+    }
+
+    /// Devuelve `true` si no hay nada que re-renderizar.
+    pub fn is_none(&self) -> bool {
+        self.level == InvalidationReason::None
+    }
+
+    /// Combina dos máscaras, quedándose con el nivel de mayor costo.
+    pub fn merge(self, other: Self) -> Self {
+        let level = if self.level as u8 > other.level as u8 {
+            self.level
+        } else {
+            other.level
+        };
+        Self { level }
+    }
 }
 
 impl ChartScene {
@@ -153,6 +210,7 @@ impl ChartScene {
             screen_width: 0.0,
             screen_height: 0.0,
             crosshair_pos: None,
+            invalidation_mask: InvalidationMask::none(),
         }
     }
 }
