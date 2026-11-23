@@ -59,17 +59,14 @@ struct ApexTraderApp {
     prev_viewport: Option<Viewport>,
     /// Posición del crosshair del frame anterior.
     prev_crosshair_pos: Option<ScreenPoint>,
-    /// Cantidad de puntos de datos del frame anterior.
-    prev_data_len: usize,
+    /// Revisión de datos del frame anterior.
+    prev_data_revision: u64,
     /// Rect de dibujo del frame anterior.
     prev_rect: Option<egui::Rect>,
 }
 
 impl eframe::App for ApexTraderApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        ui.ctx()
-            .request_repaint_after(std::time::Duration::from_millis(16));
-
         egui::CentralPanel::default().show(ui, |ui| {
             ui.heading("ApexTrader — Chart de Velas");
             ui.separator();
@@ -134,8 +131,13 @@ impl eframe::App for ApexTraderApp {
             let points = self.chart.data_points();
 
             // Calcular máscara de invalidación basada en qué cambió entre frames.
-            let mask =
-                self.calculate_invalidation_mask(viewport, crosshair_pos, points.len(), available);
+            let data_revision = self.chart.data_revision();
+            let mask = self.calculate_invalidation_mask(
+                viewport,
+                crosshair_pos,
+                data_revision,
+                available,
+            );
 
             // Calcular rango de precios y centro a partir de los puntos visibles.
             let chart_layout =
@@ -191,7 +193,7 @@ impl eframe::App for ApexTraderApp {
             // Guardar estado actual para el próximo frame.
             self.prev_viewport = Some(*viewport);
             self.prev_crosshair_pos = crosshair_pos;
-            self.prev_data_len = points.len();
+            self.prev_data_revision = data_revision;
             self.prev_rect = Some(available);
 
             ui.label(format!(
@@ -221,7 +223,7 @@ impl ApexTraderApp {
         &self,
         viewport: &Viewport,
         crosshair_pos: Option<ScreenPoint>,
-        data_len: usize,
+        data_revision: u64,
         rect: egui::Rect,
     ) -> InvalidationMask {
         // Primer frame: todo es nuevo.
@@ -252,15 +254,14 @@ impl ApexTraderApp {
         }
 
         // Si cambiaron los datos, es SeriesData.
-        if data_len != self.prev_data_len {
+        if data_revision != self.prev_data_revision {
             mask = mask.merge(InvalidationMask {
                 level: InvalidationReason::SeriesData,
             });
         }
 
         // Si cambió solo el crosshair, es CursorOnly (solo si no hay algo peor).
-        if let Some(prev_ch) = self.prev_crosshair_pos
-            && crosshair_pos != Some(prev_ch)
+        if crosshair_pos != self.prev_crosshair_pos
             && mask.level == InvalidationReason::None
         {
             mask = InvalidationMask {
@@ -312,7 +313,7 @@ pub fn run() -> eframe::Result {
                 symbol_input: "BTC/USDT".to_string(),
                 prev_viewport: None,
                 prev_crosshair_pos: None,
-                prev_data_len: 0,
+                prev_data_revision: chart.data_revision(),
                 prev_rect: None,
             }))
         }),
