@@ -38,7 +38,7 @@ impl MarketCandle {
     }
 
     /// Convierte a `domain::chart::ChartDataPoint`, preservando el
-    /// timestamp y el intervalo para que el `TimeScale` pueda establecer
+    /// timestamp y el intervalo para que el viewport pueda establecer
     /// la relación entre tiempo e índice lógico.
     pub fn to_chart_data_point(&self) -> Result<ChartDataPoint, MarketError> {
         let candle = Candle::new(self.open, self.high, self.low, self.close, self.volume)

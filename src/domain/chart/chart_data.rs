@@ -2,7 +2,7 @@
 //!
 //! `ChartDataPoint` combina el dato financiero (`Candle`) con su posición
 //! temporal (`TimePoint`) y su índice lógico en el chart. Es la unidad
-//! fundamental que el `TimeScale` y el `PriceScale` consumen.
+//! fundamental que el viewport y el renderer consumen.
 
 use crate::domain::candle::Candle;
 
@@ -17,7 +17,7 @@ pub struct ChartDataPoint {
     pub candle: Candle,
     /// Punto temporal asociado (timestamp y intervalo).
     pub time_point: crate::domain::chart::time_point::TimePoint,
-    /// Índice lógico en el chart (None hasta asignación del TimeScale).
+    /// Índice lógico en el chart (None hasta asignación del viewport).
     pub logical_index: Option<usize>,
 }
 

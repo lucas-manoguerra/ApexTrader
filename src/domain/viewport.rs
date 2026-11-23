@@ -398,11 +398,10 @@ impl Viewport {
     /// que haya algo que mostrar).
     /// `screen_width` y `screen_height` son las dimensiones del área de dibujo en píxeles.
     ///
-    /// `auto_scale` ajusta solo el eje Y (PriceScale / precio): `zoom_y` se
-    /// rige por la escala de precio y `offset_y` se centra en el punto medio
-    /// del rango. El eje X (TimeScale / tiempo y velas) se deja intacto: el
-    /// llamante puede seguir ajustando `zoom_x`, `offset_x` con `zoom_at`
-    /// o `pan`.
+    /// `auto_scale` ajusta solo el eje Y (precio): `zoom_y` se rige por la
+    /// escala de precio y `offset_y` se centra en el punto medio del rango.
+    /// El eje X (tiempo y velas) se deja intacto: el llamante puede seguir
+    /// ajustando `zoom_x`, `offset_x` con `zoom_at` o `pan`.
     pub fn auto_scale(
         &mut self,
         price_range: PriceRange,
@@ -447,8 +446,8 @@ impl Viewport {
         // price_to_screen: price_range * pixels_per_unit = screen_height *
         // zoom_y). Para que quepa en available_height:
         // zoom_y <= available_height / screen_height = 1 - 2 * margin.
-        // auto_scale ajusta solo el eje Y (PriceScale); el eje X
-        // (TimeScale / velas) se deja intacto.
+        // auto_scale ajusta solo el eje Y (precio); el eje X
+        // (tiempo y velas) se deja intacto.
         let zoom_vertical_max = available_height / screen_height;
 
         // Eje Y: zoom basado en la escala de precio, clampeado al rango
