@@ -73,7 +73,7 @@ pub fn handle_input(
 
     let candle_count = chart.len();
 
-    // Zoom por rueda, anclado al punto real del cursor dentro del plot.
+    // Adaptar el scroll vertical (zoom temporal) y horizontal (pan) al punto bajo el cursor.
     let scroll_delta = ui.input(|input| input.smooth_scroll_delta);
     if (scroll_delta.x != 0.0 || scroll_delta.y != 0.0)
         && let Some(pos) = ui.input(|input| input.pointer.hover_pos())
