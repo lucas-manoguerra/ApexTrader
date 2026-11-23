@@ -8,8 +8,11 @@ Proyecto en fase inicial. Versión `0.1.0` (experimental).
 
 ## Arquitectura en resumen
 
-- `src/domain` — reglas de negocio, tipos e invariantes (independiente de UI y proveedores).
+- `src/domain` — reglas de negocio, tipos e invariantes (independiente de UI y proveedores). Incluye `domain::chart` con `ChartDataPoint` y `TimePoint`.
+- `src/market` — recepción y validación de datos de mercado (proveedores, símbolos, velas de mercado).
+- `src/chart` — modelos y reglas de gráficos (layout, crosshair, interacción, hit-testing, escalas, transformaciones, rango visible).
 - `src/renderer` — preparación y dibujo de elementos gráficos (wgpu / glow).
+- `src/application` — casos de uso, coordinación y orquestación (carga de velas, eventos de input, estado de la app).
 - `src/errors` — errores tipados con `thiserror`.
 - `src/logging` — logging estructurado con `tracing`.
 
