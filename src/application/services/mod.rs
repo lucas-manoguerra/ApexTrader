@@ -343,10 +343,8 @@ fn load_symbol_into_chart(
             }
 
             chart.clear();
-            for dp in &result.data_points {
-                if let Err(e) = chart.add_data_point(*dp) {
-                    tracing::error!("No se pudo agregar punto de datos: {}", e);
-                }
+            if let Err(e) = chart.add_data_points(&result.data_points) {
+                tracing::error!("No se pudieron agregar los datos al chart: {}", e);
             }
             tracing::info!(
                 "ChartState inicializado con {} puntos de datos del mercado ({})",
