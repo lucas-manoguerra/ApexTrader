@@ -18,7 +18,9 @@ use crate::logging::init as init_logging;
 use crate::market::mock::MockMarketDataProvider;
 use crate::market::provider::MarketDataProvider;
 use crate::market::symbol::Symbol;
-use crate::renderer::{ChartRenderer, ChartScene, InvalidationMask, InvalidationReason, create_renderer};
+use crate::renderer::{
+    ChartRenderer, ChartScene, InvalidationMask, InvalidationReason, create_renderer,
+};
 use eframe::egui;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
@@ -126,7 +128,8 @@ impl eframe::App for ApexTraderApp {
             let points = self.chart.data_points();
 
             // Calcular máscara de invalidación basada en qué cambió entre frames.
-            let mask = self.calculate_invalidation_mask(viewport, crosshair_pos, points.len(), available);
+            let mask =
+                self.calculate_invalidation_mask(viewport, crosshair_pos, points.len(), available);
 
             // Calcular rango de precios y centro a partir de los puntos visibles.
             let drawing_width = available.width() as f64;
@@ -214,21 +217,21 @@ impl ApexTraderApp {
         let mut mask = InvalidationMask::none();
 
         // Si cambió el rect (resize), es ScaleLayout.
-        if let Some(prev_rect) = self.prev_rect {
-            if prev_rect != rect {
-                mask = mask.merge(InvalidationMask {
-                    level: InvalidationReason::ScaleLayout,
-                });
-            }
+        if let Some(prev_rect) = self.prev_rect
+            && prev_rect != rect
+        {
+            mask = mask.merge(InvalidationMask {
+                level: InvalidationReason::ScaleLayout,
+            });
         }
 
         // Si cambió el viewport (zoom/pan), es ScaleLayout.
-        if let Some(prev_vp) = self.prev_viewport {
-            if *viewport != prev_vp {
-                mask = mask.merge(InvalidationMask {
-                    level: InvalidationReason::ScaleLayout,
-                });
-            }
+        if let Some(prev_vp) = self.prev_viewport
+            && *viewport != prev_vp
+        {
+            mask = mask.merge(InvalidationMask {
+                level: InvalidationReason::ScaleLayout,
+            });
         }
 
         // Si cambiaron los datos, es SeriesData.
@@ -239,12 +242,13 @@ impl ApexTraderApp {
         }
 
         // Si cambió solo el crosshair, es CursorOnly (solo si no hay algo peor).
-        if let Some(prev_ch) = self.prev_crosshair_pos {
-            if crosshair_pos != Some(prev_ch) && mask.level == InvalidationReason::None {
-                mask = InvalidationMask {
-                    level: InvalidationReason::CursorOnly,
-                };
-            }
+        if let Some(prev_ch) = self.prev_crosshair_pos
+            && crosshair_pos != Some(prev_ch)
+            && mask.level == InvalidationReason::None
+        {
+            mask = InvalidationMask {
+                level: InvalidationReason::CursorOnly,
+            };
         }
 
         mask

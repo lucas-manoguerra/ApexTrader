@@ -13,7 +13,12 @@ pub trait ChartRenderer {
     /// `painter` es el contexto de dibujo de egui (disponible en `ui.painter()`).
     /// `rect` es el área disponible en pantalla.
     /// `scene` es la escena de renderizado completa: qué dibujar, sin decir cómo.
-    fn draw(&mut self, painter: &egui::Painter, rect: egui::Rect, scene: &ChartScene) -> Result<(), RendererError>;
+    fn draw(
+        &mut self,
+        painter: &egui::Painter,
+        rect: egui::Rect,
+        scene: &ChartScene,
+    ) -> Result<(), RendererError>;
 
     /// Nombre legible del renderer (para logs y depuración).
     fn name(&self) -> &str;
@@ -40,7 +45,7 @@ mod wgpu_pipeline;
 
 pub use glow::GlowChartRenderer;
 pub use ir::{
-    ChartScene, CrosshairRender, CandleRender, InvalidationMask, InvalidationReason,
+    CandleRender, ChartScene, CrosshairRender, InvalidationMask, InvalidationReason,
     PriceAxisLabel, RenderFrame, RenderGeometry, RenderLayer, TimeAxisLabel, VolumeBarRender,
 };
 pub use wgpu::WgpuChartRenderer;

@@ -283,7 +283,8 @@ impl ChartRenderer for GlowChartRenderer {
             (relative * screen_height) as f32
         };
 
-        for (i, point) in scene.data_points
+        for (i, point) in scene
+            .data_points
             .iter()
             .enumerate()
             .skip(visible.first)
@@ -411,9 +412,11 @@ impl ChartRenderer for GlowChartRenderer {
                     scene.viewport.offset_y(),
                     center_price,
                 );
-                let index_at_cursor = scene
-                    .viewport
-                    .screen_x_to_data(chart_point.x, screen_width_drawing, scene.candle_count);
+                let index_at_cursor = scene.viewport.screen_x_to_data(
+                    chart_point.x,
+                    screen_width_drawing,
+                    scene.candle_count,
+                );
 
                 let price_label = format!("{:.2}", price_at_cursor);
                 painter.text(

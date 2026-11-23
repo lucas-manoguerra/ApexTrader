@@ -74,6 +74,17 @@ T14: Invalidation mask: full, scale/layout, series data, overlay, cursor-only di
 T15: Typed, validated, extensible options architecture (chart, time scale, price scale, pane, series, crosshair).
 T16: Panes foundation: multiple independent panes, independent heights, multiple series per pane, independent price scales.
 
+## Referencias oficiales de dependencias
+
+Referencias de API para las decisiones de implementación descritas en esta tarea
+(consultar la versión fijada por Cargo.lock al trabajar en cada cambio):
+
+- egui: https://docs.rs/egui/0.37/egui/
+- wgpu: https://docs.rs/wgpu/30/wgpu/
+- winit: https://docs.rs/winit/0.30.13/winit/
+- proptest: https://docs.rs/proptest/1/proptest/
+- rust_decimal: https://docs.rs/rust_decimal/1.43/rust_decimal/
+
 ## Log
 
 L1: Auditoría de ApexTrader y estudio de TradingView Lightweight Charts. Ejecutar modernización del Chart Engine por etapas (núcleo matemático/temporal → interacción → renderizado → extensibilidad), manteniendo el proyecto verificable en cada etapa. Criterios de aceptación: precisión matemática del zoom anclado, escalabilidad sin O(N_total) por frame, independencia de ventana/GPU para pruebas.

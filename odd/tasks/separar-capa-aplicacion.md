@@ -40,6 +40,12 @@ presentación de información de depuración.
 - T6: Verificación final: cargo check, clippy -D warnings, cargo test, cargo
   fmt, verify_architecture. Route: inline. Status: done. Commit: pending.
 
+## Referencias oficiales de dependencias
+
+Referencia de API para el ciclo de vida de la aplicación de escritorio:
+
+- eframe: https://docs.rs/eframe/0.37/eframe/
+
 ## Log
 
 L1: Continuación de la auditoría técnica de ApexTrader v0.1.0. Etapa 1

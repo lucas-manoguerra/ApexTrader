@@ -32,6 +32,16 @@ S10 (testing): pruebas de propiedades con `proptest` (zoom, pan, round-trip, aut
 - T10: Ampliación de tests con `proptest` (round-trip, pan, zoom, auto_scale, visible_range) (S1-S8). Route: inline. Status: done. Commit: 436f7fe.
 - T11: Verificación final: cargo check, clippy -D warnings, cargo test, cargo fmt, verify_architecture (S1-S9). Route: inline. Status: done. Commit: 436f7fe.
 
+## Referencias oficiales de dependencias
+
+Referencias de API para el backend experimental, la precisión numérica y
+las pruebas de propiedades:
+
+- wgpu: https://docs.rs/wgpu/30/wgpu/
+- raw-window-handle: https://docs.rs/raw-window-handle/0.6/raw_window_handle/
+- rust_decimal: https://docs.rs/rust_decimal/1.43/rust_decimal/
+- proptest: https://docs.rs/proptest/1/proptest/
+
 ## Log
 
 L1: Auditoría técnica de ApexTrader v0.1.0. Revisión estática de código fuente, manifiesto Cargo, módulos de dominio, renderizadores, pruebas, documentación de arquitectura, scripts y CI sobre la rama `main`. Plan de refactorización aprobado por el usuario para la Etapa 1 (estabilizar Chart Engine). Inicio de implementación.

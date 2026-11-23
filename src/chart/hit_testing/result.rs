@@ -178,15 +178,7 @@ mod tests {
         let cx = layout.plot.left + layout.plot.width() / 2.0;
         let cy = layout.plot.top + layout.plot.height() / 2.0;
 
-        let ctx = HitTestContext::new(
-            &viewport,
-            &layout,
-            cx,
-            cy,
-            100.0,
-            50000.0,
-            100,
-        );
+        let ctx = HitTestContext::new(&viewport, &layout, cx, cy, 100.0, 50000.0, 100);
 
         assert!(ctx.is_inside_plot());
     }
@@ -196,15 +188,7 @@ mod tests {
         let viewport = make_viewport();
         let layout = make_layout();
 
-        let ctx = HitTestContext::new(
-            &viewport,
-            &layout,
-            -10.0,
-            500.0,
-            100.0,
-            50000.0,
-            100,
-        );
+        let ctx = HitTestContext::new(&viewport, &layout, -10.0, 500.0, 100.0, 50000.0, 100);
 
         assert!(!ctx.is_inside_plot());
     }
@@ -216,15 +200,7 @@ mod tests {
         let cx = layout.plot.left + layout.plot.width() / 2.0;
         let cy = layout.plot.top + layout.plot.height() / 2.0;
 
-        let ctx = HitTestContext::new(
-            &viewport,
-            &layout,
-            cx,
-            cy,
-            100.0,
-            50000.0,
-            100,
-        );
+        let ctx = HitTestContext::new(&viewport, &layout, cx, cy, 100.0, 50000.0, 100);
 
         let dp = ctx.cursor_to_data().expect("cursor dentro del plot");
         // Índice 0 en el centro, precio centro (offset_y = 0).
@@ -239,10 +215,13 @@ mod tests {
         let result = HitResult {
             kind: HitKind::Candle { index: 5 },
             screen_point: ScreenPoint { x: 100.0, y: 200.0 },
-            data_point: transforms::DataPoint { index: 5.0, price: 50250.0 },
+            data_point: transforms::DataPoint {
+                index: 5.0,
+                price: 50250.0,
+            },
             distance: 0.0,
         };
         assert_eq!(result.distance, 0.0);
-        assert_eq!((result.data_point.index - 5.0).abs() < f64::EPSILON, true);
+        assert!((result.data_point.index - 5.0).abs() < f64::EPSILON);
     }
 }

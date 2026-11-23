@@ -618,6 +618,12 @@ impl Viewport {
     }
 }
 
+impl Default for Viewport {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -643,11 +649,5 @@ mod tests {
         viewport.set_zoom(0.01, 0.01);
         assert!((viewport.zoom_x() - 0.1).abs() < f64::EPSILON);
         assert!((viewport.zoom_y() - 0.1).abs() < f64::EPSILON);
-    }
-}
-
-impl Default for Viewport {
-    fn default() -> Self {
-        Self::new()
     }
 }
