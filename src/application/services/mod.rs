@@ -61,6 +61,8 @@ struct ApexTraderApp {
     prev_crosshair_pos: Option<ScreenPoint>,
     /// Revisión de datos del frame anterior.
     prev_data_revision: u64,
+    /// Indica que una carga completa de historial requiere ajustar el eje X una vez.
+    fit_content_pending: bool,
     /// Rect de dibujo del frame anterior.
     prev_rect: Option<egui::Rect>,
 }
@@ -95,6 +97,7 @@ impl eframe::App for ApexTraderApp {
                                 from_ms,
                                 to_ms,
                             );
+                            self.fit_content_pending = true;
                         }
                         Err(e) => {
                             self.load_state = LoadState::Error(format!("Símbolo inválido: {e}"));
@@ -110,14 +113,15 @@ impl eframe::App for ApexTraderApp {
             let chart_layout =
                 ChartLayout::compute(available.width() as f64, available.height() as f64);
 
-            // Ajustar el historial completo al ancho real del plot al iniciar
-            // o después de cargar un nuevo conjunto de datos.
-            let data_revision = self.chart.data_revision();
-            if self.prev_viewport.is_none() || data_revision != self.prev_data_revision {
+            // Ajustar el historial completo solo al iniciar o tras una carga
+            // explícita. Las actualizaciones incrementales no deben resetear
+            // el zoom ni el desplazamiento que eligió el usuario.
+            if self.fit_content_pending {
                 let logical_count = self.chart.time_scale().len();
                 self.chart
                     .viewport_mut()
                     .fit_content(logical_count, chart_layout.plot_width());
+                self.fit_content_pending = false;
             }
 
             let interaction_rect = available.shrink(0.0);
@@ -320,6 +324,7 @@ pub fn run() -> eframe::Result {
                 prev_viewport: None,
                 prev_crosshair_pos: None,
                 prev_data_revision: data_revision,
+                fit_content_pending: true,
                 prev_rect: None,
             }))
         }),
