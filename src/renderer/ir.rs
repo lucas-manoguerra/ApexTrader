@@ -235,8 +235,7 @@ mod tests {
 
     #[test]
     fn chart_scene_borrows_data_without_copying_the_history() {
-        let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0)
-            .expect("vela válida");
+        let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).expect("vela válida");
         let time_point = TimePoint::new(0, 60_000, 60_000).expect("intervalo válido");
         let points = [ChartDataPoint::new(candle, time_point)];
         let original_ptr = points.as_ptr();
