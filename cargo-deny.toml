@@ -27,5 +27,12 @@ allow = [
     "MPL-2.0",
     "Unlicense",
     "Zlib",
+    "Unicode-3.0",
 ]
 confidence-threshold = 0.8
+
+# The workspace contains a private desktop application without a selected
+# redistribution license. Do not invent a license for it; external crates
+# are still checked against the explicit allowlist above.
+[licenses.private]
+ignore = true
