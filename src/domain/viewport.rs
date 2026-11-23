@@ -380,8 +380,8 @@ impl Viewport {
 
         self.offset_x += (cursor_from_center_x / transforms::CANDLE_SPACING_BASE)
             * (1.0 / new_zoom_x - 1.0 / self.zoom_x);
-        self.offset_y += (cursor_from_center_y / screen_height)
-            * (1.0 / new_zoom_y - 1.0 / self.zoom_y);
+        self.offset_y +=
+            (cursor_from_center_y / screen_height) * (1.0 / new_zoom_y - 1.0 / self.zoom_y);
         self.zoom_x = new_zoom_x;
         self.zoom_y = new_zoom_y;
 
@@ -700,8 +700,7 @@ mod tests {
         let height = 700.0;
         let x_px = width * 0.37;
         let y_px = height * 0.63;
-        let data_x_before =
-            (x_px - width / 2.0) / viewport.candle_spacing() - viewport.offset_x();
+        let data_x_before = (x_px - width / 2.0) / viewport.candle_spacing() - viewport.offset_x();
         let price_before = transforms::screen_y_to_price(
             y_px,
             height,
@@ -713,8 +712,7 @@ mod tests {
 
         assert!(viewport.zoom_to_at(2.2, 1.8, 0.37, 0.63, width, height));
 
-        let data_x_after =
-            (x_px - width / 2.0) / viewport.candle_spacing() - viewport.offset_x();
+        let data_x_after = (x_px - width / 2.0) / viewport.candle_spacing() - viewport.offset_x();
         let price_after = transforms::screen_y_to_price(
             y_px,
             height,
