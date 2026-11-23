@@ -125,7 +125,9 @@ mod tests {
 
         let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
         let time = TimePoint::new(0, 60_000, 60_000).unwrap();
-        state.add_data_point(ChartDataPoint::new(candle, time)).unwrap();
+        state
+            .add_data_point(ChartDataPoint::new(candle, time))
+            .unwrap();
 
         let after_insert = state.data_revision();
         assert_ne!(after_insert, initial_revision);
