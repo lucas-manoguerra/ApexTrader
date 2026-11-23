@@ -321,7 +321,11 @@ mod tests {
         assert_eq!(state.len(), 3);
         assert_eq!(state.time_scale().timestamps(), &[0, 60_000, 120_000]);
         assert_eq!(
-            state.data_points().iter().map(|point| point.logical_index).collect::<Vec<_>>(),
+            state
+                .data_points()
+                .iter()
+                .map(|point| point.logical_index)
+                .collect::<Vec<_>>(),
             vec![Some(0), Some(1), Some(2)]
         );
     }

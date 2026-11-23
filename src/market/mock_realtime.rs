@@ -7,8 +7,8 @@
 use crate::market::candle::MarketCandle;
 use crate::market::errors::MarketError;
 use crate::market::mock::{normal_noise, unit_noise};
-use crate::market::symbol::Symbol;
 use crate::market::provider::{RealtimeMarketDataProvider, RealtimeMarketUpdate};
+use crate::market::symbol::Symbol;
 
 /// Proveedor de realtime basado en ticks sintéticos.
 #[derive(Debug, Clone)]
@@ -74,7 +74,6 @@ impl MockRealtimeMarketDataProvider {
             tick_sequence: 0,
         })
     }
-
 }
 
 impl RealtimeMarketDataProvider for MockRealtimeMarketDataProvider {
@@ -92,9 +91,7 @@ impl RealtimeMarketDataProvider for MockRealtimeMarketDataProvider {
                 .next_open_time_ms
                 .checked_add(self.interval_ms)
                 .ok_or_else(|| {
-                    MarketError::InvalidResponse(
-                        "timestamp realtime fuera de rango".to_string(),
-                    )
+                    MarketError::InvalidResponse("timestamp realtime fuera de rango".to_string())
                 })?;
             self.current_candle = Some(MarketCandle {
                 symbol: self.symbol.clone(),
@@ -120,13 +117,12 @@ impl RealtimeMarketDataProvider for MockRealtimeMarketDataProvider {
             .current_candle
             .as_ref()
             .map(|candle| candle.close)
-            .ok_or_else(|| MarketError::InvalidResponse(
-                "no se pudo crear la vela activa realtime".to_string(),
-            ))?;
+            .ok_or_else(|| {
+                MarketError::InvalidResponse("no se pudo crear la vela activa realtime".to_string())
+            })?;
         let close = previous_price * tick_return.exp();
-        let wick_range = previous_price
-            * (0.000_025
-                + unit_noise(self.seed, tick_index, 0x9FB2_1C65_1E98_DF25) * 0.000_11);
+        let wick_range =
+            previous_price * (0.000_025 + unit_noise(self.seed, tick_index, 0x9FB2_1C65_1E98_DF25) * 0.000_11);
         let upper_wick =
             normal_noise(self.seed, tick_index, 0xC13F_A9A9_02A6_328F).abs() * wick_range;
         let lower_wick =
@@ -136,8 +132,10 @@ impl RealtimeMarketDataProvider for MockRealtimeMarketDataProvider {
         let movement_factor = 0.55 + (tick_return.abs() / 0.000_32).min(4.0) * 0.45;
         let activity = 0.55 + volume_noise * 0.8;
         let volume_spike = if volume_noise > 0.985 { 4.0 } else { 1.0 };
-        let volume_increment =
-            self.base_volume / self.ticks_per_candle as f64 * movement_factor * activity * volume_spike;
+        let volume_increment = self.base_volume / self.ticks_per_candle as f64
+            * movement_factor
+            * activity
+            * volume_spike;
 
         let candle = self.current_candle.as_mut().ok_or_else(|| {
             MarketError::InvalidResponse("no existe una vela realtime activa".to_string())
@@ -202,7 +200,9 @@ mod tests {
         let mut realtime = provider(2);
         let first = realtime.next_update().expect("primer tick");
         let closed = realtime.next_update().expect("tick de cierre");
-        let next = realtime.next_update().expect("primer tick de vela siguiente");
+        let next = realtime
+            .next_update()
+            .expect("primer tick de vela siguiente");
 
         assert!(!first.is_closed);
         assert!(closed.is_closed);
@@ -232,13 +232,8 @@ mod tests {
             .fetch_candles(Symbol::from_str("BTC/USDT").unwrap(), 0, 0)
             .unwrap();
         assert!(
-            MockRealtimeMarketDataProvider::from_last_candle(
-                history[0].clone(),
-                0,
-                35.0,
-                42,
-            )
-            .is_err()
+            MockRealtimeMarketDataProvider::from_last_candle(history[0].clone(), 0, 35.0, 42,)
+                .is_err()
         );
     }
 }

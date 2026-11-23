@@ -308,11 +308,11 @@ impl ApexTraderApp {
                                 } else {
                                     self.follow_latest_pending |= self.chart.len() > previous_count;
                                     if candle_closed {
-                                    tracing::debug!(
-                                        "Mock realtime cerró vela {} en {} ms",
-                                        update.candle.symbol,
-                                        update.candle.open_time_ms
-                                    );
+                                        tracing::debug!(
+                                            "Mock realtime cerró vela {} en {} ms",
+                                            update.candle.symbol,
+                                            update.candle.open_time_ms
+                                        );
                                     }
                                 }
                             }
@@ -326,7 +326,8 @@ impl ApexTraderApp {
             }
 
             ctx.request_repaint_after(
-                self.next_realtime_tick.saturating_duration_since(Instant::now()),
+                self.next_realtime_tick
+                    .saturating_duration_since(Instant::now()),
             );
         }
     }
@@ -410,9 +411,7 @@ pub fn run() -> eframe::Result {
                 .with_base_volume(MOCK_REALTIME_VOLUME);
             let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
             let to_ms = latest_closed_candle_open_time(MOCK_INTERVAL_MS);
-            let from_ms = to_ms.saturating_sub(
-                (MOCK_HISTORY_CANDLES - 1) * MOCK_INTERVAL_MS,
-            );
+            let from_ms = to_ms.saturating_sub((MOCK_HISTORY_CANDLES - 1) * MOCK_INTERVAL_MS);
 
             let load_state =
                 load_symbol_into_chart(&mut chart, &provider, symbol.clone(), from_ms, to_ms);
@@ -561,11 +560,15 @@ fn load_symbol_into_chart(
                     }
                     if let Some(range) = price_range_from_data_points(chart) {
                         let point_count = chart.len();
-                        chart.viewport_mut().auto_scale(range, point_count, 1920.0, 1080.0);
+                        chart
+                            .viewport_mut()
+                            .auto_scale(range, point_count, 1920.0, 1080.0);
                     }
                 }
                 Err(fallback_error) => {
-                    tracing::error!("También falló el histórico sintético de fallback: {fallback_error}");
+                    tracing::error!(
+                        "También falló el histórico sintético de fallback: {fallback_error}"
+                    );
                 }
             }
             tracing::info!(

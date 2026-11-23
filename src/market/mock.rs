@@ -91,8 +91,7 @@ impl MockMarketDataProvider {
         let medium_cycle = 0.012 * (x * 0.011 + phase * 1.7).sin();
         let short_cycle = 0.003_5 * (x * 0.071 + phase * 0.31).sin();
         let regime_cycle = 0.002_5 * (x * 0.001_9 + phase * 0.8).sin();
-        let volatility = 0.000_55
-            + 0.000_35 * (0.5 + 0.5 * (x * 0.002_3 + phase).sin());
+        let volatility = 0.000_55 + 0.000_35 * (0.5 + 0.5 * (x * 0.002_3 + phase).sin());
         let micro_noise = normal_noise(symbol_seed, index, RETURN_SALT) * volatility;
         self.base_price
             * (long_cycle + medium_cycle + short_cycle + regime_cycle + micro_noise).exp()
@@ -115,7 +114,9 @@ impl MockMarketDataProvider {
         let close = self.price_at(index, symbol_seed);
         let absolute_return = ((close / open).ln()).abs();
         let typical_range = open.max(close)
-            * (0.000_25 + 0.000_9 * (1.0 + (index as f64 * 0.001_7).sin()) + absolute_return * 0.35);
+            * (0.000_25
+                + 0.000_9 * (1.0 + (index as f64 * 0.001_7).sin())
+                + absolute_return * 0.35);
         let high = open.max(close)
             + normal_noise(symbol_seed, index, WICK_HIGH_SALT).abs() * typical_range;
         let low = (open.min(close)
@@ -215,9 +216,7 @@ pub(crate) fn mix64(mut value: u64) -> u64 {
 }
 
 pub(crate) fn unit_noise(seed: u64, index: i64, salt: u64) -> f64 {
-    let key = seed
-        ^ (index as u64).wrapping_mul(0xD6E8_FEB8_6659_FD93)
-        ^ salt;
+    let key = seed ^ (index as u64).wrapping_mul(0xD6E8_FEB8_6659_FD93) ^ salt;
     ((mix64(key) >> 11) as f64) * (1.0 / ((1_u64 << 53) as f64))
 }
 
@@ -305,8 +304,8 @@ mod tests {
         activity.sort_by(|left, right| left.0.total_cmp(&right.0));
 
         let quartile = activity.len() / 4;
-        let low_volume_mean = activity[..quartile].iter().map(|item| item.1).sum::<f64>()
-            / quartile as f64;
+        let low_volume_mean =
+            activity[..quartile].iter().map(|item| item.1).sum::<f64>() / quartile as f64;
         let high_volume_mean = activity[activity.len() - quartile..]
             .iter()
             .map(|item| item.1)

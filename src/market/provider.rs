@@ -32,7 +32,6 @@ pub trait MarketDataProvider: Send + Sync {
     ) -> Result<Vec<MarketCandle>, MarketError>;
 }
 
-
 /// Snapshot de una actualización recibida desde un stream realtime.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RealtimeMarketUpdate {
