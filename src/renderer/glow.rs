@@ -9,11 +9,20 @@ use rust_decimal::prelude::FromPrimitive;
 /// Renderizador de chart usando el Painter de egui (backend glow/OpenGL).
 ///
 /// Este es el renderer que funciona actualmente en tu GPU Intel UHD 630.
-pub struct GlowChartRenderer;
+pub struct GlowChartRenderer {
+    /// Shapes de velas y volumen calculadas en el último frame estructural.
+    /// egui exige volver a emitirlas en cada frame; por eso se reproducen
+    /// desde esta caché cuando solo cambia el crosshair.
+    cached_series_shapes: Vec<egui::Shape>,
+    series_cache_valid: bool,
+}
 
 impl GlowChartRenderer {
     pub fn new() -> Self {
-        Self
+        Self {
+            cached_series_shapes: Vec::new(),
+            series_cache_valid: false,
+        }
     }
 }
 
@@ -199,6 +208,8 @@ impl ChartRenderer for GlowChartRenderer {
         );
 
         if scene.data_points.is_empty() {
+            self.cached_series_shapes.clear();
+            self.series_cache_valid = true;
             tracing::trace!("No hay puntos para renderizar");
             return Ok(());
         }
@@ -266,51 +277,77 @@ impl ChartRenderer for GlowChartRenderer {
             (relative * screen_height) as f32
         };
 
-        for (i, point) in scene
-            .data_points
-            .iter()
-            .enumerate()
-            .skip(visible.first)
-            .take(visible.last - visible.first + 1)
-        {
-            let screen_x = scene.viewport.data_x_to_screen(i, drawing_width) + left;
-
-            let y_high = price_to_y(point.high());
-            let y_low = price_to_y(point.low());
-            let y_open = price_to_y(point.open());
-            let y_close = price_to_y(point.close());
-
-            let color = if point.close() >= point.open() {
-                egui::Color32::GREEN
-            } else {
-                egui::Color32::RED
-            };
-
-            painter.line_segment(
-                [
-                    egui::pos2(screen_x as f32, y_high),
-                    egui::pos2(screen_x as f32, y_low),
-                ],
-                egui::Stroke::new(1.0, color),
+        let rebuild_series = !self.series_cache_valid
+            || !matches!(
+                scene.invalidation_mask.level,
+                crate::renderer::InvalidationReason::None
+                    | crate::renderer::InvalidationReason::CursorOnly
             );
 
-            let body_height = (y_close - y_open).abs().max(2.0);
-            let body_y = y_open.min(y_close);
-            let body_rect = egui::Rect::from_min_size(
-                egui::pos2(screen_x as f32 - candle_width / 2.0, body_y),
-                egui::vec2(candle_width, body_height),
+        if rebuild_series {
+            self.cached_series_shapes.clear();
+            self.cached_series_shapes.reserve(
+                (visible.last - visible.first + 1).saturating_mul(3),
             );
 
-            painter.rect_filled(body_rect, 1.0, color);
+            for (i, point) in scene
+                .data_points
+                .iter()
+                .enumerate()
+                .skip(visible.first)
+                .take(visible.last - visible.first + 1)
+            {
+                let screen_x = scene.viewport.data_x_to_screen(i, drawing_width) + left;
 
-            let volume_height = volume_to_height(point.volume());
-            let volume_y = volumen_bottom - volume_height as f64;
-            let volume_rect = egui::Rect::from_min_size(
-                egui::pos2(screen_x as f32 - candle_width / 2.0, volume_y as f32),
-                egui::vec2(candle_width, volume_height.max(1.0)),
-            );
-            painter.rect_filled(volume_rect, 0.0, color);
+                let y_high = price_to_y(point.high());
+                let y_low = price_to_y(point.low());
+                let y_open = price_to_y(point.open());
+                let y_close = price_to_y(point.close());
+
+                let color = if point.close() >= point.open() {
+                    egui::Color32::GREEN
+                } else {
+                    egui::Color32::RED
+                };
+
+                self.cached_series_shapes.push(egui::Shape::line_segment(
+                    [
+                        egui::pos2(screen_x as f32, y_high),
+                        egui::pos2(screen_x as f32, y_low),
+                    ],
+                    egui::Stroke::new(1.0, color),
+                ));
+
+                let body_height = (y_close - y_open).abs().max(2.0);
+                let body_y = y_open.min(y_close);
+                let body_rect = egui::Rect::from_min_size(
+                    egui::pos2(screen_x as f32 - candle_width / 2.0, body_y),
+                    egui::vec2(candle_width, body_height),
+                );
+                self.cached_series_shapes.push(egui::Shape::rect_filled(
+                    body_rect,
+                    egui::CornerRadius::same(1),
+                    color,
+                ));
+
+                let volume_height = volume_to_height(point.volume());
+                let volume_y = volumen_bottom - volume_height as f64;
+                let volume_rect = egui::Rect::from_min_size(
+                    egui::pos2(screen_x as f32 - candle_width / 2.0, volume_y as f32),
+                    egui::vec2(candle_width, volume_height.max(1.0)),
+                );
+                self.cached_series_shapes.push(egui::Shape::rect_filled(
+                    volume_rect,
+                    egui::CornerRadius::ZERO,
+                    color,
+                ));
+            }
+            self.series_cache_valid = true;
         }
+
+        // egui limpia la lista de shapes en cada frame: reproducimos la caché
+        // para mantener visible la serie sin recalcular cada vela.
+        painter.extend(self.cached_series_shapes.iter().cloned());
 
         let font_id = egui::FontId::proportional(11.0);
         let left_f64 = left;
