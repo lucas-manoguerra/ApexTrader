@@ -2,7 +2,7 @@
 
 ## Regla inquebrantable: sin comentarios en el código (obligatorio)
 
-No se escriben comentarios en el código fuente. El código debe ser autodocumentado mediante:
+No se escriben comentarios en el código fuente. El código tiene que autodocumentarse mediante:
 
 - Nombres de tipos, funciones, variables, módulos y campos que expresen intención.
 - Estructura clara: un archivo, una responsabilidad; archivos pequeños y enfocados.
@@ -30,10 +30,10 @@ Excepciones permitidas (y solo estas):
 
 ## Errores
 
-- Usar `Result` y `Option` para hacer explícitos los errores y ausencias.
-- Evitar `unwrap()` y `expect()` en caminos de producción normales.
-- Evitar `panic!()` para errores recuperables.
-- Usar `thiserror` para errores tipados con contexto.
+- Usá `Result` y `Option` para hacer explícitos los errores y ausencias.
+- Evité `unwrap()` y `expect()` en caminos de producción normales.
+- Evité `panic!()` para errores recuperables.
+- Usá `thiserror` para errores tipados con contexto.
 
 ## `unsafe`
 
@@ -43,17 +43,17 @@ Excepciones permitidas (y solo estas):
 
 ## Concurrencia
 
-- No usar `Arc<Mutex<T>>` automáticamente para todo problema de concurrencia.
-- Preferir tipos que hagan imposibles los estados inválidos.
-- Medir contención antes de añadir locks.
+- No uses `Arc<Mutex<T>>` automáticamente para todo problema de concurrencia.
+- Preferí tipos que hagan imposibles los estados inválidos.
+- Medí la contención antes de agregar locks.
 
 ## APIs públicas
 
 - Pequeñas, explícitas y estables.
-- Documentar invariantes y comportamiento.
-- No exponer detalles internos de implementación.
+- Documentá invariantes y comportamiento.
+- No expongas detalles internos de implementación.
 
 ## Clonados
 
-- No clonar datos grandes sin entender el costo.
-- Preferir préstamos (`&T`) sobre copias cuando sea posible.
+- No clones datos grandes sin entender el costo.
+- Preferí préstamos (`&T`) sobre copias cuando sea posible.

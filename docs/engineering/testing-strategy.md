@@ -11,11 +11,11 @@
 
 ## Reglas
 
-- Cada funcionalidad importante debe tener pruebas adecuadas.
+- Cada funcionalidad importante tiene que tener pruebas adecuadas.
 - Cada test afirma todos los efectos observables de la regla (salida, código de salida, datos persistidos).
 - Los tests cubren los casos que la regla misma nombra.
 - Los tests pasan por la interfaz pública, no por detalles internos.
-- Antes de implementar una corrección, observar RED (test fallando), luego implementar hasta GREEN.
+- Antes de implementar una corrección, observá RED (test fallando), luego implementá hasta GREEN.
 
 ## Cuándo NO escribir tests
 
@@ -23,4 +23,4 @@
 - Runners no disponibles.
 - No hay un resultado esperado claro y determinista.
 
-En esos casos, se justifica por escrito y se usan chequeos funcionales o estructurales proporcionados.
+En esos casos, justificá por escrito y usá chequeos funcionales o estructurales proporcionados.

@@ -16,15 +16,15 @@
 
 ## Convenciones obligatorias
 
-- No `unwrap()` ni `expect()` en producción normal.
-- No `panic!()` para errores recuperables.
-- No `unsafe` sin justificación documentada.
+- No uses `unwrap()` ni `expect()` en producción normal.
+- No uses `panic!()` para errores recuperables.
+- No uses `unsafe` sin justificación documentada.
 - Tipos que impiden estados inválidos (por ejemplo, `Price` en lugar de `f64` crudo).
-- Documentar APIs públicas y sus invariantes.
+- Documentá APIs públicas y sus invariantes.
 
 ## Nota sobre `unsafe`
 
-No prohibimos `unsafe`. Puede ser necesario para interoperabilidad o ciertas optimizaciones. Pero debe estar encapsulado, justificado y probado.
+No prohibimos `unsafe`. Puede ser necesario para interoperabilidad o ciertas optimizaciones. Pero tiene que estar encapsulado, justificado y probado.
 
 ## Ejemplo: tipo que previene estados inválidos
 

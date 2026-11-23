@@ -11,7 +11,7 @@ Ejemplos:
 - `0.2.1`: corrección.
 - `1.0.0`: primera versión estable con contratos públicos definidos.
 
-Durante `0.x` se pueden cambiar APIs con mayor libertad, pero se documentan los cambios importantes.
+Durante `0.x` podés cambiar APIs con más libertad, pero documentá los cambios importantes.
 
 ## Qué mantener
 
@@ -23,10 +23,10 @@ Durante `0.x` se pueden cambiar APIs con mayor libertad, pero se documentan los 
 
 ## Cómo hacer un release
 
-1. Verificar que `main` está limpio y pasa todos los gates.
-2. Actualizar versión en `Cargo.toml`.
-3. Actualizar `CHANGELOG.md`.
-4. Crear commit `release: prepare vX.Y.Z`.
-5. Crear tag Git `vX.Y.Z`.
-6. Push del commit y el tag.
+1. Verificá que `main` está limpio y pasa todos los gates.
+2. Actualizá la versión en `Cargo.toml`.
+3. Actualizá `CHANGELOG.md`.
+4. Creá un commit `release: prepare vX.Y.Z`.
+5. Creá un tag Git `vX.Y.Z`.
+6. Pusheá el commit y el tag.
 7. GitHub Actions puede publicar automáticamente (opcional, por definir).

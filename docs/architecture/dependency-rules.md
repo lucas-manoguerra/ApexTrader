@@ -2,7 +2,7 @@
 
 ## Dirección de las dependencias
 
-Las dependencias de diseño apuntan hacia el dominio:
+Las dependencias apuntan hacia el dominio:
 
 ```
 Infraestructura → Aplicación → Dominio
@@ -28,9 +28,9 @@ Nunca al revés. El dominio no importa de infraestructura ni de aplicación.
 
 ## Cómo detectar acoplamiento indebido
 
-Si un módulo del dominio importa de `egui`, `wgpu`, `winit` o cualquier crate de infraestructura, hay un acoplamiento indebido que debe corregirse.
+Si un módulo del dominio importa de `egui`, `wgpu`, `winit` o cualquier crate de infraestructura, hay acoplamiento indebido y hay que corregirlo.
 
-Si un módulo de infraestructura importa de otro módulo de infraestructura de forma directa (sin pasar por dominio o aplicación), revisa si esa dependencia es realmente necesaria o si puede abstraerse mediante un trait en el dominio.
+Si un módulo de infraestructura importa de otro módulo de infraestructura directo (sin pasar por dominio o aplicación), revisá si esa dependencia es realmente necesaria o si podés abstraerla con un trait en el dominio.
 
 ## Verificación automática
 

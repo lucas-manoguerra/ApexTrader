@@ -36,6 +36,6 @@ build(deps): update egui dependency
 
 ## Reglas
 
-- Los commits deben ser pequeños, coherentes y representar una unidad lógica de trabajo.
+- Los commits tienen que ser pequeños, coherentes y representar una unidad lógica de trabajo.
 - Sin `Co-Authored-By` ni atribución de IA. Solo conventional commits.
 - El ámbito es opcional pero recomendado cuando el cambio toca un módulo claro.

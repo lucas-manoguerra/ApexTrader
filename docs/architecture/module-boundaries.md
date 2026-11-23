@@ -1,6 +1,6 @@
 # Límites de módulos
 
-Cada módulo tiene una responsabilidad principal y claramente identificable. Un módulo no debe asumir responsabilidades que pertenecen a otro.
+Cada módulo tiene UNA responsabilidad principal identificable. Un módulo NO debe hacerse cargo de responsabilidades que le pertenecen a otro.
 
 ## Módulos y responsabilidades
 
@@ -24,7 +24,7 @@ Una función del gráfico que:
 - Actualiza la interfaz.
 - Guarda datos en disco.
 
-Eso genera acoplamiento: modificar una funcionalidad puede romper otras cinco.
+Eso genera acoplamiento: tocar una cosa puede romper otras cinco.
 
 ## Cómo respetar los límites
 
@@ -35,7 +35,7 @@ Eso genera acoplamiento: modificar una funcionalidad puede romper otras cinco.
 
 ## Cuando un módulo crece demasiado
 
-Si un módulo empieza a asumir responsabilidades ajenas, se divide en dos módulos con límites claros, nunca se deja como un "módulo todo-en-uno".
+Si un módulo se empieza a hacer cargo de cosas ajenas, se divide en dos módulos con límites claros; nunca se deja como un "módulo todo-en-uno".
 
 ## Regla de dependencias
 
