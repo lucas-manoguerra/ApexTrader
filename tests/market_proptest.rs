@@ -131,22 +131,22 @@ fn test_carga_end_to_end_btc_usdt() {
     let result =
         LoadCandles::execute(&provider, symbol, 0, 300_000).expect("velas BTC/USDT cargadas");
 
-    assert!(!result.candles.is_empty());
+    assert!(!result.data_points.is_empty());
     assert_eq!(result.symbol.as_string(), "BTC/USDT");
 
     let mut chart = ChartState::new();
     chart
-        .add_candles(&result.candles)
-        .expect("velas agregadas al chart");
-    assert!(!chart.is_empty(), "el chart debe tener velas");
+        .add_data_points(&result.data_points)
+        .expect("puntos de datos agregados al chart");
+    assert!(!chart.is_empty(), "el chart debe tener puntos de datos");
 
-    // Calcular PriceRange de las velas cargadas y aplicar auto_scale.
-    let candles = chart.candles();
+    // Calcular PriceRange de los puntos de datos cargados y aplicar auto_scale.
+    let points = chart.data_points();
     let mut min_price = f64::INFINITY;
     let mut max_price = f64::NEG_INFINITY;
-    for c in candles {
-        min_price = min_price.min(c.low());
-        max_price = max_price.max(c.high());
+    for p in points {
+        min_price = min_price.min(p.low());
+        max_price = max_price.max(p.high());
     }
     let min = Price::new(Decimal::from_f64(min_price).unwrap()).unwrap();
     let max = Price::new(Decimal::from_f64(max_price).unwrap()).unwrap();
@@ -173,22 +173,26 @@ fn test_cambiar_simbolo_no_acumula_velas() {
 
     // Cargar símbolo 1.
     let result1 = LoadCandles::execute(&provider, symbol1, 0, 60_000).expect("velas BTC cargadas");
-    let count1 = result1.candles.len();
+    let count1 = result1.data_points.len();
     assert!(count1 > 0);
 
     let mut chart = ChartState::new();
-    chart.add_candles(&result1.candles).expect("BTC agregadas");
+    chart
+        .add_data_points(&result1.data_points)
+        .expect("BTC agregados");
     assert_eq!(chart.len(), count1);
 
     // Recargar símbolo 2: limpiar y agregar.
     chart.clear();
     let result2 = LoadCandles::execute(&provider, symbol2, 0, 60_000).expect("velas ETH cargadas");
-    chart.add_candles(&result2.candles).expect("ETH agregadas");
+    chart
+        .add_data_points(&result2.data_points)
+        .expect("ETH agregados");
 
-    assert_eq!(chart.len(), result2.candles.len());
+    assert_eq!(chart.len(), result2.data_points.len());
     assert_ne!(
         chart.len(),
-        count1 + result2.candles.len(),
-        "las velas del símbolo anterior no deben acumularse"
+        count1 + result2.data_points.len(),
+        "los puntos de datos del símbolo anterior no deben acumularse"
     );
 }
