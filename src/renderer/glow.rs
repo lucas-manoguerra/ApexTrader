@@ -286,9 +286,8 @@ impl ChartRenderer for GlowChartRenderer {
 
         if rebuild_series {
             self.cached_series_shapes.clear();
-            self.cached_series_shapes.reserve(
-                (visible.last - visible.first + 1).saturating_mul(3),
-            );
+            self.cached_series_shapes
+                .reserve((visible.last - visible.first + 1).saturating_mul(3));
 
             for (i, point) in scene
                 .data_points
