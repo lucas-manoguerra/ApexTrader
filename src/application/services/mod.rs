@@ -5,6 +5,7 @@
 //! estaba en `main.rs`.
 
 use crate::application::commands::load_candles::LoadCandles;
+use crate::chart::layout::ChartLayout;
 use crate::application::events::{self, InputHandler};
 use crate::domain::candle::Candle;
 use crate::domain::chart::chart_data::ChartDataPoint;
@@ -137,7 +138,10 @@ impl eframe::App for ApexTraderApp {
                 self.calculate_invalidation_mask(viewport, crosshair_pos, points.len(), available);
 
             // Calcular rango de precios y centro a partir de los puntos visibles.
-            let drawing_width = available.width() as f64;
+            let chart_layout =
+                ChartLayout::compute(available.width() as f64, available.height() as f64);
+            let drawing_width = chart_layout.plot_width();
+            let drawing_height = chart_layout.plot_height();
             let visible = viewport.visible_range(points.len(), drawing_width);
             let (price_range, center_price) = if visible.is_empty() {
                 (0.0, 0.0)
@@ -165,8 +169,8 @@ impl eframe::App for ApexTraderApp {
                 price_range,
                 center_price,
                 candle_count: points.len(),
-                screen_width: available.width() as f64,
-                screen_height: available.height() as f64,
+                screen_width: drawing_width,
+                screen_height: drawing_height,
                 crosshair_pos,
                 invalidation_mask: mask,
             };
