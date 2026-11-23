@@ -333,14 +333,16 @@ impl Viewport {
 
         // Convertir offset_x (índices de vela) a píxeles, aplicar zoom, volver a índices.
         let offset_x_px = self.offset_x * transforms::candle_spacing(self.zoom_x);
-        // offset_y está en unidades de precio; para convertir a píxeles usamos screen_height / zoom_y.
-        let offset_y_px = self.offset_y * screen_height / self.zoom_y;
+        // offset_y está en unidades de precio; para convertir a píxeles usamos
+        // screen_height * zoom_y, consistente con price_to_screen /
+        // screen_y_to_price (el price_range se cancela en la conversión).
+        let offset_y_px = self.offset_y * screen_height * self.zoom_y;
 
         let new_offset_x_px = center_x_px + (offset_x_px - center_x_px) * zoom_ratio_x;
         let new_offset_y_px = center_y_px + (offset_y_px - center_y_px) * zoom_ratio_y;
 
         self.offset_x = new_offset_x_px / transforms::candle_spacing(new_zoom_x);
-        self.offset_y = new_offset_y_px * new_zoom_y / screen_height;
+        self.offset_y = new_offset_y_px / (screen_height * new_zoom_y);
 
         self.zoom_x = new_zoom_x;
         self.zoom_y = new_zoom_y;
@@ -371,8 +373,12 @@ impl Viewport {
         // el contenido se mueve a la derecha, así que offset_x aumenta.
         // Convertir píxeles a índices de vela usando candle_spacing (eje X).
         self.offset_x += dx / self.candle_spacing();
-        // offset_y está en unidades de precio; usamos el factor de conversión del eje Y.
-        self.offset_y += dy * self.zoom_y / screen_height;
+        // offset_y está en unidades de precio; factor de conversión consistente con
+        // price_to_screen / screen_y_to_price: offset_y_px = offset_y * screen_height * zoom_y,
+        // así que dy píxeles = dy / (screen_height * zoom_y) unidades de precio.
+        // El pan se aplica inversamente: al arrastrar hacia abajo (dy > 0) el
+        // contenido baja y el precio en el centro desciende, por eso se resta.
+        self.offset_y -= dy / (screen_height * self.zoom_y);
 
         tracing::trace!(
             "Pan: offset=({:.2}, {:.2}), zoom=({:.2}, {:.2})",
@@ -616,7 +622,7 @@ impl Viewport {
         screen_width: f64,
     ) -> transforms::VisibleRange {
         if candle_count == 0 {
-            return transforms::VisibleRange { first: 1, last: 0 };
+            return transforms::VisibleRange::empty();
         }
 
         let spacing = self.candle_spacing();
@@ -632,7 +638,7 @@ impl Viewport {
             .min(candle_count as f64 - 1.0) as usize;
 
         if first > last {
-            return transforms::VisibleRange { first: 0, last: 0 };
+            return transforms::VisibleRange::empty();
         }
 
         transforms::VisibleRange {
