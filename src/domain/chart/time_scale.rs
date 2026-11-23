@@ -104,7 +104,12 @@ impl TimeScale {
         let after_last = self
             .timestamps_ms
             .partition_point(|time| *time <= end_time_ms);
-        (first < after_last).then_some(first..=after_last - 1)
+
+        if first < after_last {
+            Some(first..=after_last - 1)
+        } else {
+            None
+        }
     }
 
     /// Convierte un intervalo lógico (posiblemente fraccionario) a timestamps.
@@ -284,6 +289,9 @@ mod tests {
         assert_eq!(scale.indices_in_time_range(16, 46), Some(2..=4));
         assert_eq!(scale.time_range_to_logical_range(-10, 15), Some((0.0, 1.0)));
         assert_eq!(scale.indices_in_time_range(31, 44), None);
+        assert_eq!(scale.indices_in_time_range(-10, 5), None);
+        assert_eq!(scale.indices_in_time_range(61, 90), None);
+        assert_eq!(scale.indices_in_time_range(10, 10), Some(0..=0));
         assert_eq!(scale.time_range_to_logical_range(61, 90), None);
         assert_eq!(scale.time_range_to_logical_range(30, 20), None);
     }
