@@ -34,17 +34,59 @@ impl Default for ScrollOptions {
 /// Opciones de zoom temporal y de precios.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ScaleOptions {
-    /// Habilita el zoom temporal con la rueda vertical, anclado al cursor.
-    pub vertical_mouse_wheel: bool,
     /// Habilita el zoom de ambos ejes arrastrando con el botón derecho.
     pub secondary_mouse_drag: bool,
+    /// Habilita el zoom temporal con la rueda vertical, anclado al cursor.
+    pub vertical_mouse_wheel: bool,
+    /// Gestos directos de arrastre sobre los ejes.
+    pub axis_pressed_mouse_move: AxisPressedMouseMoveOptions,
+    /// Restablecimiento independiente de escalas mediante doble clic.
+    pub axis_double_click_reset: AxisDoubleClickResetOptions,
 }
 
 impl Default for ScaleOptions {
     fn default() -> Self {
         Self {
-            vertical_mouse_wheel: true,
             secondary_mouse_drag: true,
+            vertical_mouse_wheel: true,
+            axis_pressed_mouse_move: AxisPressedMouseMoveOptions::default(),
+            axis_double_click_reset: AxisDoubleClickResetOptions::default(),
+        }
+    }
+}
+
+/// Configura el arrastre directo de cada eje.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AxisPressedMouseMoveOptions {
+    /// Habilita el zoom temporal arrastrando verticalmente el eje inferior.
+    pub time: bool,
+    /// Habilita el zoom de precios arrastrando horizontalmente el eje lateral.
+    pub price: bool,
+}
+
+impl Default for AxisPressedMouseMoveOptions {
+    fn default() -> Self {
+        Self {
+            time: true,
+            price: true,
+        }
+    }
+}
+
+/// Configura el restablecimiento de escala mediante doble clic.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AxisDoubleClickResetOptions {
+    /// Ajusta el historial completo al área visible.
+    pub time: bool,
+    /// Restablece la escala vertical al nivel base y centra el rango visible.
+    pub price: bool,
+}
+
+impl Default for AxisDoubleClickResetOptions {
+    fn default() -> Self {
+        Self {
+            time: true,
+            price: true,
         }
     }
 }

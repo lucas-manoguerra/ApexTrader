@@ -6,8 +6,8 @@
 
 use crate::chart::interaction::controller::InteractionController;
 use crate::chart::interaction::events::{
-    InteractionEvent, Modifiers, PointerButton, PointerDownEvent, PointerDragEvent, PointerUpEvent,
-    ScrollEvent,
+    AxisDoubleClickEvent, AxisPointerDownEvent, InteractionEvent, Modifiers, PointerButton,
+    PointerDownEvent, PointerDragEvent, PointerUpEvent, ScaleAxis, ScrollEvent,
 };
 use crate::chart::interaction::options::InteractionOptions;
 use crate::chart::layout::ChartLayout;
@@ -113,20 +113,42 @@ pub fn handle_input(
         input_handler.crosshair_pos = Some(screen_point);
     }
 
-    // Capturar el inicio de pan o zoom antes del primer movimiento.
-    if response.drag_started_by(egui::PointerButton::Primary)
+    // El doble clic sobre un eje restablece exclusivamente esa escala.
+    if response.double_clicked_by(egui::PointerButton::Primary)
         && let Some(pos) = response.interact_pointer_pos()
-        && let Some((_, point)) = pointer_coordinates(pos, interaction_rect, &layout)
+        && let Some((axis, _)) = axis_pointer_coordinates(pos, interaction_rect, &layout)
     {
-        let event = InteractionEvent::PointerDown(PointerDownEvent {
-            button: PointerButton::Primary,
-            x: point.x,
-            y: point.y,
-            modifiers: Modifiers::default(),
-        });
+        let event = InteractionEvent::AxisDoubleClick(AxisDoubleClickEvent { axis });
         input_handler
             .controller
             .on_event(chart.viewport_mut(), candle_count, &event);
+    }
+
+    // Un arrastre iniciado sobre un eje escala ese eje; en el plot conserva
+    // el comportamiento anterior de pan con el botón principal.
+    if response.drag_started_by(egui::PointerButton::Primary)
+        && let Some(pos) = response.interact_pointer_pos()
+    {
+        if let Some((axis, point)) = axis_pointer_coordinates(pos, interaction_rect, &layout) {
+            let event = InteractionEvent::AxisPointerDown(AxisPointerDownEvent {
+                axis,
+                x: point.x,
+                y: point.y,
+            });
+            input_handler
+                .controller
+                .on_event(chart.viewport_mut(), candle_count, &event);
+        } else if let Some((_, point)) = pointer_coordinates(pos, interaction_rect, &layout) {
+            let event = InteractionEvent::PointerDown(PointerDownEvent {
+                button: PointerButton::Primary,
+                x: point.x,
+                y: point.y,
+                modifiers: Modifiers::default(),
+            });
+            input_handler
+                .controller
+                .on_event(chart.viewport_mut(), candle_count, &event);
+        }
     }
 
     if response.drag_started_by(egui::PointerButton::Secondary)
@@ -197,6 +219,30 @@ pub fn handle_input(
         .map(|(screen_point, _)| screen_point);
 }
 
+fn axis_pointer_coordinates(
+    pos: egui::Pos2,
+    interaction_rect: egui::Rect,
+    layout: &ChartLayout,
+) -> Option<(ScaleAxis, ChartPoint)> {
+    let x = (pos.x - interaction_rect.left()) as f64;
+    let y = (pos.y - interaction_rect.top()) as f64;
+    let inside = |rect: crate::chart::layout::Rect| {
+        x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+    };
+
+    let axis = if inside(layout.price_axis_left) || inside(layout.price_axis_right) {
+        ScaleAxis::Price
+    } else if inside(layout.time_axis) {
+        ScaleAxis::Time
+    } else {
+        return None;
+    };
+
+    let screen_point = ScreenPoint { x, y };
+    let chart_point = screen_to_chart_point(screen_point, layout.plot.left, layout.plot.top);
+    Some((axis, chart_point))
+}
+
 fn pointer_coordinates(
     pos: egui::Pos2,
     interaction_rect: egui::Rect,
@@ -263,6 +309,28 @@ mod tests {
         assert!((screen.y - (layout.plot.top + expected_y)).abs() < 1e-3);
         assert!((chart.x - expected_x).abs() < 1e-3);
         assert!((chart.y - expected_y).abs() < 1e-3);
+    }
+
+    #[test]
+    fn axis_pointer_coordinates_identify_time_and_price_regions() {
+        let rect = interaction_rect();
+        let layout = ChartLayout::compute(rect.width() as f64, rect.height() as f64);
+        let price_pos = egui::pos2(
+            rect.left() + (layout.price_axis_left.left + layout.price_axis_left.width() / 2.0) as f32,
+            rect.top() + (layout.price_axis_left.top + layout.price_axis_left.height() / 2.0) as f32,
+        );
+        let time_pos = egui::pos2(
+            rect.left() + (layout.time_axis.left + layout.time_axis.width() / 2.0) as f32,
+            rect.top() + (layout.time_axis.top + layout.time_axis.height() / 2.0) as f32,
+        );
+
+        let (price_axis, _) =
+            axis_pointer_coordinates(price_pos, rect, &layout).expect("el eje de precios debe detectarse");
+        let (time_axis, _) =
+            axis_pointer_coordinates(time_pos, rect, &layout).expect("el eje temporal debe detectarse");
+
+        assert_eq!(price_axis, ScaleAxis::Price);
+        assert_eq!(time_axis, ScaleAxis::Time);
     }
 
     #[test]

@@ -5,14 +5,14 @@
 //! única fuente de verdad para zoom y pan.
 
 use crate::chart::interaction::events::{
-    InteractionEvent, InteractionResult, PointerButton, PointerDownEvent, PointerDragEvent,
-    PointerMoveEvent, PointerUpEvent, ScrollEvent,
+    AxisDoubleClickEvent, AxisPointerDownEvent, InteractionEvent, InteractionResult, PointerButton,
+    PointerDownEvent, PointerDragEvent, PointerMoveEvent, PointerUpEvent, ScaleAxis, ScrollEvent,
 };
 use crate::chart::interaction::options::InteractionOptions;
 use crate::domain::viewport::Viewport;
 
 /// Estado de un gesto en curso. Las posiciones del puntero son absolutas
-/// dentro del área de plot, no deltas acumulados entre frames.
+/// en coordenadas relativas al plot, incluso cuando el inicio está sobre un eje.
 #[derive(Debug, Clone, Copy)]
 enum GestureState {
     Idle,
@@ -26,6 +26,16 @@ enum GestureState {
     },
     Zoom {
         button: PointerButton,
+        anchor_zoom_x: f64,
+        anchor_zoom_y: f64,
+        anchor_offset_x: f64,
+        anchor_offset_y: f64,
+        anchor_pointer_x: f64,
+        anchor_pointer_y: f64,
+    },
+    AxisScale {
+        button: PointerButton,
+        axis: ScaleAxis,
         anchor_zoom_x: f64,
         anchor_zoom_y: f64,
         anchor_offset_x: f64,
@@ -96,7 +106,7 @@ impl InteractionController {
         self.screen_height = height;
     }
 
-    /// Indica si hay un gesto de pan o zoom activo.
+    /// Indica si hay un gesto de pan o zoom activo, incluido el arrastre de ejes.
     pub fn is_gesture_active(&self) -> bool {
         !matches!(self.state, GestureState::Idle)
     }
@@ -111,6 +121,10 @@ impl InteractionController {
         match event {
             InteractionEvent::PointerMove(ev) => self.on_pointer_move(ev),
             InteractionEvent::PointerDown(ev) => self.on_pointer_down(viewport, ev),
+            InteractionEvent::AxisPointerDown(ev) => self.on_axis_pointer_down(viewport, ev),
+            InteractionEvent::AxisDoubleClick(ev) => {
+                self.on_axis_double_click(viewport, candle_count, ev)
+            }
             InteractionEvent::PointerUp(ev) => self.on_pointer_up(ev),
             InteractionEvent::PointerDrag(ev) => self.on_pointer_drag(viewport, candle_count, ev),
             InteractionEvent::Scroll(ev) => self.on_scroll(viewport, candle_count, ev),
@@ -163,10 +177,78 @@ impl InteractionController {
         InteractionResult::default()
     }
 
+    fn on_axis_pointer_down(
+        &mut self,
+        viewport: &Viewport,
+        ev: &AxisPointerDownEvent,
+    ) -> InteractionResult {
+        if !ev.x.is_finite() || !ev.y.is_finite() {
+            return InteractionResult::default();
+        }
+
+        let enabled = match ev.axis {
+            ScaleAxis::Time => self.options.scale.axis_pressed_mouse_move.time,
+            ScaleAxis::Price => self.options.scale.axis_pressed_mouse_move.price,
+        };
+        if !enabled {
+            return InteractionResult::default();
+        }
+
+        self.state = GestureState::AxisScale {
+            button: PointerButton::Primary,
+            axis: ev.axis,
+            anchor_zoom_x: viewport.zoom_x(),
+            anchor_zoom_y: viewport.zoom_y(),
+            anchor_offset_x: viewport.offset_x(),
+            anchor_offset_y: viewport.offset_y(),
+            anchor_pointer_x: ev.x,
+            anchor_pointer_y: ev.y,
+        };
+        InteractionResult::default()
+    }
+
+    fn on_axis_double_click(
+        &self,
+        viewport: &mut Viewport,
+        candle_count: usize,
+        ev: &AxisDoubleClickEvent,
+    ) -> InteractionResult {
+        let enabled = match ev.axis {
+            ScaleAxis::Time => self.options.scale.axis_double_click_reset.time,
+            ScaleAxis::Price => self.options.scale.axis_double_click_reset.price,
+        };
+        if !enabled || self.screen_width <= 0.0 || self.screen_height <= 0.0 {
+            return InteractionResult::default();
+        }
+
+        let mut next = *viewport;
+        match ev.axis {
+            ScaleAxis::Time => {
+                next.fit_content(candle_count, self.screen_width);
+            }
+            ScaleAxis::Price => {
+                next.set_zoom_y(1.0);
+                next.set_offset_y(0.0);
+            }
+        }
+
+        let changed = next != *viewport;
+        if changed {
+            *viewport = next;
+        }
+        InteractionResult {
+            viewport_changed: changed,
+            crosshair_changed: false,
+            crosshair_pos: None,
+        }
+    }
+
     fn on_pointer_up(&mut self, ev: &PointerUpEvent) -> InteractionResult {
         let active_button = match self.state {
             GestureState::Idle => None,
-            GestureState::Pan { button, .. } | GestureState::Zoom { button, .. } => Some(button),
+            GestureState::Pan { button, .. }
+            | GestureState::Zoom { button, .. }
+            | GestureState::AxisScale { button, .. } => Some(button),
         };
 
         if active_button == Some(ev.button) {
@@ -282,6 +364,75 @@ impl InteractionController {
                     crosshair_pos: Some((ev.x, ev.y)),
                 }
             }
+            GestureState::AxisScale {
+                axis,
+                anchor_zoom_x,
+                anchor_zoom_y,
+                anchor_offset_x,
+                anchor_offset_y,
+                anchor_pointer_x,
+                anchor_pointer_y,
+                ..
+            } => {
+                if self.screen_width <= 0.0
+                    || self.screen_height <= 0.0
+                    || anchor_zoom_x <= 0.0
+                    || anchor_zoom_y <= 0.0
+                {
+                    return InteractionResult::default();
+                }
+
+                let (delta, center_x, center_y) = match axis {
+                    ScaleAxis::Time => (
+                        ev.y - anchor_pointer_y,
+                        anchor_pointer_x / self.screen_width,
+                        0.5,
+                    ),
+                    ScaleAxis::Price => (
+                        ev.x - anchor_pointer_x,
+                        0.5,
+                        anchor_pointer_y / self.screen_height,
+                    ),
+                };
+                let base = 1.0 + viewport.zoom_step();
+                let factor = base.powf(-delta / 40.0);
+                if !base.is_finite() || base <= 0.0 || !factor.is_finite() || factor <= 0.0 {
+                    return InteractionResult::default();
+                }
+
+                let (zoom_x, zoom_y) = match axis {
+                    ScaleAxis::Time => (anchor_zoom_x * factor, anchor_zoom_y),
+                    ScaleAxis::Price => (anchor_zoom_x, anchor_zoom_y * factor),
+                };
+
+                let mut next = *viewport;
+                next.set_zoom(anchor_zoom_x, anchor_zoom_y);
+                next.set_offset_x(anchor_offset_x);
+                next.set_offset_y(anchor_offset_y);
+                next.zoom_to_at(
+                    zoom_x,
+                    zoom_y,
+                    center_x,
+                    center_y,
+                    self.screen_width,
+                    self.screen_height,
+                );
+
+                if matches!(axis, ScaleAxis::Time) {
+                    next.clamp_zoom_to_candles(candle_count, self.screen_width);
+                    next.clamp_pan_to_candles(candle_count, self.screen_width);
+                }
+
+                let changed = next != *viewport;
+                if changed {
+                    *viewport = next;
+                }
+                InteractionResult {
+                    viewport_changed: changed,
+                    crosshair_changed: true,
+                    crosshair_pos: Some((ev.x, ev.y)),
+                }
+            }
         }
     }
 
@@ -378,8 +529,8 @@ fn valid_dimension(value: f64) -> f64 {
 mod tests {
     use super::*;
     use crate::chart::interaction::events::{
-        InteractionEvent, Modifiers, PointerDownEvent, PointerDragEvent, PointerUpEvent,
-        ScrollEvent,
+        AxisDoubleClickEvent, AxisPointerDownEvent, InteractionEvent, Modifiers, PointerDownEvent,
+        PointerDragEvent, PointerUpEvent, ScaleAxis, ScrollEvent,
     };
     use crate::domain::transforms;
 
@@ -502,6 +653,7 @@ mod tests {
                 scale: crate::chart::interaction::options::ScaleOptions {
                     vertical_mouse_wheel: true,
                     secondary_mouse_drag: true,
+                    ..crate::chart::interaction::options::ScaleOptions::default()
                 },
             },
         );
@@ -606,6 +758,167 @@ mod tests {
         assert!(!controller.is_gesture_active());
         controller.on_event(&mut viewport, 100, &pointer_drag(150.0, 100.0));
         assert_eq!(viewport.offset_x(), 0.0);
+    }
+
+
+    #[test]
+    fn time_axis_drag_zooms_horizontally_around_the_anchor() {
+        let mut viewport = make_viewport();
+        viewport.fit_content(100, 1_000.0);
+        viewport.set_zoom_y(3.0);
+        viewport.set_offset_y(-0.25);
+        let mut controller = InteractionController::new(1_000.0, 600.0);
+        let anchor_x = 320.0;
+        let logical_before = viewport.screen_to_logical(anchor_x, 1_000.0);
+        let zoom_x_before = viewport.zoom_x();
+        let zoom_y_before = viewport.zoom_y();
+        let offset_y_before = viewport.offset_y();
+
+        controller.on_event(
+            &mut viewport,
+            100,
+            &InteractionEvent::AxisPointerDown(AxisPointerDownEvent {
+                axis: ScaleAxis::Time,
+                x: anchor_x,
+                y: 610.0,
+            }),
+        );
+        let result = controller.on_event(
+            &mut viewport,
+            100,
+            &pointer_drag(anchor_x, 570.0),
+        );
+
+        assert!(result.viewport_changed);
+        assert!(viewport.zoom_x() > zoom_x_before);
+        assert_eq!(viewport.zoom_y(), zoom_y_before);
+        assert_eq!(viewport.offset_y(), offset_y_before);
+        assert!(
+            (viewport.screen_to_logical(anchor_x, 1_000.0) - logical_before).abs() < 1e-9,
+            "el arrastre temporal debe conservar la coordenada lógica anclada"
+        );
+    }
+
+    #[test]
+    fn price_axis_drag_zooms_vertically_without_changing_time_scale() {
+        let mut viewport = make_viewport();
+        viewport.set_zoom_y(2.0);
+        viewport.set_offset_y(-0.35);
+        let mut controller = InteractionController::new(1_000.0, 600.0);
+        let anchor_x = -30.0;
+        let anchor_y = 210.0;
+        let zoom_x_before = viewport.zoom_x();
+        let offset_x_before = viewport.offset_x();
+        let scaled_price_before =
+            (300.0 - anchor_y) / (600.0 * viewport.zoom_y()) + viewport.offset_y();
+
+        controller.on_event(
+            &mut viewport,
+            100,
+            &InteractionEvent::AxisPointerDown(AxisPointerDownEvent {
+                axis: ScaleAxis::Price,
+                x: anchor_x,
+                y: anchor_y,
+            }),
+        );
+        let result = controller.on_event(
+            &mut viewport,
+            100,
+            &pointer_drag(anchor_x - 40.0, anchor_y),
+        );
+        let scaled_price_after =
+            (300.0 - anchor_y) / (600.0 * viewport.zoom_y()) + viewport.offset_y();
+
+        assert!(result.viewport_changed);
+        assert!(viewport.zoom_y() > 2.0);
+        assert_eq!(viewport.zoom_x(), zoom_x_before);
+        assert_eq!(viewport.offset_x(), offset_x_before);
+        assert!((scaled_price_after - scaled_price_before).abs() < 1e-9);
+    }
+
+    #[test]
+    fn time_axis_double_click_fits_history_and_preserves_price_scale() {
+        let mut viewport = make_viewport();
+        viewport.set_zoom(2.0, 3.0);
+        viewport.set_offset_x(-8.0);
+        viewport.set_offset_y(0.4);
+        let mut controller = InteractionController::new(1_000.0, 600.0);
+        let zoom_y_before = viewport.zoom_y();
+        let offset_y_before = viewport.offset_y();
+
+        let result = controller.on_event(
+            &mut viewport,
+            50,
+            &InteractionEvent::AxisDoubleClick(AxisDoubleClickEvent {
+                axis: ScaleAxis::Time,
+            }),
+        );
+
+        assert!(result.viewport_changed);
+        assert_eq!(viewport.zoom_y(), zoom_y_before);
+        assert_eq!(viewport.offset_y(), offset_y_before);
+        assert!((viewport.logical_to_screen(0.0, 1_000.0) - 50.0).abs() < 1e-8);
+        assert!((viewport.logical_to_screen(49.0, 1_000.0) - 950.0).abs() < 1e-8);
+    }
+
+    #[test]
+    fn price_axis_double_click_resets_only_vertical_scale() {
+        let mut viewport = make_viewport();
+        viewport.set_zoom(2.5, 3.5);
+        viewport.set_offset_x(-12.0);
+        viewport.set_offset_y(0.75);
+        let mut controller = InteractionController::new(1_000.0, 600.0);
+        let zoom_x_before = viewport.zoom_x();
+        let offset_x_before = viewport.offset_x();
+
+        let result = controller.on_event(
+            &mut viewport,
+            50,
+            &InteractionEvent::AxisDoubleClick(AxisDoubleClickEvent {
+                axis: ScaleAxis::Price,
+            }),
+        );
+
+        assert!(result.viewport_changed);
+        assert_eq!(viewport.zoom_x(), zoom_x_before);
+        assert_eq!(viewport.offset_x(), offset_x_before);
+        assert_eq!(viewport.zoom_y(), 1.0);
+        assert_eq!(viewport.offset_y(), 0.0);
+    }
+
+    #[test]
+    fn axis_interaction_options_are_independent() {
+        let mut viewport = make_viewport();
+        let initial = viewport;
+        let mut options = InteractionOptions::default();
+        options.scale.axis_pressed_mouse_move.time = false;
+        options.scale.axis_double_click_reset.price = false;
+        let mut controller = InteractionController::with_options(1_000.0, 600.0, options);
+
+        controller.on_event(
+            &mut viewport,
+            50,
+            &InteractionEvent::AxisPointerDown(AxisPointerDownEvent {
+                axis: ScaleAxis::Time,
+                x: 400.0,
+                y: 610.0,
+            }),
+        );
+        assert!(!controller.is_gesture_active());
+        controller.on_event(&mut viewport, 50, &pointer_drag(400.0, 570.0));
+        assert_eq!(viewport, initial);
+
+        viewport.set_zoom_y(3.0);
+        viewport.set_offset_y(0.5);
+        let before_disabled_reset = viewport;
+        controller.on_event(
+            &mut viewport,
+            50,
+            &InteractionEvent::AxisDoubleClick(AxisDoubleClickEvent {
+                axis: ScaleAxis::Price,
+            }),
+        );
+        assert_eq!(viewport, before_disabled_reset);
     }
 
     #[test]
