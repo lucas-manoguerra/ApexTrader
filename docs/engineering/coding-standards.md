@@ -1,5 +1,19 @@
 # Estándares de código
 
+## Regla inquebrantable: sin comentarios en el código (obligatorio)
+
+No se escriben comentarios en el código fuente. El código debe ser autodocumentado mediante:
+
+- Nombres de tipos, funciones, variables, módulos y campos que expresen intención.
+- Estructura clara: un archivo, una responsabilidad; archivos pequeños y enfocados.
+- Tests que pinchen el comportamiento observable (documentan el contrato por ejemplo).
+- Tipos que hagan imposibles los estados inválidos (ej. `Price` en lugar de `f64` crudo).
+
+Excepciones permitidas (y solo estas):
+
+- Documentación de APIs públicas (`///` en items públicos) que describa el contrato, no la implementación.
+- Justificación de `unsafe` requerida por el guardrail de `unsafe`.
+
 ## Principios generales
 
 - Un archivo, una responsabilidad.
