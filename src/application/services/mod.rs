@@ -16,7 +16,7 @@ use crate::logging::init as init_logging;
 use crate::market::mock::MockMarketDataProvider;
 use crate::market::provider::MarketDataProvider;
 use crate::market::symbol::Symbol;
-use crate::renderer::{ChartRenderer, create_renderer};
+use crate::renderer::{ChartRenderer, ChartScene, create_renderer};
 use eframe::egui;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
@@ -113,12 +113,43 @@ impl eframe::App for ApexTraderApp {
             };
 
             let viewport = self.chart.viewport();
-
             let points = self.chart.data_points();
-            if let Err(e) = self
-                .renderer
-                .draw(painter, available, points, viewport, crosshair_pos)
-            {
+
+            // Calcular rango de precios y centro a partir de los puntos visibles.
+            let drawing_width = available.width() as f64;
+            let visible = viewport.visible_range(points.len(), drawing_width);
+            let (price_range, center_price) = if visible.is_empty() {
+                (0.0, 0.0)
+            } else {
+                let visible_points = &points[visible.first..=visible.last];
+                let min_price = visible_points
+                    .iter()
+                    .map(|p| p.low())
+                    .fold(f64::INFINITY, f64::min);
+                let max_price = visible_points
+                    .iter()
+                    .map(|p| p.high())
+                    .fold(f64::NEG_INFINITY, f64::max);
+                let mut pr = max_price - min_price;
+                if pr == 0.0 {
+                    pr = 1.0;
+                }
+                let cp = (min_price + max_price) / 2.0;
+                (pr, cp)
+            };
+
+            let scene = ChartScene {
+                data_points: points.to_vec(),
+                viewport: *viewport,
+                price_range,
+                center_price,
+                candle_count: points.len(),
+                screen_width: available.width() as f64,
+                screen_height: available.height() as f64,
+                crosshair_pos,
+            };
+
+            if let Err(e) = self.renderer.draw(painter, available, &scene) {
                 tracing::error!("Error renderizando chart: {}", e);
                 ui.colored_label(egui::Color32::RED, format!("Error: {}", e));
             }

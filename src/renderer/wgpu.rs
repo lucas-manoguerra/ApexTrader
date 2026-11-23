@@ -1,8 +1,5 @@
-use crate::domain::chart::chart_data::ChartDataPoint;
-use crate::domain::transforms::ScreenPoint;
-use crate::domain::viewport::Viewport;
 use crate::errors::RendererError;
-use crate::renderer::ChartRenderer;
+use crate::renderer::{ChartRenderer, ChartScene};
 use eframe::egui;
 use tracing::{info, warn};
 
@@ -125,9 +122,7 @@ impl ChartRenderer for WgpuChartRenderer {
         &mut self,
         _painter: &egui::Painter,
         _rect: egui::Rect,
-        _points: &[ChartDataPoint],
-        _viewport: &Viewport,
-        _crosshair_pos: Option<ScreenPoint>,
+        _scene: &ChartScene,
     ) -> Result<(), RendererError> {
         // wgpu no puede dibujar sin surface ni pipeline. Retorna Err para que
         // el caller use glow como fallback.

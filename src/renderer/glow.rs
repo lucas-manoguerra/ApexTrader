@@ -1,9 +1,8 @@
 use crate::chart::layout::ChartLayout;
-use crate::domain::chart::chart_data::ChartDataPoint;
-use crate::domain::transforms::{self, ScreenPoint, screen_to_chart_point};
+use crate::domain::transforms::{self, screen_to_chart_point};
 use crate::domain::viewport::Viewport;
 use crate::errors::RendererError;
-use crate::renderer::ChartRenderer;
+use crate::renderer::{ChartRenderer, ChartScene};
 use eframe::egui;
 use rust_decimal::prelude::FromPrimitive;
 
@@ -144,7 +143,7 @@ fn draw_time_axis(
     left: f64,
     right: f64,
     bottom: f64,
-    viewport: &crate::domain::viewport::Viewport,
+    viewport: &Viewport,
     candles_count: usize,
     font_id: egui::FontId,
 ) {
@@ -184,9 +183,7 @@ impl ChartRenderer for GlowChartRenderer {
         &mut self,
         painter: &egui::Painter,
         rect: egui::Rect,
-        points: &[ChartDataPoint],
-        viewport: &Viewport,
-        crosshair_pos: Option<ScreenPoint>,
+        scene: &ChartScene,
     ) -> Result<(), RendererError> {
         if rect.width() <= 0.0 || rect.height() <= 0.0 {
             tracing::warn!("Rectángulo de dibujo vacío, no se puede renderizar");
@@ -195,13 +192,13 @@ impl ChartRenderer for GlowChartRenderer {
 
         tracing::debug!(
             "Renderizando {} puntos con glow en rect {:?} (zoom_x={:.2}, zoom_y={:.2})",
-            points.len(),
+            scene.data_points.len(),
             rect,
-            viewport.zoom_x(),
-            viewport.zoom_y()
+            scene.viewport.zoom_x(),
+            scene.viewport.zoom_y()
         );
 
-        if points.is_empty() {
+        if scene.data_points.is_empty() {
             tracing::trace!("No hay puntos para renderizar");
             return Ok(());
         }
@@ -223,14 +220,16 @@ impl ChartRenderer for GlowChartRenderer {
         let volumen_bottom = layout.volume_panel.bottom + oy;
 
         let drawing_width = right - left;
-        let visible = viewport.visible_range(points.len(), drawing_width);
+        let visible = scene
+            .viewport
+            .visible_range(scene.candle_count, drawing_width);
 
         if visible.is_empty() {
             tracing::trace!("No hay puntos visibles en el viewport");
             return Ok(());
         }
 
-        let visible_points = &points[visible.first..=visible.last];
+        let visible_points = &scene.data_points[visible.first..=visible.last];
         let min_price = visible_points
             .iter()
             .map(|p| p.low())
@@ -263,15 +262,15 @@ impl ChartRenderer for GlowChartRenderer {
             visible.last
         );
 
-        let candle_width = transforms::candle_body_width(viewport.zoom_x()) as f32;
+        let candle_width = transforms::candle_body_width(scene.viewport.zoom_x()) as f32;
         let candle_width = candle_width.clamp(4.0, 40.0);
         let _spacing = candle_width * 0.4;
 
         let price_to_y = |price: f64| -> f32 {
             let bottom = bottom_precios;
             let screen_height = bottom - top;
-            let pixels_per_unit = screen_height / price_range * viewport.zoom_y();
-            let relative_price = price - center_price - viewport.offset_y() * price_range;
+            let pixels_per_unit = screen_height / price_range * scene.viewport.zoom_y();
+            let relative_price = price - center_price - scene.viewport.offset_y() * price_range;
             (bottom - relative_price * pixels_per_unit) as f32
         };
 
@@ -284,13 +283,13 @@ impl ChartRenderer for GlowChartRenderer {
             (relative * screen_height) as f32
         };
 
-        for (i, point) in points
+        for (i, point) in scene.data_points
             .iter()
             .enumerate()
             .skip(visible.first)
             .take(visible.last - visible.first + 1)
         {
-            let screen_x = viewport.data_x_to_screen(i, drawing_width) + left;
+            let screen_x = scene.viewport.data_x_to_screen(i, drawing_width) + left;
 
             let y_high = price_to_y(point.high());
             let y_low = price_to_y(point.low());
@@ -330,7 +329,6 @@ impl ChartRenderer for GlowChartRenderer {
         }
 
         let font_id = egui::FontId::proportional(11.0);
-        let n = points.len();
         let left_f64 = left;
         let right_f64 = right;
         let top_f64 = top;
@@ -342,9 +340,9 @@ impl ChartRenderer for GlowChartRenderer {
             bottom_precios,
             PriceAxisParams {
                 center_price,
-                offset_y: viewport.offset_y(),
+                offset_y: scene.viewport.offset_y(),
                 price_range,
-                zoom_y: viewport.zoom_y(),
+                zoom_y: scene.viewport.zoom_y(),
             },
             font_id.clone(),
         );
@@ -356,7 +354,7 @@ impl ChartRenderer for GlowChartRenderer {
             volumen_bottom,
             VolumeAxisParams {
                 max_volume,
-                zoom_y: viewport.zoom_y(),
+                zoom_y: scene.viewport.zoom_y(),
             },
             font_id.clone(),
         );
@@ -366,12 +364,12 @@ impl ChartRenderer for GlowChartRenderer {
             left_f64,
             right_f64,
             bottom_precios,
-            viewport,
-            n,
+            &scene.viewport,
+            scene.candle_count,
             font_id,
         );
 
-        if let Some(crosshair) = crosshair_pos {
+        if let Some(crosshair) = scene.crosshair_pos {
             let left_f64 = left;
             let right_f64 = right;
             let top_f64 = top;
@@ -409,12 +407,13 @@ impl ChartRenderer for GlowChartRenderer {
                     chart_point.y,
                     screen_height_drawing,
                     price_range,
-                    viewport.zoom_y(),
-                    viewport.offset_y(),
+                    scene.viewport.zoom_y(),
+                    scene.viewport.offset_y(),
                     center_price,
                 );
-                let index_at_cursor =
-                    viewport.screen_x_to_data(chart_point.x, screen_width_drawing, points.len());
+                let index_at_cursor = scene
+                    .viewport
+                    .screen_x_to_data(chart_point.x, screen_width_drawing, scene.candle_count);
 
                 let price_label = format!("{:.2}", price_at_cursor);
                 painter.text(
