@@ -236,10 +236,8 @@ impl ChartRenderer for GlowChartRenderer {
         let max_volume = scene.max_volume;
 
         tracing::trace!(
-            "Rango de precios (visible): min={:.2}, max={:.2}, range={:.2}, center={:.2}, \
+            "Rango de precios (visible): range={:.2}, center={:.2}, \
              max_volumen={:.2}, velas={}..={}",
-            min_price,
-            max_price,
             price_range,
             center_price,
             max_volume,
