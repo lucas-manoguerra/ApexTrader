@@ -159,7 +159,12 @@ impl eframe::App for ApexTraderApp {
                     },
                 );
 
-                let price_range = (max_price - min_price).max(1.0);
+                let raw_price_range = max_price - min_price;
+                let price_range = if raw_price_range == 0.0 {
+                    1.0
+                } else {
+                    raw_price_range
+                };
                 let center_price = (min_price + max_price) / 2.0;
                 (price_range, center_price, max_volume)
             };
