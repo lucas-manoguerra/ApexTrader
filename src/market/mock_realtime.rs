@@ -109,7 +109,7 @@ impl RealtimeMarketDataProvider for MockRealtimeMarketDataProvider {
         self.tick_sequence = self.tick_sequence.wrapping_add(1);
         self.current_tick += 1;
 
-        let tick_index = self.tick_sequence as i64;
+        let tick_index = self.tick_sequence;
         let shock = normal_noise(self.seed, tick_index, 0xA24B_AED4_963E_E407);
         let drift = 0.000_015 + (tick_index as f64 * 0.17).sin() * 0.000_025;
         let tick_return = drift + shock * 0.000_32;
