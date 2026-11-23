@@ -93,6 +93,61 @@ impl ChartState {
         &self.time_scale
     }
 
+    /// Centra el viewport en un timestamp del historial.
+    ///
+    /// Acepta timestamps situados entre dos velas y utiliza la interpolación
+    /// de `TimeScale`. Devuelve `false` cuando el timestamp está fuera del
+    /// historial o no hay datos.
+    pub fn center_on_time(&mut self, timestamp_ms: i64) -> bool {
+        let Some(logical_index) = self.time_scale.time_to_logical(timestamp_ms) else {
+            return false;
+        };
+
+        self.viewport.center_on_logical(logical_index)
+    }
+
+    /// Ajusta el viewport para mostrar un intervalo temporal inclusivo.
+    ///
+    /// Los extremos se recortan a los límites del historial disponible.
+    /// `screen_width` debe ser el ancho del área de plot, no el ancho total
+    /// del widget. Devuelve `false` si el intervalo no intersecta el historial
+    /// o las dimensiones no son válidas.
+    pub fn fit_time_range(
+        &mut self,
+        start_time_ms: i64,
+        end_time_ms: i64,
+        screen_width: f64,
+    ) -> bool {
+        let Some((first, last)) = self
+            .time_scale
+            .time_range_to_logical_range(start_time_ms, end_time_ms)
+        else {
+            return false;
+        };
+
+        self.viewport.fit_logical_range(first, last, screen_width)
+    }
+
+    /// Devuelve los timestamps de la primera y última vela visibles.
+    ///
+    /// El rango se calcula con el mismo `Viewport::visible_range` que utiliza
+    /// el renderer, evitando una segunda fórmula para la navegación temporal.
+    pub fn visible_time_range(&self, screen_width: f64) -> Option<(i64, i64)> {
+        if !screen_width.is_finite() || screen_width <= 0.0 {
+            return None;
+        }
+
+        let visible = self
+            .viewport
+            .visible_range(self.time_scale.len(), screen_width);
+        if visible.is_empty() {
+            return None;
+        }
+
+        self.time_scale
+            .logical_range_to_time_range(visible.first as f64, visible.last as f64)
+    }
+
     /// Reconstruye los índices lógicos después de cambiar los datos.
     fn rebuild_time_scale(&mut self) {
         self.data_points
@@ -223,6 +278,50 @@ mod tests {
             vec![Some(0), Some(1), Some(2)]
         );
         assert_eq!(state.time_scale().len(), 3);
+    }
+
+    fn chart_with_irregular_times() -> ChartState {
+        let mut state = ChartState::new();
+        let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
+        let points = [
+            ChartDataPoint::new(candle, TimePoint::new(0, 60_000, 60_000).unwrap()),
+            ChartDataPoint::new(
+                candle,
+                TimePoint::new(60_000, 120_000, 60_000).unwrap(),
+            ),
+            ChartDataPoint::new(
+                candle,
+                TimePoint::new(3_600_000, 3_660_000, 60_000).unwrap(),
+            ),
+            ChartDataPoint::new(
+                candle,
+                TimePoint::new(3_660_000, 3_720_000, 60_000).unwrap(),
+            ),
+        ];
+        state.add_data_points(&points).unwrap();
+        state
+    }
+
+    #[test]
+    fn chart_state_navigates_to_interpolated_historical_time() {
+        let mut state = chart_with_irregular_times();
+
+        assert!(state.center_on_time(1_830_000));
+        assert!((state.viewport().screen_to_logical(250.0, 500.0) - 1.5).abs() < 1e-10);
+        assert!(!state.center_on_time(-1));
+        assert!(!state.center_on_time(3_720_001));
+    }
+
+    #[test]
+    fn chart_state_fits_and_reports_visible_time_range() {
+        let mut state = chart_with_irregular_times();
+
+        assert!(state.fit_time_range(0, 3_660_000, 500.0));
+        let visible = state.visible_time_range(500.0);
+        assert_eq!(visible, Some((0, 3_660_000)));
+        assert_eq!(state.visible_time_range(f64::NAN), None);
+        assert!(!state.fit_time_range(3_720_001, 4_000_000, 500.0));
+        assert!(!state.fit_time_range(3_660_000, 0, 500.0));
     }
 
     #[test]
