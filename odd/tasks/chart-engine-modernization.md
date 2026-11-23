@@ -50,7 +50,7 @@ S13: `Price` uses `Decimal`, while `Candle` stores `f64`. "Lo importante es que 
 | T8 | S2, S12 | inline | done | 3fb7672 |
 | T9 | S3, S12 | inline | done | c9f3ae5 |
 | T10 | S3, S9, S12 | inline | done | fa71a69 |
-| T11 | S9, S12 | inline | pending | — |
+| T11 | S9, S12 | inline | done | cdf9c6d |
 | T12 | S11 | inline | pending | — |
 | T13 | S3, S12 | writer | pending | — |
 | T14 | S3, S8, S12 | inline | pending | — |
@@ -94,4 +94,13 @@ L8: Tests actualizados (2019fd9): architecture.rs usa ChartDataPoint; coordinate
 
 L9: Assets (4b05272): capturas de referencia de pantalla.
 
-L9: Todos los tests pasan (110 tests, 0 failures). T1-T10 completos. Siguiente: T11 (consolidación de escalas), T12 (wgpu aislado), T13-T16 pendientes.
+L10: Todos los tests pasan (110 tests, 0 failures). T1-T10 completos.
+
+L11: Commits T11 (bfc5d7c, f86ced4, 3a3d86a, 98ae57a, cdf9c6d): consolidación de modelos de escala duplicados.
+- Viewport (domain/viewport.rs) es el único dueño del estado de escala: zoom_x, zoom_y, offset_x, offset_y, min_zoom, max_zoom.
+- Se eliminó chart/scale.rs con ChartScales/TimeScale/PriceScale (duplicaban el estado de Viewport).
+- Tests de independencia de ejes y clamping de zoom movidos a domain::viewport::tests.
+- Documentación de ownership agregada en viewport.rs (sección ## Ownership) y chart/mod.rs.
+- Comentarios de doc actualizados en viewport.rs, chart/mod.rs, chart_data.rs y market/candle.rs que referenciaban TimeScale/PriceScale como tipos separados.
+
+Siguiente: T12 (wgpu aislado como experimental), T13-T16 pendientes.
