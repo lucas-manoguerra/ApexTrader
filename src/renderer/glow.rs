@@ -163,7 +163,9 @@ fn draw_time_axis(
     font_id: egui::FontId,
 ) {
     let screen_width = right - left;
-    let visible = params.viewport.visible_range(params.logical_count, screen_width);
+    let visible = params
+        .viewport
+        .visible_range(params.logical_count, screen_width);
     if visible.is_empty() {
         return;
     }
@@ -188,7 +190,10 @@ fn draw_time_axis(
             continue;
         }
 
-        let screen_x = params.viewport.logical_to_screen(index as f64, screen_width) + left;
+        let screen_x = params
+            .viewport
+            .logical_to_screen(index as f64, screen_width)
+            + left;
         let label = TimeScale::format_time_point(point.time_point);
         painter.text(
             egui::pos2(screen_x as f32, (bottom + 6.0) as f32),
@@ -596,7 +601,7 @@ mod tests {
         let scene = ChartScene::empty();
         let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 500.0));
 
-        let _ = context.run_ui(egui::RawInput::default(), |ctx| {
+        let mut output = context.run_ui(egui::RawInput::default(), |ctx| {
             let painter = ctx.layer_painter(egui::LayerId::new(
                 egui::Order::Middle,
                 egui::Id::unique("glow-renderer-empty-cache"),
