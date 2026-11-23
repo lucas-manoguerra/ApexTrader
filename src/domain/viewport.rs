@@ -550,6 +550,60 @@ impl Viewport {
         previous != (self.zoom_x, self.offset_x)
     }
 
+    /// Centra una posición lógica (también fraccionaria) en el área visible.
+    ///
+    /// Devuelve `true` si el offset horizontal cambió.
+    pub fn center_on_logical(&mut self, logical_index: f64) -> bool {
+        if !logical_index.is_finite() {
+            return false;
+        }
+
+        let next_offset = -logical_index;
+        if self.offset_x == next_offset {
+            return false;
+        }
+        self.offset_x = next_offset;
+        true
+    }
+
+    /// Ajusta el zoom horizontal para mostrar un intervalo lógico completo
+    /// con un margen del 5% a cada lado.
+    ///
+    /// Los extremos pueden ser fraccionarios, por ejemplo al navegar a un
+    /// intervalo temporal cuyos límites caen entre dos velas.
+    /// El eje vertical no se modifica.
+    pub fn fit_logical_range(
+        &mut self,
+        first_logical: f64,
+        last_logical: f64,
+        screen_width: f64,
+    ) -> bool {
+        if !first_logical.is_finite()
+            || !last_logical.is_finite()
+            || first_logical < 0.0
+            || last_logical < first_logical
+            || !screen_width.is_finite()
+            || screen_width <= 0.0
+        {
+            return false;
+        }
+
+        let logical_span = last_logical - first_logical;
+        let desired_spacing = if logical_span <= f64::EPSILON {
+            transforms::CANDLE_SPACING_BASE
+        } else {
+            screen_width * 0.90 / logical_span
+        };
+        let desired_zoom = desired_spacing / transforms::CANDLE_SPACING_BASE;
+        let center = first_logical + logical_span / 2.0;
+        let previous = (self.zoom_x, self.offset_x);
+
+        self.set_zoom_x(desired_zoom);
+        self.set_offset_x(-center);
+
+        previous != (self.zoom_x, self.offset_x)
+    }
+
     /// Convierte una coordenada de pantalla X a un índice de vela (coordenada de datos X).
     ///
     /// `screen_x` es la posición en píxeles de pantalla.
@@ -789,6 +843,41 @@ mod tests {
         let last = viewport.logical_to_screen(99.0, 1_000.0);
         assert!((first - 50.0).abs() < 1e-8);
         assert!((last - 950.0).abs() < 1e-8);
+    }
+
+    #[test]
+    fn fit_logical_range_places_both_endpoints_inside_plot_margins() {
+        let mut viewport = Viewport::new();
+        assert!(viewport.fit_logical_range(10.5, 20.5, 1_000.0));
+
+        let first = viewport.logical_to_screen(10.5, 1_000.0);
+        let last = viewport.logical_to_screen(20.5, 1_000.0);
+        assert!((first - 50.0).abs() < 1e-8);
+        assert!((last - 950.0).abs() < 1e-8);
+    }
+
+    #[test]
+    fn center_on_logical_places_target_at_plot_center() {
+        let mut viewport = Viewport::new();
+        viewport.set_zoom_x(2.0);
+        assert!(viewport.center_on_logical(42.5));
+        assert!((viewport.logical_to_screen(42.5, 800.0) - 400.0).abs() < 1e-8);
+        assert!(!viewport.center_on_logical(42.5));
+
+        let before = viewport;
+        assert!(!viewport.center_on_logical(f64::INFINITY));
+        assert_eq!(viewport, before);
+    }
+
+    #[test]
+    fn fit_logical_range_rejects_invalid_ranges_without_mutating_viewport() {
+        let mut viewport = Viewport::new();
+        let before = viewport;
+        assert!(!viewport.fit_logical_range(2.0, 1.0, 1_000.0));
+        assert!(!viewport.fit_logical_range(-1.0, 1.0, 1_000.0));
+        assert!(!viewport.fit_logical_range(0.0, f64::NAN, 1_000.0));
+        assert!(!viewport.fit_logical_range(0.0, 1.0, 0.0));
+        assert_eq!(viewport, before);
     }
 
     #[test]
