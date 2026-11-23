@@ -768,4 +768,36 @@ mod tests {
         assert!(!viewport.zoom_to_at(f64::NAN, 2.0, 0.5, 0.5, 100.0, 100.0));
         assert_eq!(viewport, before);
     }
+    #[test]
+    fn logical_screen_transforms_are_inverse() {
+        let mut viewport = Viewport::new();
+        viewport.set_zoom_x(2.4);
+        viewport.set_offset_x(-3.25);
+        let width = 1_280.0;
+        for logical in [0.0, 0.5, 4.0, 19.75, 100.0] {
+            let screen = viewport.logical_to_screen(logical, width);
+            let restored = viewport.screen_to_logical(screen, width);
+            assert!((restored - logical).abs() < 1e-10);
+        }
+    }
+
+    #[test]
+    fn fit_content_centers_the_full_logical_range() {
+        let mut viewport = Viewport::new();
+        assert!(viewport.fit_content(100, 1_000.0));
+        let first = viewport.logical_to_screen(0.0, 1_000.0);
+        let last = viewport.logical_to_screen(99.0, 1_000.0);
+        assert!((first - 50.0).abs() < 1e-8);
+        assert!((last - 950.0).abs() < 1e-8);
+    }
+
+    #[test]
+    fn fit_content_ignores_empty_or_invalid_dimensions() {
+        let mut viewport = Viewport::new();
+        let before = viewport;
+        assert!(!viewport.fit_content(0, 1_000.0));
+        assert!(!viewport.fit_content(10, f64::NAN));
+        assert_eq!(viewport, before);
+    }
+
 }
