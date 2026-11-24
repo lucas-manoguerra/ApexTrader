@@ -758,8 +758,7 @@ impl ChartRenderer for GlowChartRenderer {
                 let time_axis_right = (layout.time_axis.right + ox) as f32;
                 let time_axis_width = time_axis_right - time_axis_left;
                 let time_center = if time_axis_width >= 112.0 {
-                    (crosshair_screen_x as f32)
-                        .clamp(time_axis_left + 56.0, time_axis_right - 56.0)
+                    (crosshair_screen_x as f32).clamp(time_axis_left + 56.0, time_axis_right - 56.0)
                 } else {
                     (time_axis_left + time_axis_right) * 0.5
                 };
