@@ -483,13 +483,8 @@ mod tests {
         let mut scene = sample_scene(&points);
         scene.viewport.set_price_scale_inverted(true);
 
-        let frame = RenderFrame::from_scene(
-            &scene,
-            800.0,
-            500.0,
-            ScreenPoint { x: 0.0, y: 0.0 },
-            true,
-        );
+        let frame =
+            RenderFrame::from_scene(&scene, 800.0, 500.0, ScreenPoint { x: 0.0, y: 0.0 }, true);
         let rendered = &frame.layers[0].candles[0];
 
         assert!(rendered.high_y > rendered.low_y);

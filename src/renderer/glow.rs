@@ -1076,8 +1076,14 @@ mod tests {
             inverted: true,
         };
         let ticks = price_axis_ticks(0.0, 400.0, params);
-        let low = ticks.iter().min_by(|a, b| a.value.total_cmp(&b.value)).unwrap();
-        let high = ticks.iter().max_by(|a, b| a.value.total_cmp(&b.value)).unwrap();
+        let low = ticks
+            .iter()
+            .min_by(|a, b| a.value.total_cmp(&b.value))
+            .unwrap();
+        let high = ticks
+            .iter()
+            .max_by(|a, b| a.value.total_cmp(&b.value))
+            .unwrap();
 
         assert!(high.y > low.y);
     }

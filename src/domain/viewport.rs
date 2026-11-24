@@ -373,7 +373,12 @@ impl Viewport {
     fn auto_price_scale_center(&self, midpoint: f64, range: f64, zoom: f64) -> f64 {
         let margin_offset =
             (self.price_scale_top_margin - self.price_scale_bottom_margin) * range / (2.0 * zoom);
-        midpoint + if self.price_scale_inverted { -margin_offset } else { margin_offset }
+        midpoint
+            + if self.price_scale_inverted {
+                -margin_offset
+            } else {
+                margin_offset
+            }
     }
 
     /// Activa o desactiva la autoescala vertical.
@@ -415,10 +420,9 @@ impl Viewport {
 
         if self.price_scale_auto {
             let zoom = self.auto_price_scale_zoom();
-            let margin_offset =
-                (self.price_scale_top_margin - self.price_scale_bottom_margin)
-                    * self.price_scale_range
-                    / (2.0 * zoom);
+            let margin_offset = (self.price_scale_top_margin - self.price_scale_bottom_margin)
+                * self.price_scale_range
+                / (2.0 * zoom);
             let old_direction = if self.price_scale_inverted { -1.0 } else { 1.0 };
             let new_direction = if inverted { -1.0 } else { 1.0 };
             let midpoint = self.price_scale_center - old_direction * margin_offset;
@@ -1618,5 +1622,4 @@ mod tests {
         viewport.set_price_scale_inverted(false);
         assert!(!viewport.price_scale_inverted());
     }
-
 }
