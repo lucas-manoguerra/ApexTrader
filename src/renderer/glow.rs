@@ -125,7 +125,26 @@ fn format_price_tick(value: f64, step: f64, minimum_tick: f64) -> String {
     let decimals = decimal_places_for_increment(step)
         .max(decimal_places_for_increment(minimum_tick))
         .clamp(2, 8);
-    format!("{:.*}", decimals, value)
+    let formatted = format!("{:.*}", decimals, value);
+    let (sign, unsigned) = formatted
+        .strip_prefix('-')
+        .map_or(("", formatted.as_str()), |value| ("-", value));
+    let (integer, fraction) = unsigned.split_once('.').unwrap_or((unsigned, ""));
+    let mut grouped = String::with_capacity(formatted.len() + integer.len() / 3);
+
+    grouped.push_str(sign);
+    for (index, digit) in integer.chars().enumerate() {
+        if index > 0 && (integer.len() - index) % 3 == 0 {
+            grouped.push(',');
+        }
+        grouped.push(digit);
+    }
+    if !fraction.is_empty() {
+        grouped.push('.');
+        grouped.push_str(fraction);
+    }
+
+    grouped
 }
 
 fn aligned_price_tick_step(range: f64, target_ticks: usize, minimum_tick: f64) -> f64 {
@@ -1060,10 +1079,13 @@ mod tests {
     }
 
     #[test]
-    fn price_tick_precision_follows_the_tick_step() {
-        assert_eq!(format_price_tick(50_123.0, 1.0, 0.01), "50123.00");
-        assert_eq!(format_price_tick(5_000.25, 0.5, 0.25), "5000.25");
+    fn price_tick_precision_follows_the_tick_step_and_groups_large_values() {
+        assert_eq!(format_price_tick(50_123.0, 1.0, 0.01), "50,123.00");
+        assert_eq!(format_price_tick(5_000.25, 0.5, 0.25), "5,000.25");
         assert_eq!(format_price_tick(1.08765, 0.0001, 0.00001), "1.08765");
+        assert_eq!(format_price_tick(-12_345.5, 0.5, 0.25), "-12,345.50");
+        assert_eq!(format_price_tick(999.99, 0.01, 0.01), "999.99");
+        assert_eq!(format_price_tick(f64::NAN, 0.01, 0.01), "");
     }
 
     fn minute_points(

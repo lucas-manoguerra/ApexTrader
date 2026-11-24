@@ -44,6 +44,7 @@
 - [x] Doble clic en la escala de precios vuelve al modo Auto.
 - [x] Controles visibles para Auto y bloqueo vertical.
 - [x] Ticks alineados al incremento mínimo del instrumento y precisión decimal coherente.
+- [x] Separadores de miles consistentes en etiquetas del eje, marcador actual y etiqueta del crosshair.
 - [x] Pruebas de persistencia manual, bloqueo, transiciones y precisión de ticks.
 
 - [x] Criterio de autoescala seleccionable: extremos OHLC o solo cierres.
