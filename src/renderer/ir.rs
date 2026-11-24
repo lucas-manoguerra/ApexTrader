@@ -312,9 +312,8 @@ fn build_series_layer(scene: &ChartScene<'_>, layout: &ChartLayout) -> RenderLay
         let Some(scale_value) = scene.viewport.price_to_scale_value(price) else {
             return f32::NAN;
         };
-        let relative_price = scale_value
-            - scene.center_price
-            - scene.viewport.offset_y() * scene.price_range;
+        let relative_price =
+            scale_value - scene.center_price - scene.viewport.offset_y() * scene.price_range;
         (layout.plot.top + layout.plot.height() / 2.0 - relative_price * price_pixels_per_unit)
             as f32
     };

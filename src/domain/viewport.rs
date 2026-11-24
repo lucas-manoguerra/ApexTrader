@@ -121,8 +121,7 @@ impl PriceScaleType {
                 base * (1.0 + value / 100.0)
             }
         };
-        (price.is_finite() && (self != Self::Logarithmic || price > 0.0))
-            .then_some(price)
+        (price.is_finite() && (self != Self::Logarithmic || price > 0.0)).then_some(price)
     }
 }
 
@@ -264,9 +263,7 @@ impl Viewport {
         if scale_type == self.price_scale_type {
             return true;
         }
-        if scale_type == PriceScaleType::Percentage
-            && self.price_scale_percentage_base.is_none()
-        {
+        if scale_type == PriceScaleType::Percentage && self.price_scale_percentage_base.is_none() {
             return false;
         }
 
@@ -991,8 +988,16 @@ impl Viewport {
 
         let center_y = screen_height / 2.0;
 
-        let min_price = price_range.min().value().to_f64().expect("precio mínimo convertible");
-        let max_price = price_range.max().value().to_f64().expect("precio máximo convertible");
+        let min_price = price_range
+            .min()
+            .value()
+            .to_f64()
+            .expect("precio mínimo convertible");
+        let max_price = price_range
+            .max()
+            .value()
+            .to_f64()
+            .expect("precio máximo convertible");
         let (Some(min_value), Some(max_value)) = (
             self.price_to_scale_value(min_price),
             self.price_to_scale_value(max_price),
@@ -1003,7 +1008,10 @@ impl Viewport {
             return center_y;
         };
         let price_value = price.value().to_f64().expect("precio convertible");
-        let center_value = center_price.value().to_f64().expect("precio central convertible");
+        let center_value = center_price
+            .value()
+            .to_f64()
+            .expect("precio central convertible");
         let (Some(price_scale_value), Some(center_scale_value)) = (
             self.price_to_scale_value(price_value),
             self.price_to_scale_value(center_value),
@@ -1034,8 +1042,16 @@ impl Viewport {
         center_price: Price,
     ) -> Price {
         let center_y = screen_height / 2.0;
-        let min_price = price_range.min().value().to_f64().expect("precio mínimo convertible");
-        let max_price = price_range.max().value().to_f64().expect("precio máximo convertible");
+        let min_price = price_range
+            .min()
+            .value()
+            .to_f64()
+            .expect("precio mínimo convertible");
+        let max_price = price_range
+            .max()
+            .value()
+            .to_f64()
+            .expect("precio máximo convertible");
         let (Some(min_value), Some(max_value)) = (
             self.price_to_scale_value(min_price),
             self.price_to_scale_value(max_price),
@@ -1045,7 +1061,10 @@ impl Viewport {
         let Some(range_value) = transforms::validate_price_range(min_value, max_value) else {
             return center_price;
         };
-        let center_price_value = center_price.value().to_f64().expect("precio central convertible");
+        let center_price_value = center_price
+            .value()
+            .to_f64()
+            .expect("precio central convertible");
         let Some(center_scale_value) = self.price_to_scale_value(center_price_value) else {
             return center_price;
         };

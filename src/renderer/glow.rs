@@ -1,8 +1,7 @@
 use crate::domain::chart::time_scale::TimeScale;
 use crate::domain::transforms::{self, ScreenPoint, screen_to_chart_point};
-use crate::domain::viewport::Viewport;
+use crate::domain::viewport::{PriceScaleType, Viewport};
 use crate::errors::RendererError;
-use crate::domain::viewport::PriceScaleType;
 use crate::renderer::{ChartRenderer, ChartScene, RenderFrame, RenderLayer};
 use eframe::egui;
 
@@ -187,7 +186,12 @@ struct TimeAxisTick {
     label: String,
 }
 
-fn price_axis_label(value: f64, step: f64, minimum_tick: f64, scale_type: PriceScaleType) -> String {
+fn price_axis_label(
+    value: f64,
+    step: f64,
+    minimum_tick: f64,
+    scale_type: PriceScaleType,
+) -> String {
     match scale_type {
         PriceScaleType::Percentage => format!("{value:+.2}%"),
         PriceScaleType::Linear | PriceScaleType::Logarithmic => {
@@ -216,9 +220,8 @@ fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<Price
     let max_visible = visible_center + half_range_visible;
     let target_ticks = ((height / 56.0).floor() as usize).clamp(4, 8);
     let pixels_per_unit = height / params.price_range * params.zoom_y;
-    let y_for_scale_value = |value: f64| {
-        top + height / 2.0 - (value - visible_center) * pixels_per_unit
-    };
+    let y_for_scale_value =
+        |value: f64| top + height / 2.0 - (value - visible_center) * pixels_per_unit;
     let mut ticks = Vec::with_capacity(target_ticks + 2);
 
     match params.scale_type {
@@ -294,8 +297,9 @@ fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<Price
                 }
                 for multiplier in [1.0, 2.0, 5.0] {
                     let price = decade * multiplier;
-                    let Some(scale_value) =
-                        params.scale_type.to_scale_value(price, params.percentage_base)
+                    let Some(scale_value) = params
+                        .scale_type
+                        .to_scale_value(price, params.percentage_base)
                     else {
                         continue;
                     };
@@ -936,10 +940,7 @@ impl ChartRenderer for GlowChartRenderer {
                         if price_params.scale_type == PriceScaleType::Percentage {
                             price_params
                                 .scale_type
-                                .to_scale_value(
-                                    price_at_cursor,
-                                    price_params.percentage_base,
-                                )
+                                .to_scale_value(price_at_cursor, price_params.percentage_base)
                                 .unwrap_or_default()
                         } else {
                             price_at_cursor
@@ -1030,9 +1031,11 @@ mod tests {
 
         assert!(ticks.len() >= 4);
         assert!(ticks.iter().any(|tick| (tick.value - 10.0).abs() < 1e-9));
-        assert!(ticks.iter().all(|tick| {
-            (tick.scale_value - tick.value.ln()).abs() < 1e-10
-        }));
+        assert!(
+            ticks
+                .iter()
+                .all(|tick| { (tick.scale_value - tick.value.ln()).abs() < 1e-10 })
+        );
     }
 
     #[test]
