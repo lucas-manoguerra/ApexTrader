@@ -1024,6 +1024,7 @@ mod tests {
             center,
         );
         let zoom_x_before = viewport.zoom_x();
+        let zoom_y_before = viewport.zoom_y();
         let offset_x_before = viewport.offset_x();
         let mut controller = InteractionController::new(1_000.0, 600.0);
 
@@ -1047,7 +1048,7 @@ mod tests {
         );
 
         assert!(result.viewport_changed);
-        assert!(viewport.zoom_y() > 1.0);
+        assert!(viewport.zoom_y() > zoom_y_before);
         assert_eq!(viewport.zoom_x(), zoom_x_before);
         assert_eq!(viewport.offset_x(), offset_x_before);
         assert!(!viewport.price_scale_auto());
