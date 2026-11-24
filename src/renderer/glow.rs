@@ -245,11 +245,9 @@ fn retain_price_ticks_with_minimum_spacing(ticks: &mut Vec<PriceTick>, minimum_s
     let mut selected = Vec::with_capacity(ticks.len());
     for index in candidates {
         let candidate = ticks[index];
-        let has_room = selected
-            .iter()
-            .all(|selected_tick: &PriceTick| {
-                (selected_tick.y - candidate.y).abs() >= minimum_spacing
-            });
+        let has_room = selected.iter().all(|selected_tick: &PriceTick| {
+            (selected_tick.y - candidate.y).abs() >= minimum_spacing
+        });
         if has_room {
             selected.push(candidate);
         }
@@ -352,9 +350,9 @@ fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<Price
 
             let first_decade = min_price.log10().floor() as i32 - 1;
             let last_decade = max_price.log10().ceil() as i32 + 1;
-            let decade_count = (last_decade - first_decade + 1).max(1) as usize;
-            let decade_stride = decade_count.div_ceil(target_ticks.max(1)).max(1);
-            for exponent in (first_decade..=last_decade).step_by(decade_stride) {
+            // Generar todas las potencias visibles permite que el filtro posterior
+            // seleccione las marcas más espaciadas sin perder décadas relevantes.
+            for exponent in first_decade..=last_decade {
                 let decade = 10.0_f64.powi(exponent);
                 if !decade.is_finite() || decade <= 0.0 {
                     continue;
@@ -1131,7 +1129,9 @@ mod tests {
             "las etiquetas del eje logarítmico deben mantener separación vertical"
         );
         assert!(
-            ticks.iter().any(|tick| (tick.value - 10_000.0).abs() < 1e-8),
+            ticks
+                .iter()
+                .any(|tick| (tick.value - 10_000.0).abs() < 1e-8),
             "debe conservarse una marca principal del rango visible"
         );
     }
