@@ -1092,6 +1092,7 @@ mod tests {
             minimum_tick: 0.01,
             scale_type: PriceScaleType::Percentage,
             percentage_base: Some(100.0),
+            inverted: false,
         };
         let ticks = price_axis_ticks(0.0, 400.0, params);
 
