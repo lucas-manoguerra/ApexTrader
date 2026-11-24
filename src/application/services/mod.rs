@@ -138,9 +138,16 @@ impl eframe::App for ApexTraderApp {
             ui.separator();
 
             let available = ui.available_rect_before_wrap();
-            let painter = ui.painter();
+            let footer_height = 58.0_f32.min(available.height() * 0.24);
+            let chart_height = (available.height() - footer_height).max(96.0);
+            let chart_rect = egui::Rect::from_min_size(
+                available.min,
+                egui::vec2(available.width(), chart_height.min(available.height())),
+            );
+            let response = ui.allocate_rect(chart_rect, egui::Sense::click_and_drag());
+            let painter = ui.painter_at(chart_rect);
             let chart_layout =
-                ChartLayout::compute(available.width() as f64, available.height() as f64);
+                ChartLayout::compute(chart_rect.width() as f64, chart_rect.height() as f64);
 
             // Ajustar el historial completo solo al iniciar o tras una carga
             // explícita. Las actualizaciones incrementales no deben resetear
@@ -178,12 +185,7 @@ impl eframe::App for ApexTraderApp {
             }
             self.follow_latest_pending = false;
 
-            let interaction_rect = available.shrink(0.0);
-            let response = ui.interact(
-                interaction_rect,
-                ui.scope_id().with("chart_area"),
-                egui::Sense::click_and_drag(),
-            );
+            let interaction_rect = chart_rect;
 
             let crosshair_pos = {
                 let chart = &mut self.chart;
@@ -261,26 +263,25 @@ impl eframe::App for ApexTraderApp {
             self.prev_data_revision = data_revision;
             self.prev_rect = Some(available);
 
-            ui.label(format!(
-                "Zoom X: {:.2}x | Zoom Y: {:.2}x | Offset: ({:.2}, {:.2})",
-                viewport.zoom_x(),
-                viewport.zoom_y(),
-                viewport.offset_x(),
-                viewport.offset_y()
-            ));
-
-            ui.label(format!("Carga de mercado: {:?}", self.load_state));
-            ui.label(format!(
-                "Realtime mock: {}",
-                if self.realtime_provider.is_some() { "activo" } else { "inactivo" }
-            ));
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
-                ui.label(format!("Puntos: {}", points.len()));
-                ui.label(
-                    "Rueda vertical: zoom temporal | horizontal: pan | Arrastre izquierdo: pan | derecho: zoom | Arrastre del eje: escala | Doble clic en el eje: restablecer",
-                );
+            ui.horizontal_wrapped(|ui| {
+                ui.small(format!(
+                    "Zoom X: {:.2}x | Zoom Y: {:.2}x | Offset: ({:.2}, {:.2})",
+                    viewport.zoom_x(),
+                    viewport.zoom_y(),
+                    viewport.offset_x(),
+                    viewport.offset_y()
+                ));
+                ui.separator();
+                ui.small(format!(
+                    "Carga: {:?} | Realtime: {} | Puntos: {}",
+                    self.load_state,
+                    if self.realtime_provider.is_some() { "activo" } else { "inactivo" },
+                    points.len()
+                ));
             });
+            ui.small(
+                "Rueda: zoom temporal | Shift + rueda: desplazamiento horizontal | Arrastrar: mover | Arrastrar escala derecha/inferior: ajustar | Doble clic en escala: restablecer",
+            );
         });
     }
 }

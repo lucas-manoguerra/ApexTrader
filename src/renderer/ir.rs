@@ -308,7 +308,7 @@ fn build_series_layer(scene: &ChartScene<'_>, layout: &ChartLayout) -> RenderLay
     let price_to_y = |price: f64| -> f32 {
         let relative_price =
             price - scene.center_price - scene.viewport.offset_y() * scene.price_range;
-        (layout.plot.bottom - relative_price * price_pixels_per_unit) as f32
+        (layout.plot.top + layout.plot.height() / 2.0 - relative_price * price_pixels_per_unit) as f32
     };
 
     let mut layer = RenderLayer {

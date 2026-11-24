@@ -230,7 +230,7 @@ fn axis_pointer_coordinates(
         x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
     };
 
-    let axis = if inside(layout.price_axis_left) || inside(layout.price_axis_right) {
+    let axis = if inside(layout.price_axis_right) {
         ScaleAxis::Price
     } else if inside(layout.time_axis) {
         ScaleAxis::Time
@@ -312,14 +312,14 @@ mod tests {
     }
 
     #[test]
-    fn axis_pointer_coordinates_identify_time_and_price_regions() {
+    fn axis_pointer_coordinates_identify_right_price_and_time_scales() {
         let rect = interaction_rect();
         let layout = ChartLayout::compute(rect.width() as f64, rect.height() as f64);
         let price_pos = egui::pos2(
             rect.left()
-                + (layout.price_axis_left.left + layout.price_axis_left.width() / 2.0) as f32,
+                + (layout.price_axis_right.left + layout.price_axis_right.width() / 2.0) as f32,
             rect.top()
-                + (layout.price_axis_left.top + layout.price_axis_left.height() / 2.0) as f32,
+                + (layout.price_axis_right.top + layout.price_axis_right.height() / 2.0) as f32,
         );
         let time_pos = egui::pos2(
             rect.left() + (layout.time_axis.left + layout.time_axis.width() / 2.0) as f32,
@@ -327,12 +327,23 @@ mod tests {
         );
 
         let (price_axis, _) = axis_pointer_coordinates(price_pos, rect, &layout)
-            .expect("el eje de precios debe detectarse");
+            .expect("la escala derecha debe detectarse");
         let (time_axis, _) = axis_pointer_coordinates(time_pos, rect, &layout)
             .expect("el eje temporal debe detectarse");
 
         assert_eq!(price_axis, ScaleAxis::Price);
         assert_eq!(time_axis, ScaleAxis::Time);
+    }
+
+    #[test]
+    fn left_gutter_is_not_a_visible_price_scale() {
+        let rect = interaction_rect();
+        let layout = ChartLayout::compute(rect.width() as f64, rect.height() as f64);
+        let pos = egui::pos2(
+            rect.left() + (layout.price_axis_left.left + layout.price_axis_left.width() / 2.0) as f32,
+            rect.top() + (layout.price_axis_left.top + layout.price_axis_left.height() / 2.0) as f32,
+        );
+        assert!(axis_pointer_coordinates(pos, rect, &layout).is_none());
     }
 
     #[test]

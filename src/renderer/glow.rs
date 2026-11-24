@@ -4,7 +4,6 @@ use crate::domain::viewport::Viewport;
 use crate::errors::RendererError;
 use crate::renderer::{ChartRenderer, ChartScene, RenderColor, RenderFrame, RenderLayer};
 use eframe::egui;
-use rust_decimal::prelude::FromPrimitive;
 
 /// Renderizador de chart usando el Painter de egui (backend glow/OpenGL).
 ///
@@ -54,7 +53,9 @@ fn time_label_at_logical(
     };
 
     if left_index == right_index {
-        return TimeScale::format_time_point(left.time_point);
+        return TimeScale::format_time_point(left.time_point)
+            .trim_end_matches(" UTC")
+            .to_owned();
     }
 
     let Some(right) = data_points.get(right_index) else {
@@ -70,17 +71,28 @@ fn time_label_at_logical(
     }
 
     TimeScale::format_time_label(timestamp as i64)
+        .trim_end_matches(" UTC")
+        .to_owned()
 }
 
 fn nice_tick_step(range: f64, target_ticks: usize) -> f64 {
-    if range <= 0.0 {
+    if !range.is_finite() || range <= 0.0 || target_ticks == 0 {
         return 1.0;
     }
+
     let raw_step = range / target_ticks as f64;
+    if !raw_step.is_finite() || raw_step <= 0.0 {
+        return range;
+    }
+
     let magnitude = 10.0f64.powi(raw_step.log10().floor() as i32);
+    if !magnitude.is_finite() || magnitude <= 0.0 {
+        return raw_step;
+    }
+
     let residual = raw_step / magnitude;
     if residual < 1.5 {
-        1.0 * magnitude
+        magnitude
     } else if residual < 3.0 {
         2.0 * magnitude
     } else if residual < 7.0 {
@@ -90,6 +102,20 @@ fn nice_tick_step(range: f64, target_ticks: usize) -> f64 {
     }
 }
 
+fn format_price_tick(value: f64, step: f64) -> String {
+    if !value.is_finite() {
+        return String::new();
+    }
+
+    let decimals = if step >= 1.0 {
+        2
+    } else {
+        (-step.log10()).ceil().clamp(2.0, 8.0) as usize
+    };
+    format!("{:.*}", decimals, value)
+}
+
+#[derive(Debug, Clone, Copy)]
 struct PriceAxisParams {
     center_price: f64,
     offset_y: f64,
@@ -97,94 +123,9 @@ struct PriceAxisParams {
     zoom_y: f64,
 }
 
+#[derive(Debug, Clone, Copy)]
 struct VolumeAxisParams {
     max_volume: f64,
-    zoom_y: f64,
-}
-
-fn draw_price_axis(
-    painter: &egui::Painter,
-    left: f64,
-    top: f64,
-    bottom: f64,
-    params: PriceAxisParams,
-    font_id: egui::FontId,
-) {
-    let screen_height = bottom - top;
-
-    let half_range_visible = params.price_range / (2.0 * params.zoom_y);
-    let min_visible =
-        params.center_price + params.offset_y * params.price_range - half_range_visible;
-    let max_visible =
-        params.center_price + params.offset_y * params.price_range + half_range_visible;
-
-    let tick_step = nice_tick_step(max_visible - min_visible, 6);
-
-    let mut tick = (min_visible / tick_step).ceil() * tick_step;
-
-    while tick <= max_visible {
-        let relative_price = tick - params.center_price - params.offset_y * params.price_range;
-        let pixels_per_unit = screen_height / params.price_range * params.zoom_y;
-        let y = bottom - relative_price * pixels_per_unit;
-
-        let price_decimal =
-            rust_decimal::Decimal::from_f64(tick).unwrap_or(rust_decimal::Decimal::ZERO);
-        let price = crate::domain::price::Price::new(price_decimal).unwrap_or_else(|_| {
-            crate::domain::price::Price::new(rust_decimal::Decimal::ZERO).unwrap()
-        });
-        let label = format!("{:.2}", price.value());
-
-        painter.text(
-            egui::pos2((left - 8.0) as f32, y as f32),
-            egui::Align2::RIGHT_CENTER,
-            label,
-            font_id.clone(),
-            egui::Color32::GRAY,
-        );
-
-        tick += tick_step;
-    }
-}
-
-fn draw_volume_axis(
-    painter: &egui::Painter,
-    left: f64,
-    top: f64,
-    bottom: f64,
-    params: VolumeAxisParams,
-    font_id: egui::FontId,
-) {
-    let screen_height = bottom - top;
-
-    if params.max_volume <= 0.0 || !params.max_volume.is_finite() {
-        return;
-    }
-
-    let tick_step = nice_tick_step(params.max_volume, 6);
-
-    let mut tick = 0.0;
-    while tick <= params.max_volume {
-        let relative = tick / params.max_volume;
-        let y = bottom - relative * screen_height;
-
-        let label = if tick >= 1_000_000.0 {
-            format!("{:.1}M", tick / 1_000_000.0)
-        } else if tick >= 1_000.0 {
-            format!("{:.1}K", tick / 1_000.0)
-        } else {
-            format!("{:.0}", tick)
-        };
-
-        painter.text(
-            egui::pos2((left - 8.0) as f32, y as f32),
-            egui::Align2::RIGHT_CENTER,
-            label,
-            font_id.clone(),
-            egui::Color32::GRAY,
-        );
-
-        tick += tick_step;
-    }
 }
 
 struct TimeAxisParams<'a> {
@@ -193,30 +134,91 @@ struct TimeAxisParams<'a> {
     logical_count: usize,
 }
 
-fn draw_time_axis(
-    painter: &egui::Painter,
-    left: f64,
-    right: f64,
-    bottom: f64,
-    params: TimeAxisParams<'_>,
-    font_id: egui::FontId,
-) {
-    let screen_width = right - left;
-    let visible = params
-        .viewport
-        .visible_range(params.logical_count, screen_width);
-    if visible.is_empty() {
-        return;
+#[derive(Debug, Clone, Copy)]
+struct PriceTick {
+    value: f64,
+    y: f64,
+    label_step: f64,
+}
+
+#[derive(Debug, Clone)]
+struct TimeAxisTick {
+    screen_x: f64,
+    label: String,
+}
+
+fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<PriceTick> {
+    let height = bottom - top;
+    if !height.is_finite()
+        || height <= 0.0
+        || !params.price_range.is_finite()
+        || params.price_range <= 0.0
+        || !params.center_price.is_finite()
+        || !params.offset_y.is_finite()
+        || !params.zoom_y.is_finite()
+        || params.zoom_y <= 0.0
+    {
+        return Vec::new();
     }
 
-    let visible_count = visible.len();
-    let index_step = if visible_count > 1 {
-        ((visible_count as f64) / 6.0).ceil() as usize
-    } else {
-        1
-    };
+    let half_range_visible = params.price_range / (2.0 * params.zoom_y);
+    let visible_center = params.center_price + params.offset_y * params.price_range;
+    let min_visible = visible_center - half_range_visible;
+    let max_visible = visible_center + half_range_visible;
+    let target_ticks = ((height / 56.0).floor() as usize).clamp(4, 8);
+    let tick_step = nice_tick_step(max_visible - min_visible, target_ticks);
+    if !tick_step.is_finite() || tick_step <= 0.0 {
+        return Vec::new();
+    }
 
-    let mut last_index = None;
+    let pixels_per_unit = height / params.price_range * params.zoom_y;
+    let mut tick = (min_visible / tick_step).ceil() * tick_step;
+    let mut ticks = Vec::with_capacity(target_ticks + 2);
+
+    for _ in 0..(target_ticks + 4) {
+        if !tick.is_finite() || tick > max_visible + tick_step * 1e-9 {
+            break;
+        }
+        let relative_price = tick - visible_center;
+        // El centro de precio debe coincidir con el centro del plot, igual
+        // que en transforms::price_to_screen y screen_y_to_price.
+        let y = top + height / 2.0 - relative_price * pixels_per_unit;
+        ticks.push(PriceTick {
+            value: tick,
+            y,
+            label_step: tick_step,
+        });
+        tick += tick_step;
+    }
+
+    ticks
+}
+
+fn time_axis_ticks(
+    left: f64,
+    right: f64,
+    params: &TimeAxisParams<'_>,
+) -> Vec<TimeAxisTick> {
+    let width = right - left;
+    if !width.is_finite() || width <= 0.0 || params.logical_count == 0 {
+        return Vec::new();
+    }
+
+    let visible = params
+        .viewport
+        .visible_range(params.logical_count, width);
+    if visible.is_empty() {
+        return Vec::new();
+    }
+
+    let target_labels = ((width / 118.0).floor() as usize).clamp(2, 9);
+    let span = visible.len().saturating_sub(1);
+    let divisor = target_labels.saturating_sub(1).max(1);
+    let index_step = ((span + divisor - 1) / divisor).max(1);
+
+    let mut ticks = Vec::with_capacity(target_labels + 1);
+    let mut last_screen_x: Option<f64> = None;
+
     for point in params.data_points {
         let Some(index) = point.logical_index else {
             continue;
@@ -224,25 +226,290 @@ fn draw_time_axis(
         if index < visible.first
             || index > visible.last
             || !(index - visible.first).is_multiple_of(index_step)
-            || last_index == Some(index)
         {
             continue;
         }
 
         let screen_x = params
             .viewport
-            .logical_to_screen(index as f64, screen_width)
+            .logical_to_screen(index as f64, width)
             + left;
-        let label = TimeScale::format_time_point(point.time_point);
+        if screen_x < left + 4.0 || screen_x > right - 4.0 {
+            continue;
+        }
+        if last_screen_x.is_some_and(|last| screen_x - last < 112.0) {
+            continue;
+        }
+
+        let label = TimeScale::format_time_point(point.time_point)
+            .trim_end_matches(" UTC")
+            .to_owned();
+        ticks.push(TimeAxisTick { screen_x, label });
+        last_screen_x = Some(screen_x);
+    }
+
+    ticks
+}
+
+fn screen_rect(rect: crate::chart::layout::Rect, origin: ScreenPoint) -> egui::Rect {
+    egui::Rect::from_min_max(
+        egui::pos2((rect.left + origin.x) as f32, (rect.top + origin.y) as f32),
+        egui::pos2((rect.right + origin.x) as f32, (rect.bottom + origin.y) as f32),
+    )
+}
+
+fn draw_chart_surfaces(
+    painter: &egui::Painter,
+    layout: &crate::chart::layout::ChartLayout,
+    origin: ScreenPoint,
+) {
+    let white = egui::Color32::from_rgb(255, 255, 255);
+    let panel = egui::Color32::from_rgb(249, 250, 252);
+    let volume = egui::Color32::from_rgb(252, 253, 255);
+    let divider = egui::Color32::from_rgb(220, 225, 232);
+
+    painter.rect_filled(screen_rect(layout.full, origin), egui::CornerRadius::ZERO, white);
+    painter.rect_filled(
+        screen_rect(layout.volume_panel, origin),
+        egui::CornerRadius::ZERO,
+        volume,
+    );
+
+    let right_axis_background = egui::Rect::from_min_max(
+        egui::pos2(
+            (layout.price_axis_right.left + origin.x) as f32,
+            (layout.plot.top + origin.y) as f32,
+        ),
+        egui::pos2(
+            (layout.full.right + origin.x) as f32,
+            (layout.volume_panel.bottom + origin.y) as f32,
+        ),
+    );
+    painter.rect_filled(right_axis_background, egui::CornerRadius::ZERO, panel);
+    painter.rect_filled(
+        screen_rect(layout.time_axis, origin),
+        egui::CornerRadius::ZERO,
+        panel,
+    );
+
+    let plot_left = (layout.plot.left + origin.x) as f32;
+    let plot_right = (layout.plot.right + origin.x) as f32;
+    let plot_top = (layout.plot.top + origin.y) as f32;
+    let plot_bottom = (layout.plot.bottom + origin.y) as f32;
+    let volume_bottom = (layout.volume_panel.bottom + origin.y) as f32;
+    let full_right = (layout.full.right + origin.x) as f32;
+
+    painter.line_segment(
+        [egui::pos2(plot_right, plot_top), egui::pos2(plot_right, volume_bottom)],
+        egui::Stroke::new(1.0, divider),
+    );
+    painter.line_segment(
+        [egui::pos2(plot_left, plot_bottom), egui::pos2(full_right, plot_bottom)],
+        egui::Stroke::new(1.0, divider),
+    );
+    painter.line_segment(
+        [
+            egui::pos2(plot_left, volume_bottom),
+            egui::pos2(full_right, volume_bottom),
+        ],
+        egui::Stroke::new(1.0, divider),
+    );
+}
+
+fn draw_grid(
+    painter: &egui::Painter,
+    layout: &crate::chart::layout::ChartLayout,
+    origin: ScreenPoint,
+    price_ticks: &[PriceTick],
+    time_ticks: &[TimeAxisTick],
+) {
+    let grid = egui::Color32::from_rgb(232, 236, 242);
+    let stroke = egui::Stroke::new(1.0, grid);
+    let left = (layout.plot.left + origin.x) as f32;
+    let right = (layout.plot.right + origin.x) as f32;
+    let top = (layout.plot.top + origin.y) as f32;
+    let volume_bottom = (layout.volume_panel.bottom + origin.y) as f32;
+
+    for tick in price_ticks {
+        if tick.y >= layout.plot.top && tick.y <= layout.plot.bottom {
+            let y = (tick.y + origin.y) as f32;
+            painter.line_segment([egui::pos2(left, y), egui::pos2(right, y)], stroke);
+        }
+    }
+
+    for tick in time_ticks {
+        let x = (tick.screen_x + origin.x) as f32;
+        painter.line_segment([egui::pos2(x, top), egui::pos2(x, volume_bottom)], stroke);
+    }
+}
+
+fn draw_price_axis(
+    painter: &egui::Painter,
+    layout: &crate::chart::layout::ChartLayout,
+    origin: ScreenPoint,
+    ticks: &[PriceTick],
+    _current_price: Option<(f64, egui::Color32)>,
+    font_id: egui::FontId,
+) {
+    let axis_left = (layout.price_axis_right.left + origin.x) as f32;
+    let axis_right = (layout.price_axis_right.right + origin.x) as f32;
+    let plot_right = (layout.plot.right + origin.x) as f32;
+    let top = (layout.plot.top + origin.y) as f32;
+    let bottom = (layout.plot.bottom + origin.y) as f32;
+    let axis_text = egui::Color32::from_rgb(92, 101, 114);
+    let tick_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(191, 198, 208));
+
+    for tick in ticks {
+        if tick.y < layout.plot.top || tick.y > layout.plot.bottom {
+            continue;
+        }
+        let y = (tick.y + origin.y) as f32;
+        painter.line_segment(
+            [egui::pos2(plot_right, y), egui::pos2(plot_right + 5.0, y)],
+            tick_stroke,
+        );
         painter.text(
-            egui::pos2(screen_x as f32, (bottom + 6.0) as f32),
-            egui::Align2::CENTER_TOP,
+            egui::pos2(axis_left + 9.0, y),
+            egui::Align2::LEFT_CENTER,
+            format_price_tick(tick.value, tick.label_step),
+            font_id.clone(),
+            axis_text,
+        );
+    }
+
+    if let Some((price, color)) = current_price {
+        let _ = (price, color, axis_right, top, bottom);
+    }
+}
+
+fn draw_volume_axis(
+    painter: &egui::Painter,
+    layout: &crate::chart::layout::ChartLayout,
+    origin: ScreenPoint,
+    params: VolumeAxisParams,
+    font_id: egui::FontId,
+) {
+    if !params.max_volume.is_finite() || params.max_volume <= 0.0 {
+        return;
+    }
+
+    let top = layout.volume_panel.top;
+    let bottom = layout.volume_panel.bottom;
+    let height = bottom - top;
+    let target_ticks = ((height / 22.0).floor() as usize).clamp(2, 4);
+    let tick_step = nice_tick_step(params.max_volume, target_ticks);
+    if !tick_step.is_finite() || tick_step <= 0.0 {
+        return;
+    }
+
+    let axis_left = (layout.price_axis_right.left + origin.x) as f32;
+    let axis_text = egui::Color32::from_rgb(112, 120, 132);
+    let mut tick = 0.0;
+    for _ in 0..(target_ticks + 2) {
+        if tick > params.max_volume + tick_step * 1e-9 {
+            break;
+        }
+        let fraction = tick / params.max_volume;
+        let y = bottom - fraction * height;
+        let y = (y + origin.y) as f32;
+        let label = if tick >= 1_000_000.0 {
+            format!("{:.1}M", tick / 1_000_000.0)
+        } else if tick >= 1_000.0 {
+            format!("{:.1}K", tick / 1_000.0)
+        } else {
+            format!("{:.0}", tick)
+        };
+        painter.text(
+            egui::pos2(axis_left + 9.0, y),
+            egui::Align2::LEFT_CENTER,
             label,
             font_id.clone(),
-            egui::Color32::GRAY,
+            axis_text,
         );
-        last_index = Some(index);
+        tick += tick_step;
     }
+}
+
+fn draw_time_axis(
+    painter: &egui::Painter,
+    layout: &crate::chart::layout::ChartLayout,
+    origin: ScreenPoint,
+    ticks: &[TimeAxisTick],
+    font_id: egui::FontId,
+) {
+    let axis_text = egui::Color32::from_rgb(92, 101, 114);
+    let axis_top = (layout.time_axis.top + origin.y) as f32;
+    for tick in ticks {
+        let x = (tick.screen_x + origin.x) as f32;
+        painter.line_segment(
+            [egui::pos2(x, axis_top), egui::pos2(x, axis_top + 5.0)],
+            egui::Stroke::new(1.0, egui::Color32::from_rgb(191, 198, 208)),
+        );
+        painter.text(
+            egui::pos2(x, axis_top + 7.0),
+            egui::Align2::CENTER_TOP,
+            tick.label.clone(),
+            font_id.clone(),
+            axis_text,
+        );
+    }
+}
+
+fn draw_current_price_marker(
+    painter: &egui::Painter,
+    layout: &crate::chart::layout::ChartLayout,
+    origin: ScreenPoint,
+    params: PriceAxisParams,
+    price: f64,
+    color: egui::Color32,
+) {
+    if !price.is_finite() || params.price_range <= 0.0 || params.zoom_y <= 0.0 {
+        return;
+    }
+
+    let top = layout.plot.top;
+    let height = layout.plot_height();
+    let relative_price =
+        price - params.center_price - params.offset_y * params.price_range;
+    let pixels_per_unit = height / params.price_range * params.zoom_y;
+    let y = top + height / 2.0 - relative_price * pixels_per_unit;
+    if !y.is_finite() || y < top || y > layout.plot.bottom {
+        return;
+    }
+
+    let screen_y = (y + origin.y) as f32;
+    let left = (layout.plot.left + origin.x) as f32;
+    let right = (layout.plot.right + origin.x) as f32;
+    let axis_left = (layout.price_axis_right.left + origin.x) as f32;
+    let axis_right = (layout.price_axis_right.right + origin.x) as f32;
+    let marker_y = screen_y.clamp(
+        (layout.plot.top + origin.y + 9.0) as f32,
+        (layout.plot.bottom + origin.y - 9.0) as f32,
+    );
+
+    let line_color = egui::Color32::from_rgba_unmultiplied(
+        color.r(),
+        color.g(),
+        color.b(),
+        150,
+    );
+    painter.line_segment(
+        [egui::pos2(left, screen_y), egui::pos2(right, screen_y)],
+        egui::Stroke::new(1.0, line_color),
+    );
+
+    let marker_rect = egui::Rect::from_min_max(
+        egui::pos2(axis_left + 1.0, marker_y - 9.0),
+        egui::pos2(axis_right - 1.0, marker_y + 9.0),
+    );
+    painter.rect_filled(marker_rect, egui::CornerRadius::same(2), color);
+    painter.text(
+        marker_rect.center(),
+        egui::Align2::CENTER_CENTER,
+        format!("{price:.2}"),
+        egui::FontId::proportional(11.0),
+        egui::Color32::WHITE,
+    );
 }
 
 /// Convierte la geometría compartida de la serie en primitivas específicas de egui.
@@ -336,7 +603,6 @@ impl ChartRenderer for GlowChartRenderer {
             self.cached_series_layer = RenderLayer::default();
             self.cached_series_shapes.clear();
             self.series_cache_valid = true;
-            tracing::trace!("No hay puntos para renderizar");
             return Ok(());
         }
 
@@ -361,39 +627,39 @@ impl ChartRenderer for GlowChartRenderer {
 
         let ox = frame.origin.x;
         let oy = frame.origin.y;
-
         let left = layout.plot.left + ox;
         let right = layout.plot.right + ox;
         let top = layout.plot.top + oy;
-        let bottom_precios = layout.plot.bottom + oy;
-        let volumen_top = layout.volume_panel.top + oy;
-        let volumen_bottom = layout.volume_panel.bottom + oy;
+        let bottom = layout.plot.bottom + oy;
+        let volume_bottom = layout.volume_panel.bottom + oy;
+        let drawing_width = layout.plot_width();
 
-        let drawing_width = right - left;
         let visible = scene
             .viewport
             .visible_range(scene.candle_count, drawing_width);
-
         if visible.is_empty() {
             tracing::trace!("No hay puntos visibles en el viewport");
             return Ok(());
         }
 
-        // La aplicación ya preparó estas métricas en una sola pasada
-        // sobre el rango visible; el renderer no vuelve a recorrer las velas.
-        let price_range = scene.price_range;
-        let center_price = scene.center_price;
-        let max_volume = scene.max_volume;
+        let price_params = PriceAxisParams {
+            center_price: scene.center_price,
+            offset_y: scene.viewport.offset_y(),
+            price_range: scene.price_range,
+            zoom_y: scene.viewport.zoom_y(),
+        };
+        let price_ticks = price_axis_ticks(top, bottom, price_params);
+        let time_params = TimeAxisParams {
+            viewport: &scene.viewport,
+            data_points: scene.data_points,
+            logical_count: scene.candle_count,
+        };
+        let time_ticks = time_axis_ticks(left, right, &time_params);
 
-        tracing::trace!(
-            "Rango de precios (visible): range={:.2}, center={:.2}, \
-             max_volumen={:.2}, velas={}..={}",
-            price_range,
-            center_price,
-            max_volume,
-            visible.first,
-            visible.last
-        );
+        // Fondo, escalas y rejilla se calculan con el mismo layout que usa
+        // el hit-testing, evitando que las marcas se desalineen del plot.
+        draw_chart_surfaces(painter, layout, frame.origin);
+        draw_grid(painter, layout, frame.origin, &price_ticks, &time_ticks);
 
         if rebuild_series {
             self.cached_series_layer = frame.layers.first().cloned().unwrap_or_default();
@@ -402,59 +668,66 @@ impl ChartRenderer for GlowChartRenderer {
             self.series_cache_valid = true;
         }
 
-        // egui limpia la lista de shapes en cada frame: reproducimos la caché
-        // para mantener visible la serie sin recalcular cada vela.
-        painter.extend(self.cached_series_shapes.iter().cloned());
+        // Las velas y el volumen quedan recortados al área de datos; nunca
+        // invaden las bandas de escalas.
+        let series_clip = egui::Rect::from_min_max(
+            egui::pos2(left as f32, top as f32),
+            egui::pos2(right as f32, volume_bottom as f32),
+        );
+        painter
+            .with_clip_rect(series_clip)
+            .extend(self.cached_series_shapes.iter().cloned());
 
         let font_id = egui::FontId::proportional(11.0);
-        let left_f64 = left;
-        let right_f64 = right;
-        let top_f64 = top;
+        let last_point = scene.data_points.last();
+        let current_price = last_point.map(|point| {
+            let color = if point.close() >= point.open() {
+                egui::Color32::from_rgb(8, 153, 129)
+            } else {
+                egui::Color32::from_rgb(242, 54, 69)
+            };
+            (point.close(), color)
+        });
 
         draw_price_axis(
             painter,
-            left_f64,
-            top_f64,
-            bottom_precios,
-            PriceAxisParams {
-                center_price,
-                offset_y: scene.viewport.offset_y(),
-                price_range,
-                zoom_y: scene.viewport.zoom_y(),
-            },
+            layout,
+            frame.origin,
+            &price_ticks,
+            current_price,
             font_id.clone(),
         );
+        if let Some((price, color)) = current_price {
+            draw_current_price_marker(
+                painter,
+                layout,
+                frame.origin,
+                price_params,
+                price,
+                color,
+            );
+        }
 
         draw_volume_axis(
             painter,
-            left_f64,
-            volumen_top,
-            volumen_bottom,
+            layout,
+            frame.origin,
             VolumeAxisParams {
-                max_volume,
-                zoom_y: scene.viewport.zoom_y(),
+                max_volume: scene.max_volume,
             },
             font_id.clone(),
         );
-
         draw_time_axis(
             painter,
-            left_f64,
-            right_f64,
-            bottom_precios,
-            TimeAxisParams {
-                viewport: &scene.viewport,
-                data_points: scene.data_points,
-                logical_count: scene.candle_count,
-            },
-            font_id,
+            layout,
+            frame.origin,
+            &time_ticks,
+            font_id.clone(),
         );
 
         if let Some(crosshair) = scene.crosshair_pos {
-            // ScreenPoint se expresa relativo al origen del rect completo del
-            // chart; ChartLayout también usa coordenadas locales al rect.
-            let chart_point = screen_to_chart_point(crosshair, layout.plot.left, layout.plot.top);
-
+            let chart_point =
+                screen_to_chart_point(crosshair, layout.plot.left, layout.plot.top);
             if chart_point.x >= 0.0
                 && chart_point.x <= layout.plot_width()
                 && chart_point.y >= 0.0
@@ -462,22 +735,21 @@ impl ChartRenderer for GlowChartRenderer {
             {
                 let crosshair_screen_x = crosshair.x + ox;
                 let crosshair_screen_y = crosshair.y + oy;
-                let crosshair_color = egui::Color32::from_rgba_unmultiplied(
-                    RenderColor::ORANGE.red,
-                    RenderColor::ORANGE.green,
-                    RenderColor::ORANGE.blue,
-                    RenderColor::ORANGE.alpha,
+                let crosshair_color =
+                    egui::Color32::from_rgb(104, 116, 132);
+                let crosshair_clip = egui::Rect::from_min_max(
+                    egui::pos2(left as f32, top as f32),
+                    egui::pos2(right as f32, volume_bottom as f32),
                 );
-
-                painter.line_segment(
+                let crosshair_painter = painter.with_clip_rect(crosshair_clip);
+                crosshair_painter.line_segment(
                     [
                         egui::pos2(crosshair_screen_x as f32, top as f32),
-                        egui::pos2(crosshair_screen_x as f32, bottom_precios as f32),
+                        egui::pos2(crosshair_screen_x as f32, volume_bottom as f32),
                     ],
                     egui::Stroke::new(1.0, crosshair_color),
                 );
-
-                painter.line_segment(
+                crosshair_painter.line_segment(
                     [
                         egui::pos2(left as f32, crosshair_screen_y as f32),
                         egui::pos2(right as f32, crosshair_screen_y as f32),
@@ -488,31 +760,56 @@ impl ChartRenderer for GlowChartRenderer {
                 let price_at_cursor = transforms::screen_y_to_price(
                     chart_point.y,
                     layout.plot_height(),
-                    price_range,
+                    scene.price_range,
                     scene.viewport.zoom_y(),
                     scene.viewport.offset_y(),
-                    center_price,
+                    scene.center_price,
                 );
                 let logical_at_cursor = scene
                     .viewport
                     .screen_to_logical(chart_point.x, layout.plot_width());
                 let time_label = time_label_at_logical(scene.data_points, logical_at_cursor);
 
-                let price_label = format!("{:.2}", price_at_cursor);
+                let price_axis_left = (layout.price_axis_right.left + ox) as f32;
+                let price_axis_right = (layout.price_axis_right.right + ox) as f32;
+                let price_marker_rect = egui::Rect::from_min_max(
+                    egui::pos2(price_axis_left + 1.0, crosshair_screen_y as f32 - 9.0),
+                    egui::pos2(price_axis_right - 1.0, crosshair_screen_y as f32 + 9.0),
+                );
+                painter.rect_filled(
+                    price_marker_rect,
+                    egui::CornerRadius::same(2),
+                    egui::Color32::from_rgb(72, 84, 101),
+                );
                 painter.text(
-                    egui::pos2((left - 6.0) as f32, crosshair_screen_y as f32),
-                    egui::Align2::RIGHT_CENTER,
-                    price_label,
+                    price_marker_rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    format!("{price_at_cursor:.2}"),
                     egui::FontId::proportional(11.0),
-                    crosshair_color,
+                    egui::Color32::WHITE,
                 );
 
+                let time_axis_left = (layout.time_axis.left + ox) as f32;
+                let time_axis_right = (layout.time_axis.right + ox) as f32;
+                let time_center = (crosshair_screen_x as f32).clamp(
+                    time_axis_left + 56.0,
+                    time_axis_right - 56.0,
+                );
+                let time_marker_rect = egui::Rect::from_min_max(
+                    egui::pos2(time_center - 55.0, (layout.time_axis.top + oy + 3.0) as f32),
+                    egui::pos2(time_center + 55.0, (layout.time_axis.bottom + oy - 3.0) as f32),
+                );
+                painter.rect_filled(
+                    time_marker_rect,
+                    egui::CornerRadius::same(2),
+                    egui::Color32::from_rgb(72, 84, 101),
+                );
                 painter.text(
-                    egui::pos2(crosshair_screen_x as f32, (bottom_precios + 4.0) as f32),
-                    egui::Align2::CENTER_TOP,
+                    time_marker_rect.center(),
+                    egui::Align2::CENTER_CENTER,
                     time_label,
                     egui::FontId::proportional(11.0),
-                    crosshair_color,
+                    egui::Color32::WHITE,
                 );
             }
         }
@@ -530,6 +827,28 @@ impl ChartRenderer for GlowChartRenderer {
 mod tests {
     use super::*;
     use crate::renderer::InvalidationReason;
+
+    #[test]
+    fn price_ticks_share_the_center_origin_used_by_candles_and_crosshair() {
+        let params = PriceAxisParams {
+            center_price: 100.0,
+            offset_y: 0.0,
+            price_range: 20.0,
+            zoom_y: 1.0,
+        };
+        let ticks = price_axis_ticks(100.0, 300.0, params);
+        let center = ticks
+            .iter()
+            .find(|tick| (tick.value - 100.0).abs() < 1e-9)
+            .expect("debe existir un tick en el precio central");
+        assert!((center.y - 200.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn price_tick_precision_follows_the_tick_step() {
+        assert_eq!(format_price_tick(50_123.0, 1.0), "50123.00");
+        assert_eq!(format_price_tick(1.2345, 0.0001), "1.2345");
+    }
 
     #[test]
     fn crosshair_time_label_interpolates_irregular_time_intervals() {
