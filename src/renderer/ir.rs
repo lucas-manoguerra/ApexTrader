@@ -195,6 +195,8 @@ pub struct ChartScene<'a> {
     pub price_range: f64,
     /// Precio central de zoom.
     pub center_price: f64,
+    /// Incremento mínimo de precio del instrumento, para alinear y formatear ticks.
+    pub price_tick_size: f64,
     /// Volumen máximo entre las velas visibles.
     pub max_volume: f64,
     /// Cantidad de velas cargadas.
@@ -269,6 +271,7 @@ impl<'a> ChartScene<'a> {
             viewport: Viewport::new(),
             price_range: 0.0,
             center_price: 0.0,
+            price_tick_size: 0.01,
             max_volume: 0.0,
             candle_count: 0,
             screen_width: 0.0,
@@ -378,6 +381,7 @@ mod tests {
             viewport: Viewport::new(),
             price_range: 10.0,
             center_price: 102.0,
+            price_tick_size: 0.01,
             max_volume: 1_000.0,
             candle_count: points.len(),
             screen_width: 744.0,

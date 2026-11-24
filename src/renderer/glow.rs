@@ -102,17 +102,53 @@ fn nice_tick_step(range: f64, target_ticks: usize) -> f64 {
     }
 }
 
-fn format_price_tick(value: f64, step: f64) -> String {
+fn decimal_places_for_increment(increment: f64) -> usize {
+    if !increment.is_finite() || increment <= 0.0 {
+        return 2;
+    }
+
+    for decimals in 0..=8 {
+        let scale = 10.0_f64.powi(decimals);
+        let scaled = increment * scale;
+        if scaled.is_finite()
+            && (scaled - scaled.round()).abs() <= 1e-8 * scaled.abs().max(1.0)
+        {
+            return decimals;
+        }
+    }
+    8
+}
+
+fn format_price_tick(value: f64, step: f64, minimum_tick: f64) -> String {
     if !value.is_finite() {
         return String::new();
     }
 
-    let decimals = if step >= 1.0 {
-        2
-    } else {
-        (-step.log10()).ceil().clamp(2.0, 8.0) as usize
-    };
+    let decimals = decimal_places_for_increment(step)
+        .max(decimal_places_for_increment(minimum_tick))
+        .max(2)
+        .min(8);
     format!("{:.*}", decimals, value)
+}
+
+fn aligned_price_tick_step(range: f64, target_ticks: usize, minimum_tick: f64) -> f64 {
+    let minimum_tick = if minimum_tick.is_finite() && minimum_tick > 0.0 {
+        minimum_tick
+    } else {
+        0.01
+    };
+    let nice_step = nice_tick_step(range, target_ticks);
+    if !nice_step.is_finite() || nice_step <= 0.0 {
+        return minimum_tick;
+    }
+
+    let multiples = (nice_step / minimum_tick).ceil().max(1.0);
+    let aligned = multiples * minimum_tick;
+    if aligned.is_finite() && aligned > 0.0 {
+        aligned
+    } else {
+        nice_step
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -121,6 +157,7 @@ struct PriceAxisParams {
     offset_y: f64,
     price_range: f64,
     zoom_y: f64,
+    minimum_tick: f64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -166,7 +203,11 @@ fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<Price
     let min_visible = visible_center - half_range_visible;
     let max_visible = visible_center + half_range_visible;
     let target_ticks = ((height / 56.0).floor() as usize).clamp(4, 8);
-    let tick_step = nice_tick_step(max_visible - min_visible, target_ticks);
+    let tick_step = aligned_price_tick_step(
+        max_visible - min_visible,
+        target_ticks,
+        params.minimum_tick,
+    );
     if !tick_step.is_finite() || tick_step <= 0.0 {
         return Vec::new();
     }
@@ -399,7 +440,7 @@ fn draw_price_axis(
         painter.text(
             egui::pos2(axis_left + 9.0, y),
             egui::Align2::LEFT_CENTER,
-            format_price_tick(tick.value, tick.label_step),
+            format_price_tick(tick.value, tick.label_step, params.minimum_tick),
             font_id.clone(),
             axis_text,
         );
@@ -521,7 +562,7 @@ fn draw_current_price_marker(
     painter.text(
         marker_rect.center(),
         egui::Align2::CENTER_CENTER,
-        format!("{price:.2}"),
+        format_price_tick(price, params.minimum_tick, params.minimum_tick),
         egui::FontId::proportional(11.0),
         egui::Color32::WHITE,
     );
@@ -662,6 +703,7 @@ impl ChartRenderer for GlowChartRenderer {
             offset_y: scene.viewport.offset_y(),
             price_range: scene.price_range,
             zoom_y: scene.viewport.zoom_y(),
+            minimum_tick: scene.price_tick_size,
         };
         let price_ticks = price_axis_ticks(top, bottom, price_params);
         let time_params = TimeAxisParams {
@@ -777,7 +819,11 @@ impl ChartRenderer for GlowChartRenderer {
                 painter.text(
                     price_marker_rect.center(),
                     egui::Align2::CENTER_CENTER,
-                    format!("{price_at_cursor:.2}"),
+                    format_price_tick(
+                        price_at_cursor,
+                        scene.price_tick_size,
+                        scene.price_tick_size,
+                    ),
                     egui::FontId::proportional(11.0),
                     egui::Color32::WHITE,
                 );
@@ -833,6 +879,7 @@ mod tests {
             offset_y: 0.0,
             price_range: 20.0,
             zoom_y: 1.0,
+            minimum_tick: 0.01,
         };
         let ticks = price_axis_ticks(100.0, 300.0, params);
         let center = ticks
@@ -844,8 +891,9 @@ mod tests {
 
     #[test]
     fn price_tick_precision_follows_the_tick_step() {
-        assert_eq!(format_price_tick(50_123.0, 1.0), "50123.00");
-        assert_eq!(format_price_tick(1.2345, 0.0001), "1.2345");
+        assert_eq!(format_price_tick(50_123.0, 1.0, 0.01), "50123.00");
+        assert_eq!(format_price_tick(5_000.25, 0.5, 0.25), "5000.25");
+        assert_eq!(format_price_tick(1.08765, 0.0001, 0.00001), "1.08765");
     }
 
     fn minute_points(
@@ -937,6 +985,24 @@ mod tests {
 
         assert!(ticks.windows(2).all(|pair| {
             pair[0].screen_x < pair[1].screen_x && pair[1].screen_x - pair[0].screen_x >= 72.0
+        }));
+    }
+
+    #[test]
+    fn price_ticks_align_to_the_instrument_minimum_increment() {
+        let params = PriceAxisParams {
+            center_price: 100.0,
+            offset_y: 0.0,
+            price_range: 0.8,
+            zoom_y: 1.0,
+            minimum_tick: 0.25,
+        };
+        let ticks = price_axis_ticks(0.0, 200.0, params);
+
+        assert!(ticks.len() >= 3);
+        assert!(ticks.iter().all(|tick| {
+            let increments = tick.value / params.minimum_tick;
+            (increments - increments.round()).abs() < 1e-8
         }));
     }
 
@@ -1036,6 +1102,7 @@ mod tests {
             viewport: Viewport::new(),
             price_range: 10.0,
             center_price: 102.0,
+            price_tick_size: 0.01,
             max_volume: 1_000.0,
             candle_count: candles.len(),
             screen_width: 800.0,

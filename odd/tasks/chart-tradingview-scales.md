@@ -32,3 +32,18 @@
 - [x] Etiquetas compactas que alternan hora, fecha, mes/año y año según el intervalo.
 - [x] Separación mínima proporcional al texto para evitar colisiones entre etiquetas.
 - [x] Cobertura de cambios de día, intervalos diarios y series con huecos.
+
+
+## Refinamiento de la escala de precios
+
+- [x] Mantener rango y centro de referencia dentro del Viewport.
+- [x] Autoescala calculada con máximos/mínimos de las velas visibles.
+- [x] Modo manual: conservar rango vertical al llegar nuevas velas realtime.
+- [x] Bloqueo vertical independiente del modo Auto/Manual.
+- [x] Arrastre vertical y zoom manual desactivan Auto sin saltos del rango de referencia.
+- [x] Doble clic en la escala de precios vuelve al modo Auto.
+- [x] Controles visibles para Auto y bloqueo vertical.
+- [x] Ticks alineados al incremento mínimo del instrumento y precisión decimal coherente.
+- [x] Pruebas de persistencia manual, bloqueo, transiciones y precisión de ticks.
+
+**Nota:** el incremento mínimo se infiere con reglas limitadas para el mock (BTC/USDT, futuros CME comunes y pares FX). El proveedor real deberá suministrar el tick size exacto del contrato/instrumento.

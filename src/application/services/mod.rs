@@ -61,6 +61,8 @@ struct ApexTraderApp {
     load_state: LoadState,
     /// Símbolo ingresado por el usuario para cargar datos de mercado.
     symbol_input: String,
+    /// Incremento mínimo de precio del instrumento seleccionado.
+    price_tick_size: f64,
     /// Viewport del frame anterior (para calcular invalidation mask).
     prev_viewport: Option<Viewport>,
     /// Posición del crosshair del frame anterior.
@@ -91,6 +93,17 @@ impl eframe::App for ApexTraderApp {
 
             ui.label(format!("Renderer: {}", self.renderer.name()));
             ui.checkbox(&mut self.follow_latest, "Seguir última vela");
+            ui.horizontal(|ui| {
+                let mut auto_scale = self.chart.viewport().price_scale_auto();
+                if ui.checkbox(&mut auto_scale, "Auto escala de precios").changed() {
+                    self.chart.viewport_mut().set_price_scale_auto(auto_scale);
+                }
+
+                let mut locked = self.chart.viewport().price_scale_locked();
+                if ui.checkbox(&mut locked, "Bloquear escala vertical").changed() {
+                    self.chart.viewport_mut().set_price_scale_locked(locked);
+                }
+            });
 
             ui.separator();
 
@@ -104,6 +117,7 @@ impl eframe::App for ApexTraderApp {
                 if recargar {
                     match Symbol::from_str(&self.symbol_input) {
                         Ok(symbol) => {
+                            self.price_tick_size = price_tick_size_for_symbol(&symbol);
                             let provider = MockMarketDataProvider::new(50_000.0)
                                 .with_interval_ms(MOCK_INTERVAL_MS)
                                 .with_base_volume(MOCK_REALTIME_VOLUME);
@@ -185,6 +199,25 @@ impl eframe::App for ApexTraderApp {
             }
             self.follow_latest_pending = false;
 
+            let pre_input_count = self.chart.time_scale().len();
+            let pre_input_visible = self
+                .chart
+                .viewport()
+                .visible_range(pre_input_count, chart_layout.plot_width());
+            if !pre_input_visible.is_empty() {
+                let points = self.chart.data_points();
+                let visible_points = &points[pre_input_visible.first..=pre_input_visible.last];
+                let (min_price, max_price) = visible_points.iter().fold(
+                    (f64::INFINITY, f64::NEG_INFINITY),
+                    |(min_price, max_price), point| {
+                        (min_price.min(point.low()), max_price.max(point.high()))
+                    },
+                );
+                self.chart
+                    .viewport_mut()
+                    .update_auto_price_scale(min_price, max_price);
+            }
+
             let interaction_rect = chart_rect;
 
             let crosshair_pos = {
@@ -207,35 +240,38 @@ impl eframe::App for ApexTraderApp {
             let mask =
                 self.calculate_invalidation_mask(viewport, crosshair_pos, data_revision, chart_rect);
 
-            // Calcular rango de precios y centro a partir de los puntos visibles.
+            // El rango de referencia pertenece al Viewport: Auto lo actualiza
+            // con el rango visible; Manual lo conserva aunque llegue realtime.
             let drawing_width = chart_layout.plot_width();
             let drawing_height = chart_layout.plot_height();
             let logical_count = self.chart.time_scale().len();
             let visible = viewport.visible_range(logical_count, drawing_width);
-            let (price_range, center_price, max_volume) = if visible.is_empty() {
-                (0.0, 0.0, 0.0)
+            let max_volume = if visible.is_empty() {
+                0.0
             } else {
-                // Una sola pasada calcula rango de precios y volumen visibles.
                 let visible_points = &points[visible.first..=visible.last];
-                let (min_price, max_price, max_volume) = visible_points.iter().fold(
-                    (f64::INFINITY, f64::NEG_INFINITY, 0.0_f64),
-                    |(min_price, max_price, max_volume), point| {
-                        (
-                            min_price.min(point.low()),
-                            max_price.max(point.high()),
-                            max_volume.max(point.volume()),
-                        )
+                visible_points
+                    .iter()
+                    .map(|point| point.volume())
+                    .fold(0.0_f64, f64::max)
+            };
+            if viewport.price_scale_auto() && !visible.is_empty() {
+                let visible_points = &points[visible.first..=visible.last];
+                let (min_price, max_price) = visible_points.iter().fold(
+                    (f64::INFINITY, f64::NEG_INFINITY),
+                    |(min_price, max_price), point| {
+                        (min_price.min(point.low()), max_price.max(point.high()))
                     },
                 );
-
-                let raw_price_range = max_price - min_price;
-                let price_range = if raw_price_range == 0.0 {
-                    1.0
-                } else {
-                    raw_price_range
-                };
-                let center_price = (min_price + max_price) / 2.0;
-                (price_range, center_price, max_volume)
+                self.chart
+                    .viewport_mut()
+                    .update_auto_price_scale(min_price, max_price);
+            }
+            let viewport = self.chart.viewport();
+            let (price_range, center_price) = if visible.is_empty() {
+                (0.0, 0.0)
+            } else {
+                viewport.price_scale_reference()
             };
 
             let scene = ChartScene {
@@ -244,6 +280,7 @@ impl eframe::App for ApexTraderApp {
                 viewport: *viewport,
                 price_range,
                 center_price,
+                price_tick_size: self.price_tick_size,
                 max_volume,
                 candle_count: logical_count,
                 screen_width: drawing_width,
@@ -411,6 +448,7 @@ pub fn run() -> eframe::Result {
                 .with_interval_ms(MOCK_INTERVAL_MS)
                 .with_base_volume(MOCK_REALTIME_VOLUME);
             let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
+            let price_tick_size = price_tick_size_for_symbol(&symbol);
             let to_ms = latest_closed_candle_open_time(MOCK_INTERVAL_MS);
             let from_ms = to_ms.saturating_sub((MOCK_HISTORY_CANDLES - 1) * MOCK_INTERVAL_MS);
 
@@ -433,6 +471,7 @@ pub fn run() -> eframe::Result {
                 input_handler: InputHandler::new(),
                 load_state,
                 symbol_input: "BTC/USDT".to_string(),
+                price_tick_size,
                 prev_viewport: None,
                 prev_crosshair_pos: None,
                 prev_data_revision: data_revision,
@@ -445,6 +484,52 @@ pub fn run() -> eframe::Result {
             }))
         }),
     )
+}
+
+/// Incremento mínimo para los instrumentos soportados por el mock.
+////
+//// La precisión de mercado real debe provenir de los metadatos del exchange;
+//// estas reglas solo permiten que el gráfico sintético represente formatos
+//// habituales para BTC, futuros CME y pares FX.
+fn price_tick_size_for_symbol(symbol: &Symbol) -> f64 {
+    let base = symbol.base().to_ascii_uppercase();
+    let quote = symbol.quote().to_ascii_uppercase();
+
+    if matches!(base.as_str(), "ES" | "MES" | "NQ" | "MNQ") {
+        return 0.25;
+    }
+
+    const FX_CURRENCIES: [&str; 8] = ["USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD"];
+    if FX_CURRENCIES.contains(&base.as_str()) && FX_CURRENCIES.contains(&quote.as_str()) {
+        return if quote == "JPY" { 0.001 } else { 0.00001 };
+    }
+
+    0.01
+}
+
+#[cfg(test)]
+mod price_tick_tests {
+    use super::*;
+
+    #[test]
+    fn price_tick_size_uses_known_mock_instrument_conventions() {
+        assert_eq!(
+            price_tick_size_for_symbol(&Symbol::from_str("BTC/USDT").unwrap()),
+            0.01
+        );
+        assert_eq!(
+            price_tick_size_for_symbol(&Symbol::from_str("MNQ/USD").unwrap()),
+            0.25
+        );
+        assert_eq!(
+            price_tick_size_for_symbol(&Symbol::from_str("EUR/USD").unwrap()),
+            0.00001
+        );
+        assert_eq!(
+            price_tick_size_for_symbol(&Symbol::from_str("USD/JPY").unwrap()),
+            0.001
+        );
+    }
 }
 
 /// Timestamp de apertura de la última vela completamente cerrada.
