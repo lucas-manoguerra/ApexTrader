@@ -280,7 +280,7 @@ impl eframe::App for ApexTraderApp {
                 ));
             });
             ui.small(
-                "Rueda: zoom temporal | Shift + rueda: desplazamiento horizontal | Arrastrar: mover | Arrastrar escala derecha/inferior: ajustar | Doble clic en escala: restablecer",
+                "Rueda vertical: zoom temporal | Rueda horizontal: desplazar tiempo | Arrastrar: mover | Arrastrar escala derecha/inferior: ajustar | Doble clic en escala: restablecer",
             );
         });
     }
