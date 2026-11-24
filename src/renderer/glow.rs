@@ -205,38 +205,69 @@ fn time_axis_ticks(left: f64, right: f64, params: &TimeAxisParams<'_>) -> Vec<Ti
         return Vec::new();
     }
 
+    // Elegir un intervalo "nice" en barras y traducirlo a tiempo real. Al
+    // agrupar por buckets UTC, las marcas caen en límites de reloj (5m, 15m,
+    // 1h, etc.) en lugar de depender del primer índice visible.
     let target_labels = ((width / 118.0).floor() as usize).clamp(2, 9);
-    let span = visible.len().saturating_sub(1);
-    let divisor = target_labels.saturating_sub(1).max(1);
-    let index_step = span.div_ceil(divisor).max(1);
+    let logical_span = visible.last.saturating_sub(visible.first).max(1);
+    let bar_step = nice_tick_step(logical_span as f64, target_labels.saturating_sub(1))
+        .round()
+        .clamp(1.0, usize::MAX as f64) as usize;
+
+    let base_interval_ms = params
+        .data_points
+        .iter()
+        .find(|point| point.time_point.interval_ms > 0)
+        .map(|point| point.time_point.interval_ms)
+        .unwrap_or(1);
+    let tick_interval_ms = base_interval_ms
+        .saturating_mul(bar_step.min(i64::MAX as usize) as i64)
+        .max(1);
 
     let mut ticks = Vec::with_capacity(target_labels + 1);
+    let mut previous_bucket: Option<i64> = None;
+    let mut previous_tick_timestamp: Option<i64> = None;
     let mut last_screen_x: Option<f64> = None;
 
     for point in params.data_points {
         let Some(index) = point.logical_index else {
             continue;
         };
-        if index < visible.first
-            || index > visible.last
-            || !(index - visible.first).is_multiple_of(index_step)
-        {
+        if index > visible.last {
+            break;
+        }
+
+        let timestamp = point.time_point.open_time_ms;
+        let bucket = timestamp.div_euclid(tick_interval_ms);
+        if index < visible.first {
+            previous_bucket = Some(bucket);
             continue;
         }
+        if previous_bucket == Some(bucket) {
+            continue;
+        }
+        previous_bucket = Some(bucket);
 
         let screen_x = params.viewport.logical_to_screen(index as f64, width) + left;
         if screen_x < left + 4.0 || screen_x > right - 4.0 {
             continue;
         }
-        if last_screen_x.is_some_and(|last| screen_x - last < 112.0) {
+
+        let label = TimeScale::format_time_axis_label(
+            timestamp,
+            tick_interval_ms,
+            previous_tick_timestamp,
+        );
+        // Reservar espacio según la etiqueta visible evita colisiones sin
+        // imponer una separación excesiva a los ticks compactos HH:mm.
+        let minimum_spacing = (label.chars().count() as f64 * 7.5 + 24.0).max(72.0);
+        if last_screen_x.is_some_and(|last| screen_x - last < minimum_spacing) {
             continue;
         }
 
-        let label = TimeScale::format_time_point(point.time_point)
-            .trim_end_matches(" UTC")
-            .to_owned();
         ticks.push(TimeAxisTick { screen_x, label });
         last_screen_x = Some(screen_x);
+        previous_tick_timestamp = Some(timestamp);
     }
 
     ticks
@@ -818,6 +849,96 @@ mod tests {
     fn price_tick_precision_follows_the_tick_step() {
         assert_eq!(format_price_tick(50_123.0, 1.0), "50123.00");
         assert_eq!(format_price_tick(1.2345, 0.0001), "1.2345");
+    }
+
+    fn minute_points(start_ms: i64, interval_ms: i64, count: usize) -> Vec<crate::domain::chart::chart_data::ChartDataPoint> {
+        use crate::domain::candle::Candle;
+        use crate::domain::chart::chart_data::ChartDataPoint;
+        use crate::domain::chart::time_point::TimePoint;
+
+        let candle = Candle::new(100.0, 101.0, 99.0, 100.5, 1_000.0)
+            .expect("vela válida");
+        (0..count)
+            .map(|index| {
+                let open_time_ms = start_ms + index as i64 * interval_ms;
+                let time_point =
+                    TimePoint::new(open_time_ms, open_time_ms + interval_ms, interval_ms)
+                        .expect("intervalo válido");
+                let mut point = ChartDataPoint::new(candle, time_point);
+                point.logical_index = Some(index);
+                point
+            })
+            .collect()
+    }
+
+    #[test]
+    fn time_axis_ticks_align_to_clock_intervals_instead_of_visible_index_origin() {
+        let points = minute_points(9 * 3_600_000, 60_000, 60);
+        let mut viewport = Viewport::new();
+        viewport.set_offset_x(-29.5);
+        let params = TimeAxisParams {
+            viewport: &viewport,
+            data_points: &points,
+            logical_count: points.len(),
+        };
+
+        let ticks = time_axis_ticks(0.0, 800.0, &params);
+        assert!(ticks.len() >= 3, "debe haber varias marcas temporales");
+        for tick in ticks {
+            let (hour, minute) = tick.label.split_once(':').expect("etiqueta horaria");
+            assert!(hour.parse::<u32>().is_ok());
+            let minute = minute.parse::<u32>().expect("minuto numérico");
+            assert_eq!(
+                minute % 10,
+                0,
+                "los ticks deben alinearse a múltiplos de diez minutos: {}",
+                tick.label
+            );
+        }
+    }
+
+    #[test]
+    fn time_axis_marks_calendar_day_changes_with_a_date_label() {
+        const DAY_MS: i64 = 86_400_000;
+        let points = minute_points(DAY_MS - 10 * 60_000, 60_000, 30);
+        let mut viewport = Viewport::new();
+        viewport.set_offset_x(-14.5);
+        let params = TimeAxisParams {
+            viewport: &viewport,
+            data_points: &points,
+            logical_count: points.len(),
+        };
+
+        let ticks = time_axis_ticks(0.0, 800.0, &params);
+        assert!(
+            ticks.iter().any(|tick| tick.label == "02/01"),
+            "el primer tick del nuevo día debe mostrar la fecha: {ticks:?}"
+        );
+    }
+
+    #[test]
+    fn time_axis_ticks_remain_ordered_and_spaced_across_time_gaps() {
+        let mut points = minute_points(9 * 3_600_000, 60_000, 20);
+        let gap_start = 10 * 3_600_000;
+        let gap_points = minute_points(gap_start, 60_000, 20);
+        for (offset, mut point) in gap_points.into_iter().enumerate() {
+            point.logical_index = Some(20 + offset);
+            points.push(point);
+        }
+
+        let mut viewport = Viewport::new();
+        viewport.set_offset_x(-19.5);
+        let params = TimeAxisParams {
+            viewport: &viewport,
+            data_points: &points,
+            logical_count: points.len(),
+        };
+        let ticks = time_axis_ticks(0.0, 800.0, &params);
+
+        assert!(ticks.windows(2).all(|pair| {
+            pair[0].screen_x < pair[1].screen_x
+                && pair[1].screen_x - pair[0].screen_x >= 72.0
+        }));
     }
 
     #[test]

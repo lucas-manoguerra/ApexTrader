@@ -23,3 +23,12 @@
 - Tests unitarios del layout y del cálculo de ticks.
 - Tests de interacción para la escala derecha y el eje temporal.
 - `cargo fmt --check`, `cargo check`, `cargo test --workspace`, `cargo clippy -- -D warnings` y workflow CI.
+
+
+## Refinamiento de la escala temporal
+
+- [x] Selección de intervalos temporales adaptativos a la densidad visible.
+- [x] Alineación de ticks a buckets de reloj UTC (minutos, horas y días), no al índice visible inicial.
+- [x] Etiquetas compactas que alternan hora, fecha, mes/año y año según el intervalo.
+- [x] Separación mínima proporcional al texto para evitar colisiones entre etiquetas.
+- [x] Cobertura de cambios de día, intervalos diarios y series con huecos.

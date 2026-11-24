@@ -213,6 +213,44 @@ impl TimeScale {
         format!("{day:02}/{month:02} {hour:02}:{minute:02} UTC")
     }
 
+    /// Etiqueta compacta para la escala temporal.
+    ///
+    /// Usa la hora mientras los ticks pertenecen al mismo día y cambia a fecha
+    /// en los límites diarios. Al alejar el zoom muestra mes/año o año para
+    /// evitar etiquetas redundantes. Todos los valores se interpretan en UTC.
+    pub fn format_time_axis_label(
+        timestamp_ms: i64,
+        tick_interval_ms: i64,
+        previous_timestamp_ms: Option<i64>,
+    ) -> String {
+        const DAY_MS: i64 = 86_400_000;
+        const MONTH_MS: i64 = 28 * DAY_MS;
+        const YEAR_MS: i64 = 365 * DAY_MS;
+
+        let interval_ms = tick_interval_ms.max(1);
+        let seconds = timestamp_ms.div_euclid(1_000);
+        let days = seconds.div_euclid(86_400);
+        let day_seconds = seconds.rem_euclid(86_400);
+        let (year, month, day) = civil_from_days(days);
+
+        if interval_ms >= YEAR_MS {
+            return format!("{year}");
+        }
+        if interval_ms >= MONTH_MS {
+            return format!("{month:02}/{year}");
+        }
+
+        let crossed_day = previous_timestamp_ms
+            .is_some_and(|previous| previous.div_euclid(DAY_MS) != timestamp_ms.div_euclid(DAY_MS));
+        if interval_ms >= DAY_MS || crossed_day {
+            return format!("{day:02}/{month:02}");
+        }
+
+        let hour = day_seconds / 3_600;
+        let minute = (day_seconds % 3_600) / 60;
+        format!("{hour:02}:{minute:02}")
+    }
+
     /// Etiqueta de un punto temporal.
     pub fn format_time_point(time_point: TimePoint) -> String {
         Self::format_time_label(time_point.open_time_ms)
@@ -250,6 +288,36 @@ mod tests {
         // Salto temporal intencional: no crea índices intermedios.
         scale.rebuild([0, 60_000, 3_600_000, 3_660_000]);
         scale
+    }
+
+    #[test]
+    fn time_axis_labels_adapt_between_time_date_month_and_year() {
+        const DAY_MS: i64 = 86_400_000;
+
+        assert_eq!(
+            TimeScale::format_time_axis_label(0, 60_000, None),
+            "00:00"
+        );
+        assert_eq!(
+            TimeScale::format_time_axis_label(DAY_MS, 60_000, Some(0)),
+            "02/01"
+        );
+        assert_eq!(
+            TimeScale::format_time_axis_label(DAY_MS + 60_000, 60_000, Some(DAY_MS)),
+            "00:01"
+        );
+        assert_eq!(
+            TimeScale::format_time_axis_label(0, DAY_MS, None),
+            "01/01"
+        );
+        assert_eq!(
+            TimeScale::format_time_axis_label(0, 30 * DAY_MS, None),
+            "01/1970"
+        );
+        assert_eq!(
+            TimeScale::format_time_axis_label(0, 365 * DAY_MS, None),
+            "1970"
+        );
     }
 
     #[test]
