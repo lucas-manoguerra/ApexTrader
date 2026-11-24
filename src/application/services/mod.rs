@@ -94,7 +94,7 @@ fn estimate_price_axis_width(
     // Medir con la fuente real del eje evita aproximaciones por cantidad de
     // caracteres: comas, signos y dígitos tienen anchos distintos.
     let font_id = egui::FontId::proportional(11.0);
-    let widest_label_width = ui.fonts(|fonts| {
+    let widest_label_width = ui.fonts_mut(|fonts| {
         labels
             .iter()
             .map(|label| {
@@ -1107,7 +1107,7 @@ mod price_scale_mode_tests {
         let mut large_viewport = Viewport::new();
         large_viewport.update_auto_price_scale(100_000.0, 200_000.0);
 
-        let _output = context.run(egui::RawInput::default(), |ctx| {
+        let _output = context.run_ui(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 compact_width = Some(estimate_price_axis_width(
                     ui,
