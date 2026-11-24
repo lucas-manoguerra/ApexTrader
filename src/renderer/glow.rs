@@ -253,11 +253,8 @@ fn time_axis_ticks(left: f64, right: f64, params: &TimeAxisParams<'_>) -> Vec<Ti
             continue;
         }
 
-        let label = TimeScale::format_time_axis_label(
-            timestamp,
-            tick_interval_ms,
-            previous_tick_timestamp,
-        );
+        let label =
+            TimeScale::format_time_axis_label(timestamp, tick_interval_ms, previous_tick_timestamp);
         // Reservar espacio según la etiqueta visible evita colisiones sin
         // imponer una separación excesiva a los ticks compactos HH:mm.
         let minimum_spacing = (label.chars().count() as f64 * 7.5 + 24.0).max(72.0);
@@ -851,13 +848,16 @@ mod tests {
         assert_eq!(format_price_tick(1.2345, 0.0001), "1.2345");
     }
 
-    fn minute_points(start_ms: i64, interval_ms: i64, count: usize) -> Vec<crate::domain::chart::chart_data::ChartDataPoint> {
+    fn minute_points(
+        start_ms: i64,
+        interval_ms: i64,
+        count: usize,
+    ) -> Vec<crate::domain::chart::chart_data::ChartDataPoint> {
         use crate::domain::candle::Candle;
         use crate::domain::chart::chart_data::ChartDataPoint;
         use crate::domain::chart::time_point::TimePoint;
 
-        let candle = Candle::new(100.0, 101.0, 99.0, 100.5, 1_000.0)
-            .expect("vela válida");
+        let candle = Candle::new(100.0, 101.0, 99.0, 100.5, 1_000.0).expect("vela válida");
         (0..count)
             .map(|index| {
                 let open_time_ms = start_ms + index as i64 * interval_ms;
@@ -936,8 +936,7 @@ mod tests {
         let ticks = time_axis_ticks(0.0, 800.0, &params);
 
         assert!(ticks.windows(2).all(|pair| {
-            pair[0].screen_x < pair[1].screen_x
-                && pair[1].screen_x - pair[0].screen_x >= 72.0
+            pair[0].screen_x < pair[1].screen_x && pair[1].screen_x - pair[0].screen_x >= 72.0
         }));
     }
 

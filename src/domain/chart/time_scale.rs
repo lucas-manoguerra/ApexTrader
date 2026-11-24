@@ -315,10 +315,7 @@ mod tests {
     fn time_axis_labels_adapt_between_time_date_month_and_year() {
         const DAY_MS: i64 = 86_400_000;
 
-        assert_eq!(
-            TimeScale::format_time_axis_label(0, 60_000, None),
-            "00:00"
-        );
+        assert_eq!(TimeScale::format_time_axis_label(0, 60_000, None), "00:00");
         assert_eq!(
             TimeScale::format_time_axis_label(DAY_MS, 60_000, Some(0)),
             "02/01"
@@ -327,10 +324,7 @@ mod tests {
             TimeScale::format_time_axis_label(DAY_MS + 60_000, 60_000, Some(DAY_MS)),
             "00:01"
         );
-        assert_eq!(
-            TimeScale::format_time_axis_label(0, DAY_MS, None),
-            "01/01"
-        );
+        assert_eq!(TimeScale::format_time_axis_label(0, DAY_MS, None), "01/01");
         assert_eq!(
             TimeScale::format_time_axis_label(0, 30 * DAY_MS, None),
             "01/1970"
