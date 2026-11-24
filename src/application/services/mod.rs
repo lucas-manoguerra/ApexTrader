@@ -751,4 +751,3 @@ mod price_tick_tests {
         );
     }
 }
-
