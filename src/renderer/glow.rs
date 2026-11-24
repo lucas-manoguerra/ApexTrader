@@ -198,6 +198,8 @@ struct PriceTick {
     scale_value: f64,
     y: f64,
     label_step: f64,
+    /// Las marcas principales tienen prioridad al evitar etiquetas superpuestas.
+    is_major: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -218,6 +220,45 @@ fn price_axis_label(
             format_price_tick(value, step, minimum_tick)
         }
     }
+}
+
+const MIN_PRICE_TICK_LABEL_SPACING: f64 = 18.0;
+
+/// Elige marcas con separación suficiente para que sus etiquetas sean legibles.
+///
+/// Las marcas principales se conservan primero; las intermedias solo ocupan
+/// los huecos disponibles. El resultado vuelve a ordenarse por valor para que
+/// tanto la rejilla como el eje mantengan una secuencia determinista.
+fn retain_price_ticks_with_minimum_spacing(ticks: &mut Vec<PriceTick>, minimum_spacing: f64) {
+    if ticks.len() < 2 || !minimum_spacing.is_finite() || minimum_spacing <= 0.0 {
+        return;
+    }
+
+    let mut candidates: Vec<usize> = (0..ticks.len()).collect();
+    candidates.sort_by(|left, right| {
+        ticks[*right]
+            .is_major
+            .cmp(&ticks[*left].is_major)
+            .then_with(|| ticks[*left].y.total_cmp(&ticks[*right].y))
+    });
+
+    let mut selected = Vec::with_capacity(ticks.len());
+    for index in candidates {
+        let candidate = ticks[index];
+        let has_room = selected
+            .iter()
+            .all(|selected_tick: &PriceTick| {
+                (selected_tick.y - candidate.y).abs() >= minimum_spacing
+            });
+        if has_room {
+            selected.push(candidate);
+        }
+    }
+
+    selected.sort_by(|left: &PriceTick, right: &PriceTick| {
+        left.scale_value.total_cmp(&right.scale_value)
+    });
+    *ticks = selected;
 }
 
 fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<PriceTick> {
@@ -266,6 +307,7 @@ fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<Price
                     scale_value: value,
                     y: y_for_scale_value(value),
                     label_step: tick_step,
+                    is_major: true,
                 });
                 value += tick_step;
             }
@@ -286,6 +328,7 @@ fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<Price
                     scale_value: value,
                     y: y_for_scale_value(value),
                     label_step: tick_step,
+                    is_major: true,
                 });
                 value += tick_step;
             }
@@ -332,6 +375,7 @@ fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<Price
                         scale_value,
                         y: y_for_scale_value(scale_value),
                         label_step: params.minimum_tick,
+                        is_major: multiplier == 1.0,
                     });
                 }
             }
@@ -339,6 +383,7 @@ fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<Price
         }
     }
 
+    retain_price_ticks_with_minimum_spacing(&mut ticks, MIN_PRICE_TICK_LABEL_SPACING);
     ticks
 }
 
@@ -1060,6 +1105,34 @@ mod tests {
             ticks
                 .iter()
                 .all(|tick| { (tick.scale_value - tick.value.ln()).abs() < 1e-10 })
+        );
+    }
+
+    #[test]
+    fn logarithmic_price_ticks_avoid_overlapping_labels_on_compact_axes() {
+        let params = PriceAxisParams {
+            center_price: 10_000.0_f64.ln(),
+            offset_y: 0.0,
+            price_range: 100_000_000.0_f64.ln(),
+            zoom_y: 1.0,
+            minimum_tick: 0.01,
+            scale_type: PriceScaleType::Logarithmic,
+            percentage_base: None,
+            inverted: false,
+        };
+        let ticks = price_axis_ticks(0.0, 120.0, params);
+
+        assert!(ticks.len() >= 3);
+        assert!(
+            ticks.windows(2).all(|pair| {
+                pair[0].scale_value < pair[1].scale_value
+                    && (pair[1].y - pair[0].y).abs() >= MIN_PRICE_TICK_LABEL_SPACING
+            }),
+            "las etiquetas del eje logarítmico deben mantener separación vertical"
+        );
+        assert!(
+            ticks.iter().any(|tick| (tick.value - 10_000.0).abs() < 1e-8),
+            "debe conservarse una marca principal del rango visible"
         );
     }
 
