@@ -478,11 +478,7 @@ impl InteractionController {
         }
     }
 
-    fn on_axis_scroll(
-        &self,
-        viewport: &mut Viewport,
-        ev: &AxisScrollEvent,
-    ) -> InteractionResult {
+    fn on_axis_scroll(&self, viewport: &mut Viewport, ev: &AxisScrollEvent) -> InteractionResult {
         if ev.axis != ScaleAxis::Price
             || !self.options.scale.price_axis_mouse_wheel
             || viewport.price_scale_locked()
