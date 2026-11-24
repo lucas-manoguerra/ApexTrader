@@ -331,14 +331,14 @@ fn draw_grid(
     let volume_bottom = (layout.volume_panel.bottom + origin.y) as f32;
 
     for tick in price_ticks {
-        if tick.y >= layout.plot.top && tick.y <= layout.plot.bottom {
-            let y = (tick.y + origin.y) as f32;
+        if tick.y >= layout.plot.top + origin.y && tick.y <= layout.plot.bottom + origin.y {
+            let y = tick.y as f32;
             painter.line_segment([egui::pos2(left, y), egui::pos2(right, y)], stroke);
         }
     }
 
     for tick in time_ticks {
-        let x = (tick.screen_x + origin.x) as f32;
+        let x = tick.screen_x as f32;
         painter.line_segment([egui::pos2(x, top), egui::pos2(x, volume_bottom)], stroke);
     }
 }
@@ -356,10 +356,10 @@ fn draw_price_axis(
     let tick_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(191, 198, 208));
 
     for tick in ticks {
-        if tick.y < layout.plot.top || tick.y > layout.plot.bottom {
+        if tick.y < layout.plot.top + origin.y || tick.y > layout.plot.bottom + origin.y {
             continue;
         }
-        let y = (tick.y + origin.y) as f32;
+        let y = tick.y as f32;
         painter.line_segment(
             [egui::pos2(plot_right, y), egui::pos2(plot_right + 5.0, y)],
             tick_stroke,
@@ -432,7 +432,7 @@ fn draw_time_axis(
     let axis_text = egui::Color32::from_rgb(92, 101, 114);
     let axis_top = (layout.time_axis.top + origin.y) as f32;
     for tick in ticks {
-        let x = (tick.screen_x + origin.x) as f32;
+        let x = tick.screen_x as f32;
         painter.line_segment(
             [egui::pos2(x, axis_top), egui::pos2(x, axis_top + 5.0)],
             egui::Stroke::new(1.0, egui::Color32::from_rgb(191, 198, 208)),
@@ -779,10 +779,13 @@ impl ChartRenderer for GlowChartRenderer {
 
                 let time_axis_left = (layout.time_axis.left + ox) as f32;
                 let time_axis_right = (layout.time_axis.right + ox) as f32;
-                let time_center = (crosshair_screen_x as f32).clamp(
-                    time_axis_left + 56.0,
-                    time_axis_right - 56.0,
-                );
+                let time_axis_width = time_axis_right - time_axis_left;
+                let time_center = if time_axis_width >= 112.0 {
+                    (crosshair_screen_x as f32)
+                        .clamp(time_axis_left + 56.0, time_axis_right - 56.0)
+                } else {
+                    (time_axis_left + time_axis_right) * 0.5
+                };
                 let time_marker_rect = egui::Rect::from_min_max(
                     egui::pos2(time_center - 55.0, (layout.time_axis.top + oy + 3.0) as f32),
                     egui::pos2(time_center + 55.0, (layout.time_axis.bottom + oy - 3.0) as f32),
