@@ -340,8 +340,10 @@ mod tests {
         let rect = interaction_rect();
         let layout = ChartLayout::compute(rect.width() as f64, rect.height() as f64);
         let pos = egui::pos2(
-            rect.left() + (layout.price_axis_left.left + layout.price_axis_left.width() / 2.0) as f32,
-            rect.top() + (layout.price_axis_left.top + layout.price_axis_left.height() / 2.0) as f32,
+            rect.left()
+                + (layout.price_axis_left.left + layout.price_axis_left.width() / 2.0) as f32,
+            rect.top()
+                + (layout.price_axis_left.top + layout.price_axis_left.height() / 2.0) as f32,
         );
         assert!(axis_pointer_coordinates(pos, rect, &layout).is_none());
     }

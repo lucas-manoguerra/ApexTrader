@@ -16,7 +16,12 @@ pub struct Rect {
 
 impl Rect {
     pub fn new(left: f64, top: f64, right: f64, bottom: f64) -> Self {
-        Self { left, top, right, bottom }
+        Self {
+            left,
+            top,
+            right,
+            bottom,
+        }
     }
 
     pub fn width(self) -> f64 {
@@ -114,12 +119,7 @@ impl ChartLayout {
             plot_right,
             plot_bottom + volume_panel_height,
         );
-        let time_axis = Rect::new(
-            plot_left,
-            volume_panel.bottom,
-            plot_right,
-            full_height,
-        );
+        let time_axis = Rect::new(plot_left, volume_panel.bottom, plot_right, full_height);
 
         Self {
             full,
@@ -212,7 +212,10 @@ mod tests {
     fn price_scale_is_on_the_right_and_has_readable_width() {
         let layout = ChartLayout::compute(1024.0, 480.0);
         assert!(layout.is_valid());
-        assert!(layout.plot.left < 20.0, "el margen izquierdo debe ser pequeño");
+        assert!(
+            layout.plot.left < 20.0,
+            "el margen izquierdo debe ser pequeño"
+        );
         assert!(
             layout.price_axis_right.width() >= 64.0,
             "la escala derecha debe tener espacio para etiquetas"

@@ -194,19 +194,13 @@ fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<Price
     ticks
 }
 
-fn time_axis_ticks(
-    left: f64,
-    right: f64,
-    params: &TimeAxisParams<'_>,
-) -> Vec<TimeAxisTick> {
+fn time_axis_ticks(left: f64, right: f64, params: &TimeAxisParams<'_>) -> Vec<TimeAxisTick> {
     let width = right - left;
     if !width.is_finite() || width <= 0.0 || params.logical_count == 0 {
         return Vec::new();
     }
 
-    let visible = params
-        .viewport
-        .visible_range(params.logical_count, width);
+    let visible = params.viewport.visible_range(params.logical_count, width);
     if visible.is_empty() {
         return Vec::new();
     }
@@ -230,10 +224,7 @@ fn time_axis_ticks(
             continue;
         }
 
-        let screen_x = params
-            .viewport
-            .logical_to_screen(index as f64, width)
-            + left;
+        let screen_x = params.viewport.logical_to_screen(index as f64, width) + left;
         if screen_x < left + 4.0 || screen_x > right - 4.0 {
             continue;
         }
@@ -254,7 +245,10 @@ fn time_axis_ticks(
 fn screen_rect(rect: crate::chart::layout::Rect, origin: ScreenPoint) -> egui::Rect {
     egui::Rect::from_min_max(
         egui::pos2((rect.left + origin.x) as f32, (rect.top + origin.y) as f32),
-        egui::pos2((rect.right + origin.x) as f32, (rect.bottom + origin.y) as f32),
+        egui::pos2(
+            (rect.right + origin.x) as f32,
+            (rect.bottom + origin.y) as f32,
+        ),
     )
 }
 
@@ -268,7 +262,11 @@ fn draw_chart_surfaces(
     let volume = egui::Color32::from_rgb(252, 253, 255);
     let divider = egui::Color32::from_rgb(220, 225, 232);
 
-    painter.rect_filled(screen_rect(layout.full, origin), egui::CornerRadius::ZERO, white);
+    painter.rect_filled(
+        screen_rect(layout.full, origin),
+        egui::CornerRadius::ZERO,
+        white,
+    );
     painter.rect_filled(
         screen_rect(layout.volume_panel, origin),
         egui::CornerRadius::ZERO,
@@ -300,11 +298,17 @@ fn draw_chart_surfaces(
     let full_right = (layout.full.right + origin.x) as f32;
 
     painter.line_segment(
-        [egui::pos2(plot_right, plot_top), egui::pos2(plot_right, volume_bottom)],
+        [
+            egui::pos2(plot_right, plot_top),
+            egui::pos2(plot_right, volume_bottom),
+        ],
         egui::Stroke::new(1.0, divider),
     );
     painter.line_segment(
-        [egui::pos2(plot_left, plot_bottom), egui::pos2(full_right, plot_bottom)],
+        [
+            egui::pos2(plot_left, plot_bottom),
+            egui::pos2(full_right, plot_bottom),
+        ],
         egui::Stroke::new(1.0, divider),
     );
     painter.line_segment(
@@ -461,8 +465,7 @@ fn draw_current_price_marker(
 
     let top = layout.plot.top;
     let height = layout.plot_height();
-    let relative_price =
-        price - params.center_price - params.offset_y * params.price_range;
+    let relative_price = price - params.center_price - params.offset_y * params.price_range;
     let pixels_per_unit = height / params.price_range * params.zoom_y;
     let y = top + height / 2.0 - relative_price * pixels_per_unit;
     if !y.is_finite() || y < top || y > layout.plot.bottom {
@@ -476,12 +479,7 @@ fn draw_current_price_marker(
     let axis_right = (layout.price_axis_right.right + origin.x) as f32;
     let marker_y = screen_y;
 
-    let line_color = egui::Color32::from_rgba_unmultiplied(
-        color.r(),
-        color.g(),
-        color.b(),
-        150,
-    );
+    let line_color = egui::Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 150);
     painter.line_segment(
         [egui::pos2(left, screen_y), egui::pos2(right, screen_y)],
         egui::Stroke::new(1.0, line_color),
@@ -678,22 +676,9 @@ impl ChartRenderer for GlowChartRenderer {
             (point.close(), color)
         });
 
-        draw_price_axis(
-            painter,
-            layout,
-            frame.origin,
-            &price_ticks,
-            font_id.clone(),
-        );
+        draw_price_axis(painter, layout, frame.origin, &price_ticks, font_id.clone());
         if let Some((price, color)) = current_price {
-            draw_current_price_marker(
-                painter,
-                layout,
-                frame.origin,
-                price_params,
-                price,
-                color,
-            );
+            draw_current_price_marker(painter, layout, frame.origin, price_params, price, color);
         }
 
         draw_volume_axis(
@@ -705,17 +690,10 @@ impl ChartRenderer for GlowChartRenderer {
             },
             font_id.clone(),
         );
-        draw_time_axis(
-            painter,
-            layout,
-            frame.origin,
-            &time_ticks,
-            font_id.clone(),
-        );
+        draw_time_axis(painter, layout, frame.origin, &time_ticks, font_id.clone());
 
         if let Some(crosshair) = scene.crosshair_pos {
-            let chart_point =
-                screen_to_chart_point(crosshair, layout.plot.left, layout.plot.top);
+            let chart_point = screen_to_chart_point(crosshair, layout.plot.left, layout.plot.top);
             if chart_point.x >= 0.0
                 && chart_point.x <= layout.plot_width()
                 && chart_point.y >= 0.0
@@ -723,8 +701,7 @@ impl ChartRenderer for GlowChartRenderer {
             {
                 let crosshair_screen_x = crosshair.x + ox;
                 let crosshair_screen_y = crosshair.y + oy;
-                let crosshair_color =
-                    egui::Color32::from_rgb(104, 116, 132);
+                let crosshair_color = egui::Color32::from_rgb(104, 116, 132);
                 let crosshair_clip = egui::Rect::from_min_max(
                     egui::pos2(left as f32, top as f32),
                     egui::pos2(right as f32, volume_bottom as f32),
@@ -788,7 +765,10 @@ impl ChartRenderer for GlowChartRenderer {
                 };
                 let time_marker_rect = egui::Rect::from_min_max(
                     egui::pos2(time_center - 55.0, (layout.time_axis.top + oy + 3.0) as f32),
-                    egui::pos2(time_center + 55.0, (layout.time_axis.bottom + oy - 3.0) as f32),
+                    egui::pos2(
+                        time_center + 55.0,
+                        (layout.time_axis.bottom + oy - 3.0) as f32,
+                    ),
                 );
                 painter.rect_filled(
                     time_marker_rect,
