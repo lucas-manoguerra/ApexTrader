@@ -171,6 +171,8 @@ pub struct Viewport {
     price_scale_bottom_margin: f64,
     /// Bloquea interacciones que alteran el eje de precios.
     price_scale_locked: bool,
+    /// Invierte la orientación vertical: precios altos aparecen abajo.
+    price_scale_inverted: bool,
 }
 
 impl Viewport {
@@ -193,6 +195,7 @@ impl Viewport {
             price_scale_top_margin: DEFAULT_PRICE_SCALE_MARGIN,
             price_scale_bottom_margin: DEFAULT_PRICE_SCALE_MARGIN,
             price_scale_locked: false,
+            price_scale_inverted: false,
         }
     }
 
@@ -303,8 +306,13 @@ impl Viewport {
             return None;
         }
 
+        let mapping_y = if self.price_scale_inverted {
+            screen_height - screen_y
+        } else {
+            screen_y
+        };
         let scale_value = transforms::screen_y_to_price(
-            screen_y,
+            mapping_y,
             screen_height,
             price_range,
             self.zoom_y,
@@ -361,9 +369,11 @@ impl Viewport {
     }
 
     /// Desplaza el centro de referencia para respetar márgenes asimétricos.
+    /// Con la escala invertida, el margen superior corresponde al precio mínimo.
     fn auto_price_scale_center(&self, midpoint: f64, range: f64, zoom: f64) -> f64 {
-        midpoint
-            + (self.price_scale_top_margin - self.price_scale_bottom_margin) * range / (2.0 * zoom)
+        let margin_offset =
+            (self.price_scale_top_margin - self.price_scale_bottom_margin) * range / (2.0 * zoom);
+        midpoint + if self.price_scale_inverted { -margin_offset } else { margin_offset }
     }
 
     /// Activa o desactiva la autoescala vertical.
@@ -386,6 +396,38 @@ impl Viewport {
     /// Bloquea o desbloquea el desplazamiento y zoom vertical del chart.
     pub fn set_price_scale_locked(&mut self, locked: bool) {
         self.price_scale_locked = locked;
+    }
+
+    /// Indica si el eje vertical muestra los precios en orden descendente.
+    pub fn price_scale_inverted(&self) -> bool {
+        self.price_scale_inverted
+    }
+
+    /// Invierte o restaura la orientación vertical del eje de precios.
+    ///
+    /// En modo Auto conserva los extremos y vuelve a calcular el centro para
+    /// mantener los márgenes superior e inferior en el lado correspondiente.
+    /// En modo Manual conserva la referencia y el zoom seleccionados.
+    pub fn set_price_scale_inverted(&mut self, inverted: bool) {
+        if self.price_scale_inverted == inverted {
+            return;
+        }
+
+        if self.price_scale_auto {
+            let zoom = self.auto_price_scale_zoom();
+            let margin_offset =
+                (self.price_scale_top_margin - self.price_scale_bottom_margin)
+                    * self.price_scale_range
+                    / (2.0 * zoom);
+            let old_direction = if self.price_scale_inverted { -1.0 } else { 1.0 };
+            let new_direction = if inverted { -1.0 } else { 1.0 };
+            let midpoint = self.price_scale_center - old_direction * margin_offset;
+            self.price_scale_center = midpoint + new_direction * margin_offset;
+            self.zoom_y = zoom;
+            self.offset_y = 0.0;
+        }
+
+        self.price_scale_inverted = inverted;
     }
 
     /// Rango y centro de referencia en las unidades transformadas del eje vertical.
@@ -726,8 +768,10 @@ impl Viewport {
 
         self.offset_x += (cursor_from_center_x / transforms::CANDLE_SPACING_BASE)
             * (1.0 / new_zoom_x - 1.0 / self.zoom_x);
-        self.offset_y +=
-            (cursor_from_center_y / screen_height) * (1.0 / new_zoom_y - 1.0 / self.zoom_y);
+        let price_scale_direction = if self.price_scale_inverted { -1.0 } else { 1.0 };
+        self.offset_y += price_scale_direction
+            * (cursor_from_center_y / screen_height)
+            * (1.0 / new_zoom_y - 1.0 / self.zoom_y);
         self.zoom_x = new_zoom_x;
         self.zoom_y = new_zoom_y;
 
@@ -1021,7 +1065,11 @@ impl Viewport {
 
         let pixels_per_unit = screen_height / range_value * self.zoom_y;
         let relative_price = price_scale_value - center_scale_value - self.offset_y * range_value;
-        center_y - relative_price * pixels_per_unit
+        if self.price_scale_inverted {
+            center_y + relative_price * pixels_per_unit
+        } else {
+            center_y - relative_price * pixels_per_unit
+        }
     }
 
     /// Convierte una coordenada de pantalla Y a un precio (coordenada de datos Y).
@@ -1069,7 +1117,11 @@ impl Viewport {
             return center_price;
         };
         let pixels_per_unit = screen_height / range_value * self.zoom_y;
-        let relative_price = (center_y - screen_y) / pixels_per_unit;
+        let relative_price = if self.price_scale_inverted {
+            (screen_y - center_y) / pixels_per_unit
+        } else {
+            (center_y - screen_y) / pixels_per_unit
+        };
         let scale_value = center_scale_value + self.offset_y * range_value + relative_price;
         let Some(price_value) = self.scale_value_to_price(scale_value) else {
             return center_price;
@@ -1508,4 +1560,63 @@ mod tests {
         assert!(!viewport.fit_content(10, f64::NAN));
         assert_eq!(viewport, before);
     }
+    #[test]
+    fn inverted_auto_scale_keeps_configured_margins_on_the_correct_price_extremes() {
+        let mut viewport = Viewport::new();
+        assert!(viewport.set_price_scale_margins(0.10, 0.05));
+        assert!(viewport.update_auto_price_scale(90.0, 110.0));
+        viewport.set_price_scale_inverted(true);
+
+        let (range, center) = viewport.price_scale_reference();
+        let price_at_top = viewport
+            .screen_y_to_price_value(100.0, 1_000.0, range, center)
+            .expect("precio válido en el borde superior");
+        let price_at_bottom = viewport
+            .screen_y_to_price_value(950.0, 1_000.0, range, center)
+            .expect("precio válido en el borde inferior");
+
+        assert!((price_at_top - 90.0).abs() < 1e-9);
+        assert!((price_at_bottom - 110.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn inverted_price_scale_zoom_keeps_the_price_under_the_cursor_anchored() {
+        let mut viewport = Viewport::new();
+        assert!(viewport.update_auto_price_scale(90.0, 110.0));
+        viewport.set_price_scale_inverted(true);
+        let (range, center) = viewport.price_scale_reference();
+        let cursor_y = 180.0;
+        let price_before = viewport
+            .screen_y_to_price_value(cursor_y, 600.0, range, center)
+            .expect("precio válido antes del zoom");
+
+        assert!(viewport.zoom_to_at(
+            viewport.zoom_x(),
+            viewport.zoom_y() * 1.8,
+            0.5,
+            cursor_y / 600.0,
+            1_000.0,
+            600.0,
+        ));
+
+        let price_after = viewport
+            .screen_y_to_price_value(cursor_y, 600.0, range, center)
+            .expect("precio válido después del zoom");
+        assert!((price_after - price_before).abs() < 1e-9);
+    }
+
+    #[test]
+    fn inversion_toggle_is_idempotent_and_defaults_to_normal_orientation() {
+        let mut viewport = Viewport::new();
+        assert!(!viewport.price_scale_inverted());
+
+        viewport.set_price_scale_inverted(true);
+        assert!(viewport.price_scale_inverted());
+        viewport.set_price_scale_inverted(true);
+        assert!(viewport.price_scale_inverted());
+
+        viewport.set_price_scale_inverted(false);
+        assert!(!viewport.price_scale_inverted());
+    }
+
 }

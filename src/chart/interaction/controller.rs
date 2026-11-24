@@ -296,10 +296,15 @@ impl InteractionController {
 
                 let delta_x = ev.x - anchor_pointer_x;
                 let delta_y = ev.y - anchor_pointer_y;
-                let vertical_direction = if self.options.scroll.invert_vertical_pan {
+                let configured_direction = if self.options.scroll.invert_vertical_pan {
                     1.0
                 } else {
                     -1.0
+                };
+                let vertical_direction = if viewport.price_scale_inverted() {
+                    -configured_direction
+                } else {
+                    configured_direction
                 };
                 next.set_offset_x(anchor_offset_x + delta_x / spacing);
                 if !next.price_scale_locked() && delta_y != 0.0 {
@@ -1007,6 +1012,23 @@ mod tests {
         assert_eq!(viewport.zoom_x(), zoom_x_before);
         assert_eq!(viewport.offset_x(), offset_x_before);
         assert!((scaled_price_after - scaled_price_before).abs() < 1e-9);
+    }
+
+    #[test]
+    fn vertical_pan_reverses_its_price_direction_when_scale_is_inverted() {
+        let mut viewport = make_viewport();
+        viewport.set_price_scale_inverted(true);
+        let mut controller = InteractionController::new(1_000.0, 600.0);
+
+        controller.on_event(
+            &mut viewport,
+            100,
+            &pointer_down(PointerButton::Primary, 500.0, 200.0),
+        );
+        controller.on_event(&mut viewport, 100, &pointer_drag(500.0, 260.0));
+
+        assert!(!viewport.price_scale_auto());
+        assert!(viewport.offset_y() < 0.0);
     }
 
     #[test]

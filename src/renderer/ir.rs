@@ -314,8 +314,13 @@ fn build_series_layer(scene: &ChartScene<'_>, layout: &ChartLayout) -> RenderLay
         };
         let relative_price =
             scale_value - scene.center_price - scene.viewport.offset_y() * scene.price_range;
-        (layout.plot.top + layout.plot.height() / 2.0 - relative_price * price_pixels_per_unit)
-            as f32
+        let center_y = layout.plot.top + layout.plot.height() / 2.0;
+        let direction = if scene.viewport.price_scale_inverted() {
+            1.0
+        } else {
+            -1.0
+        };
+        (center_y + direction * relative_price * price_pixels_per_unit) as f32
     };
 
     let mut layer = RenderLayer {
@@ -468,6 +473,27 @@ mod tests {
 
         assert!(frame.layers.is_empty());
         assert!(frame.layout.is_valid());
+    }
+
+    #[test]
+    fn inverted_price_scale_places_higher_candle_prices_lower_on_screen() {
+        let time = TimePoint::new(0, 60_000, 60_000).expect("tiempo válido");
+        let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).expect("vela válida");
+        let points = [ChartDataPoint::new(candle, time)];
+        let mut scene = sample_scene(&points);
+        scene.viewport.set_price_scale_inverted(true);
+
+        let frame = RenderFrame::from_scene(
+            &scene,
+            800.0,
+            500.0,
+            ScreenPoint { x: 0.0, y: 0.0 },
+            true,
+        );
+        let rendered = &frame.layers[0].candles[0];
+
+        assert!(rendered.high_y > rendered.low_y);
+        assert!(rendered.close_y > rendered.open_y);
     }
 
     #[test]

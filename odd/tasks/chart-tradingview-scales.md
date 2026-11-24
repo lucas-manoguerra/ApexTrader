@@ -56,6 +56,8 @@
 - [x] Controles de margen en porcentaje y restablecimiento rápido a 5% / 5%.
 - [x] Validación de límites y preservación de la escala manual al cambiar la configuración.
 - [x] Modos de escala Lineal, Logarítmica y Porcentual.
+- [x] Invertir la orientación del eje de precios sin desalinear velas, ticks, marcador ni crosshair.
+- [x] Mantener el anclaje del zoom y los márgenes automáticos al invertir la escala.
 - [x] Base porcentual inicial vinculada al primer cierre del historial y actualizada al cambiar de símbolo.
 - [x] Base porcentual reconfigurable desde la interfaz entre el primer cierre y el último cierre cargado.
 - [x] El cambio de base porcentual restablece la autoescala y elimina el desplazamiento vertical anterior.

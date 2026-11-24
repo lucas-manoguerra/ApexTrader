@@ -176,6 +176,7 @@ struct PriceAxisParams {
     minimum_tick: f64,
     scale_type: PriceScaleType,
     percentage_base: Option<f64>,
+    inverted: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -239,8 +240,9 @@ fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<Price
     let max_visible = visible_center + half_range_visible;
     let target_ticks = ((height / 56.0).floor() as usize).clamp(4, 8);
     let pixels_per_unit = height / params.price_range * params.zoom_y;
+    let direction = if params.inverted { 1.0 } else { -1.0 };
     let y_for_scale_value =
-        |value: f64| top + height / 2.0 - (value - visible_center) * pixels_per_unit;
+        |value: f64| top + height / 2.0 + direction * (value - visible_center) * pixels_per_unit;
     let mut ticks = Vec::with_capacity(target_ticks + 2);
 
     match params.scale_type {
@@ -649,7 +651,8 @@ fn draw_current_price_marker(
     };
     let relative_price = scale_value - params.center_price - params.offset_y * params.price_range;
     let pixels_per_unit = height / params.price_range * params.zoom_y;
-    let y = top + height / 2.0 - relative_price * pixels_per_unit;
+    let direction = if params.inverted { 1.0 } else { -1.0 };
+    let y = top + height / 2.0 + direction * relative_price * pixels_per_unit;
     if !y.is_finite() || y < top || y > layout.plot.bottom {
         return;
     }
@@ -828,6 +831,7 @@ impl ChartRenderer for GlowChartRenderer {
             minimum_tick: scene.price_tick_size,
             scale_type: scene.viewport.price_scale_type(),
             percentage_base: scene.viewport.price_scale_percentage_base(),
+            inverted: scene.viewport.price_scale_inverted(),
         };
         let price_ticks = price_axis_ticks(top, bottom, price_params);
         let time_params = TimeAxisParams {
@@ -1026,6 +1030,7 @@ mod tests {
             minimum_tick: 0.01,
             scale_type: PriceScaleType::Linear,
             percentage_base: None,
+            inverted: false,
         };
         let ticks = price_axis_ticks(100.0, 300.0, params);
         let center = ticks
@@ -1045,6 +1050,7 @@ mod tests {
             minimum_tick: 0.01,
             scale_type: PriceScaleType::Logarithmic,
             percentage_base: None,
+            inverted: false,
         };
         let ticks = price_axis_ticks(0.0, 400.0, params);
 
@@ -1055,6 +1061,25 @@ mod tests {
                 .iter()
                 .all(|tick| { (tick.scale_value - tick.value.ln()).abs() < 1e-10 })
         );
+    }
+
+    #[test]
+    fn inverted_price_ticks_reverse_their_vertical_order() {
+        let params = PriceAxisParams {
+            center_price: 100.0,
+            offset_y: 0.0,
+            price_range: 20.0,
+            zoom_y: 1.0,
+            minimum_tick: 0.01,
+            scale_type: PriceScaleType::Linear,
+            percentage_base: None,
+            inverted: true,
+        };
+        let ticks = price_axis_ticks(0.0, 400.0, params);
+        let low = ticks.iter().min_by(|a, b| a.value.total_cmp(&b.value)).unwrap();
+        let high = ticks.iter().max_by(|a, b| a.value.total_cmp(&b.value)).unwrap();
+
+        assert!(high.y > low.y);
     }
 
     #[test]
@@ -1190,6 +1215,7 @@ mod tests {
             minimum_tick: 0.25,
             scale_type: PriceScaleType::Linear,
             percentage_base: None,
+            inverted: false,
         };
         let ticks = price_axis_ticks(0.0, 200.0, params);
 
