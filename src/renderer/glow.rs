@@ -475,9 +475,7 @@ fn time_axis_ticks(
         // cada etiqueta y un margen fijo evita solapamientos sin desperdiciar
         // espacio por estimaciones basadas en el número de caracteres.
         let half_label_width = label_width * 0.5;
-        if screen_x < left + half_label_width + 4.0
-            || screen_x > right - half_label_width - 4.0
-        {
+        if screen_x < left + half_label_width + 4.0 || screen_x > right - half_label_width - 4.0 {
             continue;
         }
         if last_tick_position.is_some_and(|(last_x, last_width)| {
@@ -1340,7 +1338,11 @@ mod tests {
         };
         let ticks = measured_time_axis_ticks(0.0, 800.0, &params);
 
-        assert!(ticks.iter().all(|tick| tick.label_width.is_finite() && tick.label_width > 0.0));
+        assert!(
+            ticks
+                .iter()
+                .all(|tick| tick.label_width.is_finite() && tick.label_width > 0.0)
+        );
         assert!(ticks.windows(2).all(|pair| {
             pair[0].screen_x < pair[1].screen_x
                 && pair[1].screen_x - pair[0].screen_x
