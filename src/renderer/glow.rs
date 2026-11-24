@@ -348,14 +348,10 @@ fn draw_price_axis(
     layout: &crate::chart::layout::ChartLayout,
     origin: ScreenPoint,
     ticks: &[PriceTick],
-    _current_price: Option<(f64, egui::Color32)>,
     font_id: egui::FontId,
 ) {
     let axis_left = (layout.price_axis_right.left + origin.x) as f32;
-    let axis_right = (layout.price_axis_right.right + origin.x) as f32;
     let plot_right = (layout.plot.right + origin.x) as f32;
-    let top = (layout.plot.top + origin.y) as f32;
-    let bottom = (layout.plot.bottom + origin.y) as f32;
     let axis_text = egui::Color32::from_rgb(92, 101, 114);
     let tick_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(191, 198, 208));
 
@@ -375,10 +371,6 @@ fn draw_price_axis(
             font_id.clone(),
             axis_text,
         );
-    }
-
-    if let Some((price, color)) = current_price {
-        let _ = (price, color, axis_right, top, bottom);
     }
 }
 
@@ -482,10 +474,7 @@ fn draw_current_price_marker(
     let right = (layout.plot.right + origin.x) as f32;
     let axis_left = (layout.price_axis_right.left + origin.x) as f32;
     let axis_right = (layout.price_axis_right.right + origin.x) as f32;
-    let marker_y = screen_y.clamp(
-        (layout.plot.top + origin.y + 9.0) as f32,
-        (layout.plot.bottom + origin.y - 9.0) as f32,
-    );
+    let marker_y = screen_y;
 
     let line_color = egui::Color32::from_rgba_unmultiplied(
         color.r(),
@@ -694,7 +683,6 @@ impl ChartRenderer for GlowChartRenderer {
             layout,
             frame.origin,
             &price_ticks,
-            current_price,
             font_id.clone(),
         );
         if let Some((price, color)) = current_price {

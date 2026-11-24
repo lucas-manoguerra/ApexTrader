@@ -205,7 +205,7 @@ impl eframe::App for ApexTraderApp {
             // Calcular máscara de invalidación basada en qué cambió entre frames.
             let data_revision = self.chart.data_revision();
             let mask =
-                self.calculate_invalidation_mask(viewport, crosshair_pos, data_revision, available);
+                self.calculate_invalidation_mask(viewport, crosshair_pos, data_revision, chart_rect);
 
             // Calcular rango de precios y centro a partir de los puntos visibles.
             let drawing_width = chart_layout.plot_width();
@@ -252,7 +252,7 @@ impl eframe::App for ApexTraderApp {
                 invalidation_mask: mask,
             };
 
-            if let Err(e) = self.renderer.draw(painter, available, &scene) {
+            if let Err(e) = self.renderer.draw(painter, chart_rect, &scene) {
                 tracing::error!("Error renderizando chart: {}", e);
                 ui.colored_label(egui::Color32::RED, format!("Error: {}", e));
             }
@@ -261,7 +261,7 @@ impl eframe::App for ApexTraderApp {
             self.prev_viewport = Some(*viewport);
             self.prev_crosshair_pos = crosshair_pos;
             self.prev_data_revision = data_revision;
-            self.prev_rect = Some(available);
+            self.prev_rect = Some(chart_rect);
 
             ui.horizontal_wrapped(|ui| {
                 ui.small(format!(
