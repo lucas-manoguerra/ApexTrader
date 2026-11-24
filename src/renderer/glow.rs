@@ -107,11 +107,11 @@ fn decimal_places_for_increment(increment: f64) -> usize {
         return 2;
     }
 
-    for decimals in 0..=8 {
+    for decimals in 0_i32..=8 {
         let scale = 10.0_f64.powi(decimals);
         let scaled = increment * scale;
         if scaled.is_finite() && (scaled - scaled.round()).abs() <= 1e-8 * scaled.abs().max(1.0) {
-            return decimals;
+            return decimals as usize;
         }
     }
     8
@@ -124,8 +124,7 @@ fn format_price_tick(value: f64, step: f64, minimum_tick: f64) -> String {
 
     let decimals = decimal_places_for_increment(step)
         .max(decimal_places_for_increment(minimum_tick))
-        .max(2)
-        .min(8);
+        .clamp(2, 8);
     format!("{:.*}", decimals, value)
 }
 
@@ -416,6 +415,7 @@ fn draw_price_axis(
     layout: &crate::chart::layout::ChartLayout,
     origin: ScreenPoint,
     ticks: &[PriceTick],
+    minimum_tick: f64,
     font_id: egui::FontId,
 ) {
     let axis_left = (layout.price_axis_right.left + origin.x) as f32;
@@ -435,7 +435,7 @@ fn draw_price_axis(
         painter.text(
             egui::pos2(axis_left + 9.0, y),
             egui::Align2::LEFT_CENTER,
-            format_price_tick(tick.value, tick.label_step, params.minimum_tick),
+            format_price_tick(tick.value, tick.label_step, minimum_tick),
             font_id.clone(),
             axis_text,
         );
@@ -741,7 +741,14 @@ impl ChartRenderer for GlowChartRenderer {
             (point.close(), color)
         });
 
-        draw_price_axis(painter, layout, frame.origin, &price_ticks, font_id.clone());
+        draw_price_axis(
+            painter,
+            layout,
+            frame.origin,
+            &price_ticks,
+            price_params.minimum_tick,
+            font_id.clone(),
+        );
         if let Some((price, color)) = current_price {
             draw_current_price_marker(painter, layout, frame.origin, price_params, price, color);
         }

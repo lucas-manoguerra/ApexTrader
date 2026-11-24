@@ -594,7 +594,6 @@ mod tests {
     }
 
     #[test]
-    #[test]
     fn vertical_pan_switches_auto_price_scale_to_manual() {
         let mut viewport = make_viewport();
         viewport.update_auto_price_scale(90.0, 110.0);
