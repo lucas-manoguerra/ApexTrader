@@ -240,10 +240,19 @@ impl TimeScale {
             return format!("{month:02}/{year}");
         }
 
+        let previous_date = previous_timestamp_ms.map(|previous| {
+            let previous_days = previous.div_euclid(DAY_MS);
+            civil_from_days(previous_days)
+        });
         let crossed_day = previous_timestamp_ms
             .is_some_and(|previous| previous.div_euclid(DAY_MS) != timestamp_ms.div_euclid(DAY_MS));
+        let crossed_year = previous_date.is_some_and(|(previous_year, _, _)| previous_year != year);
         if interval_ms >= DAY_MS || crossed_day {
-            return format!("{day:02}/{month:02}");
+            return if crossed_year {
+                format!("{day:02}/{month:02}/{year}")
+            } else {
+                format!("{day:02}/{month:02}")
+            };
         }
 
         let hour = day_seconds / 3_600;
@@ -288,6 +297,18 @@ mod tests {
         // Salto temporal intencional: no crea índices intermedios.
         scale.rebuild([0, 60_000, 3_600_000, 3_660_000]);
         scale
+    }
+
+    #[test]
+    fn time_axis_labels_include_year_when_crossing_calendar_year() {
+        const DAY_MS: i64 = 86_400_000;
+        let december_31 = 364 * DAY_MS;
+        let january_1 = 365 * DAY_MS;
+
+        assert_eq!(
+            TimeScale::format_time_axis_label(january_1, DAY_MS, Some(december_31)),
+            "01/01/1971"
+        );
     }
 
     #[test]
