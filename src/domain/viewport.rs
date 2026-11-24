@@ -266,7 +266,7 @@ impl Viewport {
         let range = if raw_range > f64::EPSILON {
             raw_range
         } else {
-            (center.abs() * 0.002).max(1e-6)
+            (midpoint.abs() * 0.002).max(1e-6)
         };
         let zoom_y = self.auto_price_scale_zoom();
         let center = self.auto_price_scale_center(midpoint, range, zoom_y);
