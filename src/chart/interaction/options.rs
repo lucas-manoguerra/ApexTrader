@@ -45,6 +45,8 @@ pub struct ScaleOptions {
     pub secondary_mouse_drag: bool,
     /// Habilita el zoom temporal con la rueda vertical, anclado al cursor.
     pub vertical_mouse_wheel: bool,
+    /// Habilita el zoom vertical con la rueda sobre la escala de precios.
+    pub price_axis_mouse_wheel: bool,
     /// Gestos directos de arrastre sobre los ejes.
     pub axis_pressed_mouse_move: AxisPressedMouseMoveOptions,
     /// Restablecimiento independiente de escalas mediante doble clic.
@@ -56,6 +58,7 @@ impl Default for ScaleOptions {
         Self {
             secondary_mouse_drag: true,
             vertical_mouse_wheel: true,
+            price_axis_mouse_wheel: true,
             axis_pressed_mouse_move: AxisPressedMouseMoveOptions::default(),
             axis_double_click_reset: AxisDoubleClickResetOptions::default(),
         }

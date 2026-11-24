@@ -14,7 +14,8 @@
 - [x] Ticks de precio adaptativos y etiquetas sin notación científica.
 - [x] Etiqueta del precio actual en la escala derecha.
 - [x] Etiquetas del crosshair en las bandas de precio y tiempo.
-- [x] Arrastre y doble clic de la escala derecha conectados al controlador existente.
+- [x] Arrastre, rueda del mouse y doble clic de la escala derecha conectados al controlador existente.
+- [x] Zoom vertical con la rueda sobre el eje de precios, anclado al cursor y respetando el bloqueo vertical.
 - [x] Alineación del origen vertical de velas, escala y crosshair.
 - [x] Reserva de espacio para el chart y su barra de estado, evitando que los textos se superpongan con el gráfico.
 

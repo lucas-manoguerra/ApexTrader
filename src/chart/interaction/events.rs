@@ -81,7 +81,7 @@ pub struct PointerDragEvent {
     pub y: f64,
 }
 
-/// Evento de scroll (rueda del mouse).
+/// Evento de scroll (rueda del mouse) dentro del área de plot.
 #[derive(Debug, Clone, Copy)]
 pub struct ScrollEvent {
     /// Delta horizontal de scroll en píxeles; positivo desplaza el historial hacia la izquierda.
@@ -92,6 +92,17 @@ pub struct ScrollEvent {
     pub x: f64,
     pub y: f64,
     pub modifiers: Modifiers,
+}
+
+/// Evento de scroll directamente sobre uno de los ejes.
+#[derive(Debug, Clone, Copy)]
+pub struct AxisScrollEvent {
+    pub axis: ScaleAxis,
+    /// Delta vertical de scroll; positivo acerca la escala correspondiente.
+    pub delta_y: f64,
+    /// Posición del cursor en coordenadas relativas al plot.
+    pub x: f64,
+    pub y: f64,
 }
 
 /// Evento de interacción unificado.
@@ -109,8 +120,10 @@ pub enum InteractionEvent {
     PointerUp(PointerUpEvent),
     /// El puntero se arrastró (delta desde el frame anterior).
     PointerDrag(PointerDragEvent),
-    /// Evento de scroll (rueda del mouse).
+    /// Evento de scroll dentro del plot.
     Scroll(ScrollEvent),
+    /// Evento de scroll directamente sobre un eje.
+    AxisScroll(AxisScrollEvent),
 }
 
 /// Resultado de procesar un evento de interacción.

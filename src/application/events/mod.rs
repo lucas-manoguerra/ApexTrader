@@ -6,8 +6,8 @@
 
 use crate::chart::interaction::controller::InteractionController;
 use crate::chart::interaction::events::{
-    AxisDoubleClickEvent, AxisPointerDownEvent, InteractionEvent, Modifiers, PointerButton,
-    PointerDownEvent, PointerDragEvent, PointerUpEvent, ScaleAxis, ScrollEvent,
+    AxisDoubleClickEvent, AxisPointerDownEvent, AxisScrollEvent, InteractionEvent, Modifiers,
+    PointerButton, PointerDownEvent, PointerDragEvent, PointerUpEvent, ScaleAxis, ScrollEvent,
 };
 use crate::chart::interaction::options::InteractionOptions;
 use crate::chart::layout::ChartLayout;
@@ -92,25 +92,41 @@ pub fn handle_input(
 
     let candle_count = chart.len();
 
-    // Adaptar el scroll vertical (zoom temporal) y horizontal (pan) al punto bajo el cursor.
+    // La rueda sobre el plot controla el eje temporal; sobre la escala derecha,
+    // controla el zoom vertical anclado a la altura del cursor.
     let scroll_delta = ui.input(|input| input.smooth_scroll_delta);
     if (scroll_delta.x != 0.0 || scroll_delta.y != 0.0)
         && let Some(pos) = ui.input(|input| input.pointer.hover_pos())
-        && let Some((screen_point, chart_point)) =
-            pointer_coordinates(pos, interaction_rect, &layout)
     {
-        let event = InteractionEvent::Scroll(ScrollEvent {
-            delta_x: scroll_delta.x as f64,
-            delta_y: scroll_delta.y as f64,
-            x: chart_point.x,
-            y: chart_point.y,
-            modifiers: Modifiers::default(),
-        });
-        input_handler
-            .controller
-            .on_event(chart.viewport_mut(), candle_count, &event);
+        if let Some((axis, chart_point)) = axis_pointer_coordinates(pos, interaction_rect, &layout)
+        {
+            if axis == ScaleAxis::Price && scroll_delta.y != 0.0 {
+                let event = InteractionEvent::AxisScroll(AxisScrollEvent {
+                    axis,
+                    delta_y: scroll_delta.y as f64,
+                    x: chart_point.x,
+                    y: chart_point.y,
+                });
+                input_handler
+                    .controller
+                    .on_event(chart.viewport_mut(), candle_count, &event);
+            }
+        } else if let Some((screen_point, chart_point)) =
+            pointer_coordinates(pos, interaction_rect, &layout)
+        {
+            let event = InteractionEvent::Scroll(ScrollEvent {
+                delta_x: scroll_delta.x as f64,
+                delta_y: scroll_delta.y as f64,
+                x: chart_point.x,
+                y: chart_point.y,
+                modifiers: Modifiers::default(),
+            });
+            input_handler
+                .controller
+                .on_event(chart.viewport_mut(), candle_count, &event);
 
-        input_handler.crosshair_pos = Some(screen_point);
+            input_handler.crosshair_pos = Some(screen_point);
+        }
     }
 
     // El doble clic sobre un eje restablece exclusivamente esa escala.

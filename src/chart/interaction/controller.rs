@@ -5,8 +5,9 @@
 //! única fuente de verdad para zoom y pan.
 
 use crate::chart::interaction::events::{
-    AxisDoubleClickEvent, AxisPointerDownEvent, InteractionEvent, InteractionResult, PointerButton,
-    PointerDownEvent, PointerDragEvent, PointerMoveEvent, PointerUpEvent, ScaleAxis, ScrollEvent,
+    AxisDoubleClickEvent, AxisPointerDownEvent, AxisScrollEvent, InteractionEvent,
+    InteractionResult, PointerButton, PointerDownEvent, PointerDragEvent, PointerMoveEvent,
+    PointerUpEvent, ScaleAxis, ScrollEvent,
 };
 use crate::chart::interaction::options::InteractionOptions;
 use crate::domain::viewport::Viewport;
@@ -125,6 +126,7 @@ impl InteractionController {
             InteractionEvent::AxisDoubleClick(ev) => {
                 self.on_axis_double_click(viewport, candle_count, ev)
             }
+            InteractionEvent::AxisScroll(ev) => self.on_axis_scroll(viewport, ev),
             InteractionEvent::PointerUp(ev) => self.on_pointer_up(ev),
             InteractionEvent::PointerDrag(ev) => self.on_pointer_drag(viewport, candle_count, ev),
             InteractionEvent::Scroll(ev) => self.on_scroll(viewport, candle_count, ev),
@@ -473,6 +475,51 @@ impl InteractionController {
                     crosshair_pos: Some((ev.x, ev.y)),
                 }
             }
+        }
+    }
+
+    fn on_axis_scroll(
+        &self,
+        viewport: &mut Viewport,
+        ev: &AxisScrollEvent,
+    ) -> InteractionResult {
+        if ev.axis != ScaleAxis::Price
+            || !self.options.scale.price_axis_mouse_wheel
+            || viewport.price_scale_locked()
+            || !ev.delta_y.is_finite()
+            || !ev.y.is_finite()
+            || self.screen_height <= 0.0
+            || ev.delta_y == 0.0
+        {
+            return InteractionResult::default();
+        }
+
+        let base = 1.0 + viewport.zoom_step();
+        let factor = base.powf(ev.delta_y / 100.0);
+        if !base.is_finite() || base <= 0.0 || !factor.is_finite() || factor <= 0.0 {
+            return InteractionResult::default();
+        }
+
+        let mut next = *viewport;
+        next.set_price_scale_auto(false);
+        next.zoom_to_at(
+            next.zoom_x(),
+            next.zoom_y() * factor,
+            0.5,
+            ev.y / self.screen_height,
+            self.screen_width,
+            self.screen_height,
+        );
+
+        let changed = next != *viewport;
+        if changed {
+            *viewport = next;
+        }
+
+        InteractionResult {
+            viewport_changed: changed,
+            crosshair_changed: false,
+            crosshair_pos: None,
         }
     }
 
@@ -964,6 +1011,112 @@ mod tests {
         assert_eq!(viewport.zoom_x(), zoom_x_before);
         assert_eq!(viewport.offset_x(), offset_x_before);
         assert!((scaled_price_after - scaled_price_before).abs() < 1e-9);
+    }
+
+    #[test]
+    fn price_axis_wheel_zooms_vertically_around_the_cursor() {
+        let mut viewport = make_viewport();
+        assert!(viewport.update_auto_price_scale(90.0, 110.0));
+        let anchor_y = 180.0;
+        let (range, center) = viewport.price_scale_reference();
+        let price_before = transforms::screen_y_to_price(
+            anchor_y,
+            600.0,
+            range,
+            viewport.zoom_y(),
+            viewport.offset_y(),
+            center,
+        );
+        let zoom_x_before = viewport.zoom_x();
+        let offset_x_before = viewport.offset_x();
+        let mut controller = InteractionController::new(1_000.0, 600.0);
+
+        let result = controller.on_event(
+            &mut viewport,
+            100,
+            &InteractionEvent::AxisScroll(AxisScrollEvent {
+                axis: ScaleAxis::Price,
+                delta_y: 100.0,
+                x: 1_020.0,
+                y: anchor_y,
+            }),
+        );
+        let price_after = transforms::screen_y_to_price(
+            anchor_y,
+            600.0,
+            range,
+            viewport.zoom_y(),
+            viewport.offset_y(),
+            center,
+        );
+
+        assert!(result.viewport_changed);
+        assert!(viewport.zoom_y() > 1.0);
+        assert_eq!(viewport.zoom_x(), zoom_x_before);
+        assert_eq!(viewport.offset_x(), offset_x_before);
+        assert!(!viewport.price_scale_auto());
+        assert!((price_after - price_before).abs() < 1e-9);
+    }
+
+    #[test]
+    fn price_axis_wheel_respects_vertical_lock_and_its_own_option() {
+        let mut viewport = make_viewport();
+        let mut controller = InteractionController::new(1_000.0, 600.0);
+        let initial = viewport;
+        viewport.set_price_scale_locked(true);
+
+        let locked = viewport;
+        controller.on_event(
+            &mut viewport,
+            100,
+            &InteractionEvent::AxisScroll(AxisScrollEvent {
+                axis: ScaleAxis::Price,
+                delta_y: 100.0,
+                x: 1_020.0,
+                y: 300.0,
+            }),
+        );
+        assert_eq!(viewport, locked);
+
+        viewport.set_price_scale_locked(false);
+        let mut options = controller.options();
+        options.scale.price_axis_mouse_wheel = false;
+        controller.set_options(options);
+        let unlocked = viewport;
+
+        controller.on_event(
+            &mut viewport,
+            100,
+            &InteractionEvent::AxisScroll(AxisScrollEvent {
+                axis: ScaleAxis::Price,
+                delta_y: 100.0,
+                x: 1_020.0,
+                y: 300.0,
+            }),
+        );
+        assert_eq!(viewport, unlocked);
+        assert_eq!(initial.zoom_x(), viewport.zoom_x());
+    }
+
+    #[test]
+    fn price_axis_wheel_out_decreases_vertical_zoom() {
+        let mut viewport = make_viewport();
+        viewport.set_zoom_y(2.0);
+        let mut controller = InteractionController::new(1_000.0, 600.0);
+
+        let result = controller.on_event(
+            &mut viewport,
+            100,
+            &InteractionEvent::AxisScroll(AxisScrollEvent {
+                axis: ScaleAxis::Price,
+                delta_y: -100.0,
+                x: 1_020.0,
+                y: 300.0,
+            }),
+        );
+
+        assert!(result.viewport_changed);
+        assert!(viewport.zoom_y() < 2.0);
     }
 
     #[test]
