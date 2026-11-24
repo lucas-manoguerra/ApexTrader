@@ -69,6 +69,15 @@ pub struct Viewport {
 
     /// Nivel máximo de zoom permitido (ambos ejes).
     max_zoom: f64,
+
+    /// Rango de referencia y centro persistentes de la escala vertical.
+    /// En modo manual no cambian cuando llegan nuevas velas.
+    price_scale_range: f64,
+    price_scale_center: f64,
+    /// Autoajuste vertical según los extremos de las velas visibles.
+    price_scale_auto: bool,
+    /// Bloquea interacciones que alteran el eje de precios.
+    price_scale_locked: bool,
 }
 
 impl Viewport {
@@ -82,6 +91,10 @@ impl Viewport {
             zoom_step: 0.01,
             min_zoom: 0.1,
             max_zoom: 10.0,
+            price_scale_range: 1.0,
+            price_scale_center: 0.0,
+            price_scale_auto: true,
+            price_scale_locked: false,
         }
     }
 
@@ -93,6 +106,80 @@ impl Viewport {
     /// Devuelve el nivel de zoom actual del eje Y (precio).
     pub fn zoom_y(&self) -> f64 {
         self.zoom_y
+    }
+
+    /// Indica si el eje de precios sigue automáticamente los extremos visibles.
+    pub fn price_scale_auto(&self) -> bool {
+        self.price_scale_auto
+    }
+
+    /// Activa o desactiva la autoescala vertical.
+    ///
+    /// Al activarla se restablecen zoom y desplazamiento vertical; el rango
+    /// de referencia se actualiza con los datos visibles en el siguiente frame.
+    pub fn set_price_scale_auto(&mut self, enabled: bool) {
+        self.price_scale_auto = enabled;
+        if enabled {
+            self.zoom_y = (1.0 - 2.0 * MARGIN_RATIO).clamp(self.min_zoom, self.max_zoom);
+            self.offset_y = 0.0;
+        }
+    }
+
+    /// Indica si el usuario bloqueó las interacciones de la escala de precios.
+    pub fn price_scale_locked(&self) -> bool {
+        self.price_scale_locked
+    }
+
+    /// Bloquea o desbloquea el desplazamiento y zoom vertical del chart.
+    pub fn set_price_scale_locked(&mut self, locked: bool) {
+        self.price_scale_locked = locked;
+    }
+
+    /// Rango base y centro de precios utilizados por la transformación vertical.
+    pub fn price_scale_reference(&self) -> (f64, f64) {
+        (self.price_scale_range, self.price_scale_center)
+    }
+
+    /// Actualiza la referencia vertical a partir de los extremos visibles.
+    ///
+    /// Solo actúa en modo automático. En modo manual el rango queda congelado,
+    /// incluso cuando se agregan nuevas velas o cambia el historial realtime.
+    /// Devuelve true si la escala visual cambió.
+    pub fn update_auto_price_scale(&mut self, min_price: f64, max_price: f64) -> bool {
+        if !self.price_scale_auto
+            || !min_price.is_finite()
+            || !max_price.is_finite()
+            || max_price < min_price
+        {
+            return false;
+        }
+
+        let center = min_price + (max_price - min_price) / 2.0;
+        let raw_range = max_price - min_price;
+        if !center.is_finite() || !raw_range.is_finite() {
+            return false;
+        }
+
+        // Una serie plana necesita un rango no degenerado para las
+        // transformaciones de coordenadas.
+        let range = if raw_range > f64::EPSILON {
+            raw_range
+        } else {
+            (center.abs() * 0.002).max(1e-6)
+        };
+        let zoom_y = (1.0 - 2.0 * MARGIN_RATIO).clamp(self.min_zoom, self.max_zoom);
+
+        let changed = self.price_scale_range != range
+            || self.price_scale_center != center
+            || self.zoom_y != zoom_y
+            || self.offset_y != 0.0;
+        if changed {
+            self.price_scale_range = range;
+            self.price_scale_center = center;
+            self.zoom_y = zoom_y;
+            self.offset_y = 0.0;
+        }
+        changed
     }
 
     /// Devuelve el desplazamiento horizontal actual (índices de vela).
@@ -478,6 +565,10 @@ impl Viewport {
             self.zoom_y.clamp(self.min_zoom, max_allowed_y)
         };
 
+        self.price_scale_range = price_range_value;
+        self.price_scale_center = price_range.midpoint().value().to_f64()
+            .expect("centro de precio convertible");
+        self.price_scale_auto = true;
         self.offset_y = 0.0;
         self.zoom_y = new_zoom_y;
 
@@ -499,9 +590,13 @@ impl Viewport {
     /// Restablece el viewport a valores por defecto.
     pub fn reset(&mut self) {
         self.zoom_x = 1.0;
-        self.zoom_y = 1.0;
+        self.zoom_y = 1.0 - 2.0 * MARGIN_RATIO;
         self.offset_x = 0.0;
         self.offset_y = 0.0;
+        self.price_scale_range = 1.0;
+        self.price_scale_center = 0.0;
+        self.price_scale_auto = true;
+        self.price_scale_locked = false;
         tracing::debug!("Viewport restablecido a valores por defecto");
     }
 
@@ -745,6 +840,55 @@ impl Default for Viewport {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn automatic_price_scale_tracks_the_visible_price_range() {
+        let mut viewport = Viewport::new();
+
+        assert!(viewport.update_auto_price_scale(90.0, 110.0));
+        assert_eq!(viewport.price_scale_reference(), (20.0, 100.0));
+        assert!((viewport.zoom_y() - 0.9).abs() < 1e-12);
+        assert_eq!(viewport.offset_y(), 0.0);
+
+        assert!(viewport.update_auto_price_scale(80.0, 120.0));
+        assert_eq!(viewport.price_scale_reference(), (40.0, 100.0));
+    }
+
+    #[test]
+    fn manual_price_scale_keeps_its_reference_when_new_data_arrives() {
+        let mut viewport = Viewport::new();
+        viewport.update_auto_price_scale(90.0, 110.0);
+        viewport.set_price_scale_auto(false);
+
+        assert!(!viewport.update_auto_price_scale(70.0, 140.0));
+        assert_eq!(viewport.price_scale_reference(), (20.0, 100.0));
+        assert!(!viewport.price_scale_auto());
+    }
+
+    #[test]
+    fn flat_price_ranges_receive_a_safe_nonzero_scale() {
+        let mut viewport = Viewport::new();
+
+        assert!(viewport.update_auto_price_scale(50_000.0, 50_000.0));
+        let (range, center) = viewport.price_scale_reference();
+        assert!(range.is_finite() && range > 0.0);
+        assert_eq!(center, 50_000.0);
+    }
+
+    #[test]
+    fn price_scale_lock_is_independent_from_auto_mode() {
+        let mut viewport = Viewport::new();
+        viewport.set_price_scale_locked(true);
+        assert!(viewport.price_scale_locked());
+        assert!(viewport.price_scale_auto());
+
+        viewport.set_price_scale_auto(false);
+        assert!(viewport.price_scale_locked());
+        assert!(!viewport.price_scale_auto());
+
+        viewport.set_price_scale_locked(false);
+        assert!(!viewport.price_scale_locked());
+    }
 
     fn zoom_axes_are_independent() {
         let mut viewport = Viewport::new();

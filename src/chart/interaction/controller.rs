@@ -188,7 +188,9 @@ impl InteractionController {
 
         let enabled = match ev.axis {
             ScaleAxis::Time => self.options.scale.axis_pressed_mouse_move.time,
-            ScaleAxis::Price => self.options.scale.axis_pressed_mouse_move.price,
+            ScaleAxis::Price => {
+                self.options.scale.axis_pressed_mouse_move.price && !viewport.price_scale_locked()
+            }
         };
         if !enabled {
             return InteractionResult::default();
@@ -217,7 +219,11 @@ impl InteractionController {
             ScaleAxis::Time => self.options.scale.axis_double_click_reset.time,
             ScaleAxis::Price => self.options.scale.axis_double_click_reset.price,
         };
-        if !enabled || self.screen_width <= 0.0 || self.screen_height <= 0.0 {
+        if !enabled
+            || self.screen_width <= 0.0
+            || self.screen_height <= 0.0
+            || (matches!(ev.axis, ScaleAxis::Price) && viewport.price_scale_locked())
+        {
             return InteractionResult::default();
         }
 
@@ -227,8 +233,7 @@ impl InteractionController {
                 next.fit_content(candle_count, self.screen_width);
             }
             ScaleAxis::Price => {
-                next.set_zoom_y(1.0);
-                next.set_offset_y(0.0);
+                next.set_price_scale_auto(true);
             }
         }
 
@@ -295,10 +300,13 @@ impl InteractionController {
                     -1.0
                 };
                 next.set_offset_x(anchor_offset_x + delta_x / spacing);
-                next.set_offset_y(
-                    anchor_offset_y
-                        + vertical_direction * delta_y / (self.screen_height * anchor_zoom_y),
-                );
+                if !next.price_scale_locked() && delta_y != 0.0 {
+                    next.set_price_scale_auto(false);
+                    next.set_offset_y(
+                        anchor_offset_y
+                            + vertical_direction * delta_y / (self.screen_height * anchor_zoom_y),
+                    );
+                }
                 next.clamp_pan_to_candles(candle_count, self.screen_width);
 
                 let changed = next != *viewport;
@@ -348,11 +356,23 @@ impl InteractionController {
                 next.set_offset_x(anchor_offset_x);
                 next.set_offset_y(anchor_offset_y);
 
+                let adjust_price_scale = !next.price_scale_locked();
+                if adjust_price_scale && delta_y != 0.0 {
+                    next.set_price_scale_auto(false);
+                }
                 next.zoom_to_at(
                     anchor_zoom_x * factor,
-                    anchor_zoom_y * factor,
+                    if adjust_price_scale {
+                        anchor_zoom_y * factor
+                    } else {
+                        anchor_zoom_y
+                    },
                     anchor_pointer_x / self.screen_width,
-                    anchor_pointer_y / self.screen_height,
+                    if adjust_price_scale {
+                        anchor_pointer_y / self.screen_height
+                    } else {
+                        0.5
+                    },
                     self.screen_width,
                     self.screen_height,
                 );
@@ -413,12 +433,19 @@ impl InteractionController {
                     return InteractionResult::default();
                 }
 
+                let mut next = *viewport;
+                if matches!(axis, ScaleAxis::Price) {
+                    if next.price_scale_locked() {
+                        return InteractionResult::default();
+                    }
+                    next.set_price_scale_auto(false);
+                }
+
                 let (zoom_x, zoom_y) = match axis {
                     ScaleAxis::Time => (anchor_zoom_x * factor, anchor_zoom_y),
                     ScaleAxis::Price => (anchor_zoom_x, anchor_zoom_y * factor),
                 };
 
-                let mut next = *viewport;
                 next.set_zoom(anchor_zoom_x, anchor_zoom_y);
                 next.set_offset_x(anchor_offset_x);
                 next.set_offset_y(anchor_offset_y);
@@ -567,6 +594,96 @@ mod tests {
     }
 
     #[test]
+    #[test]
+    fn vertical_pan_switches_auto_price_scale_to_manual() {
+        let mut viewport = make_viewport();
+        viewport.update_auto_price_scale(90.0, 110.0);
+        let mut controller = InteractionController::new(1920.0, 1080.0);
+
+        controller.on_event(&mut viewport, 100, &pointer_down(PointerButton::Primary, 700.0, 300.0));
+        controller.on_event(&mut viewport, 100, &pointer_drag(700.0, 380.0));
+
+        assert!(!viewport.price_scale_auto());
+        assert_ne!(viewport.offset_y(), 0.0);
+        assert_eq!(viewport.price_scale_reference(), (20.0, 100.0));
+    }
+
+    #[test]
+    fn locked_price_scale_ignores_vertical_pan_but_keeps_time_pan() {
+        let mut viewport = make_viewport();
+        viewport.update_auto_price_scale(90.0, 110.0);
+        viewport.set_price_scale_locked(true);
+        let initial_offset_y = viewport.offset_y();
+        let initial_offset_x = viewport.offset_x();
+        let mut controller = InteractionController::new(1920.0, 1080.0);
+
+        controller.on_event(&mut viewport, 100, &pointer_down(PointerButton::Primary, 700.0, 300.0));
+        controller.on_event(&mut viewport, 100, &pointer_drag(760.0, 380.0));
+
+        assert_ne!(viewport.offset_x(), initial_offset_x);
+        assert_eq!(viewport.offset_y(), initial_offset_y);
+        assert!(viewport.price_scale_auto());
+    }
+
+    #[test]
+    fn locked_price_scale_keeps_vertical_zoom_unchanged_during_secondary_drag() {
+        let mut viewport = make_viewport();
+        viewport.set_price_scale_locked(true);
+        let initial_zoom_y = viewport.zoom_y();
+        let initial_zoom_x = viewport.zoom_x();
+        let mut controller = InteractionController::new(1920.0, 1080.0);
+
+        controller.on_event(
+            &mut viewport,
+            100,
+            &pointer_down(PointerButton::Secondary, 700.0, 300.0),
+        );
+        controller.on_event(&mut viewport, 100, &pointer_drag(700.0, 380.0));
+
+        assert_ne!(viewport.zoom_x(), initial_zoom_x);
+        assert_eq!(viewport.zoom_y(), initial_zoom_y);
+        assert!(viewport.price_scale_auto());
+    }
+
+    #[test]
+    fn price_axis_double_click_restores_auto_scale() {
+        let mut viewport = make_viewport();
+        viewport.update_auto_price_scale(90.0, 110.0);
+        viewport.set_price_scale_auto(false);
+        viewport.set_offset_y(0.5);
+        let mut controller = InteractionController::new(1920.0, 1080.0);
+
+        controller.on_event(
+            &mut viewport,
+            100,
+            &InteractionEvent::AxisDoubleClick(AxisDoubleClickEvent {
+                axis: ScaleAxis::Price,
+            }),
+        );
+
+        assert!(viewport.price_scale_auto());
+        assert_eq!(viewport.offset_y(), 0.0);
+    }
+
+    #[test]
+    fn price_axis_double_click_does_not_change_a_locked_scale() {
+        let mut viewport = make_viewport();
+        viewport.set_price_scale_locked(true);
+        viewport.set_price_scale_auto(false);
+        let initial = viewport;
+        let mut controller = InteractionController::new(1920.0, 1080.0);
+
+        controller.on_event(
+            &mut viewport,
+            100,
+            &InteractionEvent::AxisDoubleClick(AxisDoubleClickEvent {
+                axis: ScaleAxis::Price,
+            }),
+        );
+
+        assert_eq!(viewport, initial);
+    }
+
     fn vertical_scroll_zooms_time_axis_around_the_pointer() {
         let mut viewport = make_viewport();
         let mut controller = InteractionController::new(1920.0, 1080.0);
