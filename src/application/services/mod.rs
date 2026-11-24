@@ -252,7 +252,7 @@ impl eframe::App for ApexTraderApp {
                 invalidation_mask: mask,
             };
 
-            if let Err(e) = self.renderer.draw(painter, chart_rect, &scene) {
+            if let Err(e) = self.renderer.draw(&painter, chart_rect, &scene) {
                 tracing::error!("Error renderizando chart: {}", e);
                 ui.colored_label(egui::Color32::RED, format!("Error: {}", e));
             }
