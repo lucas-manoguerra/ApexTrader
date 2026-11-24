@@ -44,6 +44,26 @@ const MARGIN_RATIO: f64 = 0.05;
 /// Zoom que deja el 90% del alto disponible para el rango de precios.
 const AUTO_PRICE_SCALE_ZOOM: f64 = 1.0 - 2.0 * MARGIN_RATIO;
 
+/// Criterio usado para calcular el rango de la autoescala vertical.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PriceScaleMode {
+    /// Incluye los extremos de las mechas de todas las velas visibles.
+    #[default]
+    HighLow,
+    /// Calcula el rango usando únicamente el cierre de cada vela visible.
+    Close,
+}
+
+impl PriceScaleMode {
+    /// Etiqueta breve para los controles de la interfaz.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::HighLow => "Máximo/Mínimo (OHLC)",
+            Self::Close => "Solo cierres",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Viewport {
     /// Nivel de zoom del eje X (tiempo / índice de vela).
@@ -79,6 +99,8 @@ pub struct Viewport {
     price_scale_center: f64,
     /// Autoajuste vertical según los extremos de las velas visibles.
     price_scale_auto: bool,
+    /// Criterio de precios que determina el rango de la autoescala.
+    price_scale_mode: PriceScaleMode,
     /// Bloquea interacciones que alteran el eje de precios.
     price_scale_locked: bool,
 }
@@ -97,6 +119,7 @@ impl Viewport {
             price_scale_range: 1.0,
             price_scale_center: 0.0,
             price_scale_auto: true,
+            price_scale_mode: PriceScaleMode::HighLow,
             price_scale_locked: false,
         }
     }
@@ -114,6 +137,19 @@ impl Viewport {
     /// Indica si el eje de precios sigue automáticamente los extremos visibles.
     pub fn price_scale_auto(&self) -> bool {
         self.price_scale_auto
+    }
+
+    /// Devuelve el criterio usado por la autoescala vertical.
+    pub fn price_scale_mode(&self) -> PriceScaleMode {
+        self.price_scale_mode
+    }
+
+    /// Cambia el criterio de precios que determina el rango de autoescala.
+    ///
+    /// El siguiente cálculo de autoescala aplicará el nuevo criterio. En modo
+    /// manual se conserva la referencia actual hasta volver a activar Auto.
+    pub fn set_price_scale_mode(&mut self, mode: PriceScaleMode) {
+        self.price_scale_mode = mode;
     }
 
     /// Activa o desactiva la autoescala vertical.
@@ -602,6 +638,7 @@ impl Viewport {
         self.price_scale_range = 1.0;
         self.price_scale_center = 0.0;
         self.price_scale_auto = true;
+        self.price_scale_mode = PriceScaleMode::HighLow;
         self.price_scale_locked = false;
         tracing::debug!("Viewport restablecido a valores por defecto");
     }
@@ -858,6 +895,19 @@ mod tests {
 
         assert!(viewport.update_auto_price_scale(80.0, 120.0));
         assert_eq!(viewport.price_scale_reference(), (40.0, 100.0));
+    }
+
+    #[test]
+    fn price_scale_mode_defaults_to_high_low_and_can_select_close() {
+        let mut viewport = Viewport::new();
+
+        assert_eq!(viewport.price_scale_mode(), PriceScaleMode::HighLow);
+
+        viewport.set_price_scale_mode(PriceScaleMode::Close);
+        assert_eq!(viewport.price_scale_mode(), PriceScaleMode::Close);
+
+        viewport.reset();
+        assert_eq!(viewport.price_scale_mode(), PriceScaleMode::HighLow);
     }
 
     #[test]

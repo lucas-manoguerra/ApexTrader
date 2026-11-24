@@ -7,11 +7,12 @@
 use crate::application::commands::load_candles::LoadCandles;
 use crate::application::events::{self, InputHandler};
 use crate::chart::layout::ChartLayout;
+use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::domain::chart_state::ChartState;
 use crate::domain::price::Price;
 use crate::domain::price_range::PriceRange;
 use crate::domain::transforms::ScreenPoint;
-use crate::domain::viewport::Viewport;
+use crate::domain::viewport::{PriceScaleMode, Viewport};
 use crate::logging::init as init_logging;
 use crate::market::candle::MarketCandle;
 use crate::market::mock::MockMarketDataProvider;
@@ -102,6 +103,28 @@ impl eframe::App for ApexTraderApp {
                 let mut locked = self.chart.viewport().price_scale_locked();
                 if ui.checkbox(&mut locked, "Bloquear escala vertical").changed() {
                     self.chart.viewport_mut().set_price_scale_locked(locked);
+                }
+
+                let current_mode = self.chart.viewport().price_scale_mode();
+                let mut selected_mode = current_mode;
+                egui::ComboBox::from_id_salt("price-scale-auto-mode")
+                    .selected_text(selected_mode.label())
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut selected_mode,
+                            PriceScaleMode::HighLow,
+                            "Máximo/Mínimo (OHLC)",
+                        );
+                        ui.selectable_value(
+                            &mut selected_mode,
+                            PriceScaleMode::Close,
+                            "Solo cierres",
+                        );
+                    });
+                if selected_mode != current_mode {
+                    self.chart
+                        .viewport_mut()
+                        .set_price_scale_mode(selected_mode);
                 }
             });
 
@@ -211,13 +234,10 @@ impl eframe::App for ApexTraderApp {
                     let points = self.chart.data_points();
                     let visible_points =
                         &points[pre_input_visible.first..=pre_input_visible.last];
-                    let (min_price, max_price) = visible_points.iter().fold(
-                        (f64::INFINITY, f64::NEG_INFINITY),
-                        |(min_price, max_price), point| {
-                            (min_price.min(point.low()), max_price.max(point.high()))
-                        },
-                    );
-                    Some((min_price, max_price))
+                    visible_price_range(
+                        visible_points,
+                        self.chart.viewport().price_scale_mode(),
+                    )
                 }
             };
             if let Some((min_price, max_price)) = pre_input_scale_range {
@@ -258,12 +278,10 @@ impl eframe::App for ApexTraderApp {
                 let points = self.chart.data_points();
                 let visible_points = &points[visible_before_scale_update.first
                     ..=visible_before_scale_update.last];
-                Some(visible_points.iter().fold(
-                    (f64::INFINITY, f64::NEG_INFINITY),
-                    |(min_price, max_price), point| {
-                        (min_price.min(point.low()), max_price.max(point.high()))
-                    },
-                ))
+                visible_price_range(
+                    visible_points,
+                    self.chart.viewport().price_scale_mode(),
+                )
             } else {
                 None
             };
@@ -702,6 +720,33 @@ fn configure_fonts(ctx: &egui::Context) {
     ctx.set_fonts(font_defs);
 }
 
+/// Calcula el rango de precios visible según el criterio de autoescala.
+fn visible_price_range(
+    points: &[ChartDataPoint],
+    mode: PriceScaleMode,
+) -> Option<(f64, f64)> {
+    let mut range: Option<(f64, f64)> = None;
+
+    for point in points {
+        let (point_min, point_max) = match mode {
+            PriceScaleMode::HighLow => (point.low(), point.high()),
+            PriceScaleMode::Close => (point.close(), point.close()),
+        };
+        if !point_min.is_finite() || !point_max.is_finite() {
+            continue;
+        }
+
+        range = Some(match range {
+            Some((min_price, max_price)) => {
+                (min_price.min(point_min), max_price.max(point_max))
+            }
+            None => (point_min, point_max),
+        });
+    }
+
+    range
+}
+
 /// Calcula el `PriceRange` (mínimo/máximo) de los puntos de datos del chart.
 ///
 /// Devuelve `None` si no hay puntos de datos.
@@ -748,6 +793,57 @@ mod price_tick_tests {
         assert_eq!(
             price_tick_size_for_symbol(&Symbol::from_str("USD/JPY").unwrap()),
             0.001
+        );
+    }
+}
+
+#[cfg(test)]
+mod price_scale_mode_tests {
+    use super::*;
+    use crate::domain::candle::Candle;
+    use crate::domain::chart::time_point::TimePoint;
+
+    fn sample_points() -> Vec<ChartDataPoint> {
+        let first_time = TimePoint::new(0, 60_000, 60_000).expect("intervalo válido");
+        let second_time =
+            TimePoint::new(60_000, 120_000, 60_000).expect("intervalo válido");
+        vec![
+            ChartDataPoint::new(
+                Candle::new(100.0, 120.0, 80.0, 110.0, 500.0).expect("vela válida"),
+                first_time,
+            ),
+            ChartDataPoint::new(
+                Candle::new(112.0, 130.0, 90.0, 105.0, 700.0).expect("vela válida"),
+                second_time,
+            ),
+        ]
+    }
+
+    #[test]
+    fn high_low_auto_scale_includes_visible_wicks() {
+        let points = sample_points();
+
+        assert_eq!(
+            visible_price_range(&points, PriceScaleMode::HighLow),
+            Some((80.0, 130.0))
+        );
+    }
+
+    #[test]
+    fn close_auto_scale_ignores_wicks_outside_visible_closes() {
+        let points = sample_points();
+
+        assert_eq!(
+            visible_price_range(&points, PriceScaleMode::Close),
+            Some((105.0, 110.0))
+        );
+    }
+
+    #[test]
+    fn auto_scale_range_is_empty_without_valid_points() {
+        assert_eq!(
+            visible_price_range(&[], PriceScaleMode::HighLow),
+            None
         );
     }
 }

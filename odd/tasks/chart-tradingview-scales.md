@@ -46,4 +46,8 @@
 - [x] Ticks alineados al incremento mínimo del instrumento y precisión decimal coherente.
 - [x] Pruebas de persistencia manual, bloqueo, transiciones y precisión de ticks.
 
+- [x] Criterio de autoescala seleccionable: extremos OHLC o solo cierres.
+- [x] El criterio seleccionado se aplica al rango de velas visibles y se conserva en el viewport.
+- [x] Cobertura de pruebas para ambos criterios y para el valor predeterminado.
+
 **Nota:** el incremento mínimo se infiere con reglas limitadas para el mock (BTC/USDT, futuros CME comunes y pares FX). El proveedor real deberá suministrar el tick size exacto del contrato/instrumento.
