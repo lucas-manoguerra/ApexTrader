@@ -82,16 +82,16 @@ fn estimate_price_axis_width(
             let decimals = axis_price_decimal_places(minimum_tick);
             for scale_value in [visible_min, visible_max] {
                 if let Some(price) = viewport.scale_value_to_price(scale_value) {
-                    widest_label_chars = widest_label_chars
-                        .max(axis_price_label_char_count(price, decimals));
+                    widest_label_chars =
+                        widest_label_chars.max(axis_price_label_char_count(price, decimals));
                 }
             }
             if let Some(price) = current_price
                 && let Some(scale_value) = viewport.price_to_scale_value(price)
                 && (visible_min..=visible_max).contains(&scale_value)
             {
-                widest_label_chars = widest_label_chars
-                    .max(axis_price_label_char_count(price, decimals));
+                widest_label_chars =
+                    widest_label_chars.max(axis_price_label_char_count(price, decimals));
             }
         }
     }
@@ -109,9 +109,7 @@ fn axis_price_decimal_places(minimum_tick: f64) -> usize {
     for decimals in 0_i32..=8 {
         let scale = 10.0_f64.powi(decimals);
         let scaled = minimum_tick * scale;
-        if scaled.is_finite()
-            && (scaled - scaled.round()).abs() <= 1e-8 * scaled.abs().max(1.0)
-        {
+        if scaled.is_finite() && (scaled - scaled.round()).abs() <= 1e-8 * scaled.abs().max(1.0) {
             return (decimals as usize).max(2);
         }
     }
@@ -132,10 +130,7 @@ fn axis_price_label_char_count(price: f64, decimals: usize) -> usize {
         .count();
     let separators = integer_digits.saturating_sub(1) / 3;
     let fraction_chars = decimals.min(8) + 1;
-    integer_digits
-        + separators
-        + fraction_chars
-        + if price.is_sign_negative() { 1 } else { 0 }
+    integer_digits + separators + fraction_chars + if price.is_sign_negative() { 1 } else { 0 }
 }
 
 /// Estado de carga de datos de mercado.

@@ -151,11 +151,8 @@ impl RenderFrame {
         origin: ScreenPoint,
         include_series: bool,
     ) -> Self {
-        let layout = ChartLayout::compute_with_price_axis_width(
-            width,
-            height,
-            scene.price_axis_width,
-        );
+        let layout =
+            ChartLayout::compute_with_price_axis_width(width, height, scene.price_axis_width);
         let layers = if include_series && layout.is_valid() {
             vec![build_series_layer(scene, &layout)]
         } else {

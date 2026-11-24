@@ -105,14 +105,15 @@ impl ChartLayout {
 
         let left_gutter = (full_width * 0.012).clamp(8.0, 16.0).min(full_width * 0.12);
         let default_price_axis_width = (full_width * 0.09).clamp(64.0, 96.0);
-        let requested_price_axis_width = if requested_price_axis_width.is_finite()
-            && requested_price_axis_width > 0.0
-        {
-            requested_price_axis_width
-        } else {
-            default_price_axis_width
-        };
-        let price_axis_width = requested_price_axis_width.clamp(64.0, 144.0).min(full_width * 0.35);
+        let requested_price_axis_width =
+            if requested_price_axis_width.is_finite() && requested_price_axis_width > 0.0 {
+                requested_price_axis_width
+            } else {
+                default_price_axis_width
+            };
+        let price_axis_width = requested_price_axis_width
+            .clamp(64.0, 144.0)
+            .min(full_width * 0.35);
         let title_height = (full_height * 0.02).clamp(4.0, 12.0);
         let mut time_axis_height = (full_height * 0.075).clamp(12.0, 40.0);
         let mut volume_panel_height = (full_height * 0.14).clamp(18.0, 72.0);

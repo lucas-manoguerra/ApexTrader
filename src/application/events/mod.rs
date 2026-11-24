@@ -95,8 +95,7 @@ pub fn handle_input(
     if (scroll_delta.x != 0.0 || scroll_delta.y != 0.0)
         && let Some(pos) = ui.input(|input| input.pointer.hover_pos())
     {
-        if let Some((axis, chart_point)) = axis_pointer_coordinates(pos, interaction_rect, layout)
-        {
+        if let Some((axis, chart_point)) = axis_pointer_coordinates(pos, interaction_rect, layout) {
             if axis == ScaleAxis::Price && scroll_delta.y != 0.0 {
                 let event = InteractionEvent::AxisScroll(AxisScrollEvent {
                     axis,
