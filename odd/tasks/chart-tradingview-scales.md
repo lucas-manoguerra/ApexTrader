@@ -54,7 +54,9 @@
 - [x] Controles de margen en porcentaje y restablecimiento rápido a 5% / 5%.
 - [x] Validación de límites y preservación de la escala manual al cambiar la configuración.
 - [x] Modos de escala Lineal, Logarítmica y Porcentual.
-- [x] Base porcentual vinculada al primer cierre del historial y actualizada al cambiar de símbolo.
+- [x] Base porcentual inicial vinculada al primer cierre del historial y actualizada al cambiar de símbolo.
+- [x] Base porcentual reconfigurable desde la interfaz entre el primer cierre y el último cierre cargado.
+- [x] El cambio de base porcentual restablece la autoescala y elimina el desplazamiento vertical anterior.
 - [x] Ticks y etiquetas consistentes con cada transformación.
 
 **Nota:** el incremento mínimo se infiere con reglas limitadas para el mock (BTC/USDT, futuros CME comunes y pares FX). El proveedor real deberá suministrar el tick size exacto del contrato/instrumento.

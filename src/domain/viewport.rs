@@ -1194,6 +1194,25 @@ mod tests {
     }
 
     #[test]
+    fn changing_percentage_base_reanchors_auto_scale_and_clears_vertical_offset() {
+        let mut viewport = Viewport::new();
+        assert!(viewport.set_price_scale_percentage_base(100.0));
+        assert!(viewport.set_price_scale_type(PriceScaleType::Percentage));
+        assert!(viewport.update_auto_price_scale(90.0, 110.0));
+
+        viewport.set_price_scale_auto(false);
+        viewport.set_offset_y(0.75);
+        assert!(!viewport.price_scale_auto());
+        assert_eq!(viewport.offset_y(), 0.75);
+
+        assert!(viewport.set_price_scale_percentage_base(125.0));
+
+        assert_eq!(viewport.price_scale_percentage_base(), Some(125.0));
+        assert!(viewport.price_scale_auto());
+        assert_eq!(viewport.offset_y(), 0.0);
+    }
+
+    #[test]
     fn auto_price_scale_stores_values_in_the_selected_transformed_space() {
         let mut logarithmic = Viewport::new();
         assert!(logarithmic.set_price_scale_type(PriceScaleType::Logarithmic));
