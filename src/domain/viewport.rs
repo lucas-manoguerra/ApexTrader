@@ -257,7 +257,7 @@ impl Viewport {
 
         let midpoint = min_price + (max_price - min_price) / 2.0;
         let raw_range = max_price - min_price;
-        if !center.is_finite() || !raw_range.is_finite() {
+        if !midpoint.is_finite() || !raw_range.is_finite() {
             return false;
         }
 
