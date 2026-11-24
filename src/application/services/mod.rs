@@ -199,20 +199,28 @@ impl eframe::App for ApexTraderApp {
             }
             self.follow_latest_pending = false;
 
-            let pre_input_count = self.chart.time_scale().len();
-            let pre_input_visible = self
-                .chart
-                .viewport()
-                .visible_range(pre_input_count, chart_layout.plot_width());
-            if !pre_input_visible.is_empty() {
-                let points = self.chart.data_points();
-                let visible_points = &points[pre_input_visible.first..=pre_input_visible.last];
-                let (min_price, max_price) = visible_points.iter().fold(
-                    (f64::INFINITY, f64::NEG_INFINITY),
-                    |(min_price, max_price), point| {
-                        (min_price.min(point.low()), max_price.max(point.high()))
-                    },
-                );
+            let pre_input_scale_range = {
+                let pre_input_count = self.chart.time_scale().len();
+                let pre_input_visible = self
+                    .chart
+                    .viewport()
+                    .visible_range(pre_input_count, chart_layout.plot_width());
+                if pre_input_visible.is_empty() {
+                    None
+                } else {
+                    let points = self.chart.data_points();
+                    let visible_points =
+                        &points[pre_input_visible.first..=pre_input_visible.last];
+                    let (min_price, max_price) = visible_points.iter().fold(
+                        (f64::INFINITY, f64::NEG_INFINITY),
+                        |(min_price, max_price), point| {
+                            (min_price.min(point.low()), max_price.max(point.high()))
+                        },
+                    );
+                    Some((min_price, max_price))
+                }
+            };
+            if let Some((min_price, max_price)) = pre_input_scale_range {
                 self.chart
                     .viewport_mut()
                     .update_auto_price_scale(min_price, max_price);
@@ -232,20 +240,47 @@ impl eframe::App for ApexTraderApp {
                 self.input_handler.crosshair_pos()
             };
 
-            let viewport = self.chart.viewport();
-            let points = self.chart.data_points();
-
-            // Calcular máscara de invalidación basada en qué cambió entre frames.
             let data_revision = self.chart.data_revision();
-            let mask =
-                self.calculate_invalidation_mask(viewport, crosshair_pos, data_revision, chart_rect);
-
-            // El rango de referencia pertenece al Viewport: Auto lo actualiza
-            // con el rango visible; Manual lo conserva aunque llegue realtime.
             let drawing_width = chart_layout.plot_width();
             let drawing_height = chart_layout.plot_height();
             let logical_count = self.chart.time_scale().len();
+            let visible_before_scale_update = self
+                .chart
+                .viewport()
+                .visible_range(logical_count, drawing_width);
+
+            // Recalcular la autoescala después de procesar input permite que
+            // un pan horizontal actualice el rango en el mismo frame. Si el
+            // gesto fue vertical, el controlador ya habrá cambiado a Manual.
+            let auto_scale_range = if self.chart.viewport().price_scale_auto()
+                && !visible_before_scale_update.is_empty()
+            {
+                let points = self.chart.data_points();
+                let visible_points = &points[visible_before_scale_update.first
+                    ..=visible_before_scale_update.last];
+                Some(visible_points.iter().fold(
+                    (f64::INFINITY, f64::NEG_INFINITY),
+                    |(min_price, max_price), point| {
+                        (min_price.min(point.low()), max_price.max(point.high()))
+                    },
+                ))
+            } else {
+                None
+            };
+            if let Some((min_price, max_price)) = auto_scale_range {
+                self.chart
+                    .viewport_mut()
+                    .update_auto_price_scale(min_price, max_price);
+            }
+
+            let viewport = self.chart.viewport();
+            let points = self.chart.data_points();
             let visible = viewport.visible_range(logical_count, drawing_width);
+
+            // Calcular máscara de invalidación basada en qué cambió entre frames.
+            let mask =
+                self.calculate_invalidation_mask(viewport, crosshair_pos, data_revision, chart_rect);
+
             let max_volume = if visible.is_empty() {
                 0.0
             } else {
@@ -255,19 +290,6 @@ impl eframe::App for ApexTraderApp {
                     .map(|point| point.volume())
                     .fold(0.0_f64, f64::max)
             };
-            if viewport.price_scale_auto() && !visible.is_empty() {
-                let visible_points = &points[visible.first..=visible.last];
-                let (min_price, max_price) = visible_points.iter().fold(
-                    (f64::INFINITY, f64::NEG_INFINITY),
-                    |(min_price, max_price), point| {
-                        (min_price.min(point.low()), max_price.max(point.high()))
-                    },
-                );
-                self.chart
-                    .viewport_mut()
-                    .update_auto_price_scale(min_price, max_price);
-            }
-            let viewport = self.chart.viewport();
             let (price_range, center_price) = if visible.is_empty() {
                 (0.0, 0.0)
             } else {
@@ -487,10 +509,10 @@ pub fn run() -> eframe::Result {
 }
 
 /// Incremento mínimo para los instrumentos soportados por el mock.
-////
-//// La precisión de mercado real debe provenir de los metadatos del exchange;
-//// estas reglas solo permiten que el gráfico sintético represente formatos
-//// habituales para BTC, futuros CME y pares FX.
+///
+/// La precisión de mercado real debe provenir de los metadatos del exchange;
+/// estas reglas solo permiten que el gráfico sintético represente formatos
+/// habituales para BTC, futuros CME y pares FX.
 fn price_tick_size_for_symbol(symbol: &Symbol) -> f64 {
     let base = symbol.base().to_ascii_uppercase();
     let quote = symbol.quote().to_ascii_uppercase();
