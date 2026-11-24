@@ -839,8 +839,8 @@ mod tests {
             ),
         ];
 
-        assert_eq!(time_label_at_logical(&points, 0.5), "01/01 00:30 UTC");
-        assert_eq!(time_label_at_logical(&points, 1.5), "01/01 01:30 UTC");
+        assert_eq!(time_label_at_logical(&points, 0.5), "01/01 00:30");
+        assert_eq!(time_label_at_logical(&points, 1.5), "01/01 01:30");
     }
 
     #[test]
@@ -855,8 +855,8 @@ mod tests {
             TimePoint::new(0, 60_000, 60_000).unwrap(),
         )];
 
-        assert_eq!(time_label_at_logical(&points, -10.0), "01/01 00:00 UTC");
-        assert_eq!(time_label_at_logical(&points, 10.0), "01/01 00:00 UTC");
+        assert_eq!(time_label_at_logical(&points, -10.0), "01/01 00:00");
+        assert_eq!(time_label_at_logical(&points, 10.0), "01/01 00:00");
         assert_eq!(time_label_at_logical(&points, f64::NAN), "");
         assert_eq!(time_label_at_logical(&[], 0.0), "");
     }
