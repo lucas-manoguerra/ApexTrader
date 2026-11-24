@@ -206,6 +206,15 @@ struct PriceTick {
 struct TimeAxisTick {
     screen_x: f64,
     label: String,
+    /// Ancho medido con la fuente efectiva del eje temporal.
+    label_width: f64,
+}
+
+const TIME_AXIS_LABEL_GAP: f64 = 12.0;
+const MIN_TIME_AXIS_LABEL_SPACING: f64 = 44.0;
+
+fn time_axis_minimum_spacing(previous_width: f64, current_width: f64) -> f64 {
+    ((previous_width + current_width) * 0.5 + TIME_AXIS_LABEL_GAP).max(MIN_TIME_AXIS_LABEL_SPACING)
 }
 
 fn price_axis_label(
@@ -385,7 +394,13 @@ fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<Price
     ticks
 }
 
-fn time_axis_ticks(left: f64, right: f64, params: &TimeAxisParams<'_>) -> Vec<TimeAxisTick> {
+fn time_axis_ticks(
+    left: f64,
+    right: f64,
+    params: &TimeAxisParams<'_>,
+    context: &egui::Context,
+    font_id: &egui::FontId,
+) -> Vec<TimeAxisTick> {
     let width = right - left;
     if !width.is_finite() || width <= 0.0 || params.logical_count == 0 {
         return Vec::new();
@@ -399,7 +414,7 @@ fn time_axis_ticks(left: f64, right: f64, params: &TimeAxisParams<'_>) -> Vec<Ti
     // Elegir un intervalo "nice" en barras y traducirlo a tiempo real. Al
     // agrupar por buckets UTC, las marcas caen en límites de reloj (5m, 15m,
     // 1h, etc.) en lugar de depender del primer índice visible.
-    let target_labels = ((width / 118.0).floor() as usize).clamp(2, 9);
+    let target_labels = ((width / 100.0).floor() as usize).clamp(2, 12);
     let logical_span = visible.last.saturating_sub(visible.first).max(1);
     let bar_step = nice_tick_step(logical_span as f64, target_labels.saturating_sub(1))
         .round()
@@ -418,7 +433,7 @@ fn time_axis_ticks(left: f64, right: f64, params: &TimeAxisParams<'_>) -> Vec<Ti
     let mut ticks = Vec::with_capacity(target_labels + 1);
     let mut previous_bucket: Option<i64> = None;
     let mut previous_tick_timestamp: Option<i64> = None;
-    let mut last_screen_x: Option<f64> = None;
+    let mut last_tick_position: Option<(f64, f64)> = None;
 
     for point in params.data_points {
         let Some(index) = point.logical_index else {
@@ -446,15 +461,37 @@ fn time_axis_ticks(left: f64, right: f64, params: &TimeAxisParams<'_>) -> Vec<Ti
 
         let label =
             TimeScale::format_time_axis_label(timestamp, tick_interval_ms, previous_tick_timestamp);
-        // Reservar espacio según la etiqueta visible evita colisiones sin
-        // imponer una separación excesiva a los ticks compactos HH:mm.
-        let minimum_spacing = (label.chars().count() as f64 * 7.5 + 24.0).max(72.0);
-        if last_screen_x.is_some_and(|last| screen_x - last < minimum_spacing) {
+        let label_width = context.fonts_mut(|fonts| {
+            fonts
+                .layout_no_wrap(label.clone(), font_id.clone(), egui::Color32::WHITE)
+                .size()
+                .x as f64
+        });
+        if !label_width.is_finite() || label_width <= 0.0 {
             continue;
         }
 
-        ticks.push(TimeAxisTick { screen_x, label });
-        last_screen_x = Some(screen_x);
+        // El texto se centra sobre cada marca: reservar media anchura de
+        // cada etiqueta y un margen fijo evita solapamientos sin desperdiciar
+        // espacio por estimaciones basadas en el número de caracteres.
+        let half_label_width = label_width * 0.5;
+        if screen_x < left + half_label_width + 4.0
+            || screen_x > right - half_label_width - 4.0
+        {
+            continue;
+        }
+        if last_tick_position.is_some_and(|(last_x, last_width)| {
+            screen_x - last_x < time_axis_minimum_spacing(last_width, label_width)
+        }) {
+            continue;
+        }
+
+        ticks.push(TimeAxisTick {
+            screen_x,
+            label,
+            label_width,
+        });
+        last_tick_position = Some((screen_x, label_width));
         previous_tick_timestamp = Some(timestamp);
     }
 
@@ -882,7 +919,8 @@ impl ChartRenderer for GlowChartRenderer {
             data_points: scene.data_points,
             logical_count: scene.candle_count,
         };
-        let time_ticks = time_axis_ticks(left, right, &time_params);
+        let font_id = egui::FontId::proportional(11.0);
+        let time_ticks = time_axis_ticks(left, right, &time_params, painter.ctx(), &font_id);
 
         // Fondo, escalas y rejilla se calculan con el mismo layout que usa
         // el hit-testing, evitando que las marcas se desalineen del plot.
@@ -906,7 +944,6 @@ impl ChartRenderer for GlowChartRenderer {
             .with_clip_rect(series_clip)
             .extend(self.cached_series_shapes.iter().cloned());
 
-        let font_id = egui::FontId::proportional(11.0);
         let last_point = scene.data_points.last();
         let current_price = last_point.map(|point| {
             let color = if point.close() >= point.open() {
@@ -1193,6 +1230,29 @@ mod tests {
         assert_eq!(format_price_tick(f64::NAN, 0.01, 0.01), "");
     }
 
+    fn measured_time_axis_ticks(
+        left: f64,
+        right: f64,
+        params: &TimeAxisParams<'_>,
+    ) -> Vec<TimeAxisTick> {
+        let context = egui::Context::default();
+        let font_id = egui::FontId::proportional(11.0);
+        let mut ticks = Vec::new();
+        let output = context.run_ui(egui::RawInput::default(), |ctx| {
+            ticks = time_axis_ticks(left, right, params, ctx, &font_id);
+        });
+        output.drop_without_applying_deltas();
+        ticks
+    }
+
+    #[test]
+    fn time_axis_minimum_spacing_grows_with_actual_label_widths() {
+        let narrow_spacing = time_axis_minimum_spacing(28.0, 32.0);
+        let wide_spacing = time_axis_minimum_spacing(70.0, 84.0);
+        assert!(wide_spacing > narrow_spacing);
+        assert!((wide_spacing - 89.0).abs() < f64::EPSILON);
+    }
+
     fn minute_points(
         start_ms: i64,
         interval_ms: i64,
@@ -1227,7 +1287,7 @@ mod tests {
             logical_count: points.len(),
         };
 
-        let ticks = time_axis_ticks(0.0, 800.0, &params);
+        let ticks = measured_time_axis_ticks(0.0, 800.0, &params);
         assert!(ticks.len() >= 3, "debe haber varias marcas temporales");
         for tick in ticks {
             let (hour, minute) = tick.label.split_once(':').expect("etiqueta horaria");
@@ -1254,7 +1314,7 @@ mod tests {
             logical_count: points.len(),
         };
 
-        let ticks = time_axis_ticks(0.0, 800.0, &params);
+        let ticks = measured_time_axis_ticks(0.0, 800.0, &params);
         assert!(
             ticks.iter().any(|tick| tick.label == "02/01"),
             "el primer tick del nuevo día debe mostrar la fecha: {ticks:?}"
@@ -1278,10 +1338,13 @@ mod tests {
             data_points: &points,
             logical_count: points.len(),
         };
-        let ticks = time_axis_ticks(0.0, 800.0, &params);
+        let ticks = measured_time_axis_ticks(0.0, 800.0, &params);
 
+        assert!(ticks.iter().all(|tick| tick.label_width.is_finite() && tick.label_width > 0.0));
         assert!(ticks.windows(2).all(|pair| {
-            pair[0].screen_x < pair[1].screen_x && pair[1].screen_x - pair[0].screen_x >= 72.0
+            pair[0].screen_x < pair[1].screen_x
+                && pair[1].screen_x - pair[0].screen_x
+                    >= time_axis_minimum_spacing(pair[0].label_width, pair[1].label_width)
         }));
     }
 
