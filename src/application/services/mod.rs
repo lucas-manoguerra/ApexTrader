@@ -128,6 +128,39 @@ impl eframe::App for ApexTraderApp {
                 }
             });
 
+            ui.horizontal(|ui| {
+                let (top_margin, bottom_margin) = self.chart.viewport().price_scale_margins();
+                let mut top_percent = top_margin * 100.0;
+                let mut bottom_percent = bottom_margin * 100.0;
+
+                ui.label("Margen superior:");
+                let top_changed = ui
+                    .add(
+                        egui::DragValue::new(&mut top_percent)
+                            .range(0.0..=45.0)
+                            .suffix("%"),
+                    )
+                    .changed();
+
+                ui.label("Inferior:");
+                let bottom_changed = ui
+                    .add(
+                        egui::DragValue::new(&mut bottom_percent)
+                            .range(0.0..=45.0)
+                            .suffix("%"),
+                    )
+                    .changed();
+
+                if ui.small_button("Restablecer 5%").clicked() {
+                    self.chart.viewport_mut().reset_price_scale_margins();
+                } else if top_changed || bottom_changed {
+                    let _ = self
+                        .chart
+                        .viewport_mut()
+                        .set_price_scale_margins(top_percent / 100.0, bottom_percent / 100.0);
+                }
+            });
+
             ui.separator();
 
             // Controles para cambiar el símbolo y recargar datos de mercado.

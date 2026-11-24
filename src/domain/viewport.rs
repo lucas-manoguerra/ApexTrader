@@ -38,11 +38,14 @@ use crate::domain::transforms;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 
-/// Margen porcentual usado en auto_scale y clamping (5% cada lado).
-const MARGIN_RATIO: f64 = 0.05;
+/// Margen utilizado para limitar el desplazamiento horizontal de las velas.
+const HORIZONTAL_PAN_MARGIN_RATIO: f64 = 0.05;
 
-/// Zoom que deja el 90% del alto disponible para el rango de precios.
-const AUTO_PRICE_SCALE_ZOOM: f64 = 1.0 - 2.0 * MARGIN_RATIO;
+/// Margen predeterminado de cada extremo de la escala vertical (5%).
+const DEFAULT_PRICE_SCALE_MARGIN: f64 = 0.05;
+
+/// Margen máximo permitido por extremo, dejando al menos un 10% de plot útil.
+const MAX_PRICE_SCALE_MARGIN: f64 = 0.45;
 
 /// Criterio usado para calcular el rango de la autoescala vertical.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -101,6 +104,9 @@ pub struct Viewport {
     price_scale_auto: bool,
     /// Criterio de precios que determina el rango de la autoescala.
     price_scale_mode: PriceScaleMode,
+    /// Márgenes verticales relativos al alto del plot (0.05 = 5%).
+    price_scale_top_margin: f64,
+    price_scale_bottom_margin: f64,
     /// Bloquea interacciones que alteran el eje de precios.
     price_scale_locked: bool,
 }
@@ -120,6 +126,8 @@ impl Viewport {
             price_scale_center: 0.0,
             price_scale_auto: true,
             price_scale_mode: PriceScaleMode::HighLow,
+            price_scale_top_margin: DEFAULT_PRICE_SCALE_MARGIN,
+            price_scale_bottom_margin: DEFAULT_PRICE_SCALE_MARGIN,
             price_scale_locked: false,
         }
     }
@@ -152,6 +160,60 @@ impl Viewport {
         self.price_scale_mode = mode;
     }
 
+    /// Márgenes superior e inferior de autoescala como fracción del alto del plot.
+    ///
+    /// Por ejemplo, (0.05, 0.10) reserva un 5% arriba y un 10% abajo.
+    pub fn price_scale_margins(&self) -> (f64, f64) {
+        (self.price_scale_top_margin, self.price_scale_bottom_margin)
+    }
+
+    /// Configura los márgenes verticales de autoescala.
+    ///
+    /// Cada margen debe estar entre 0% y 45%, y su suma no puede superar 90%.
+    /// En modo Auto actualiza el zoom previsto; la referencia del precio se
+    /// recalcula con los datos visibles en el siguiente frame. En modo Manual
+    /// solo guarda la configuración para la próxima activación de Auto.
+    ///
+    /// Devuelve false y conserva el estado si los valores no son válidos.
+    pub fn set_price_scale_margins(&mut self, top: f64, bottom: f64) -> bool {
+        if !top.is_finite()
+            || !bottom.is_finite()
+            || !(0.0..=MAX_PRICE_SCALE_MARGIN).contains(&top)
+            || !(0.0..=MAX_PRICE_SCALE_MARGIN).contains(&bottom)
+            || top + bottom > 1.0 - 2.0 * DEFAULT_PRICE_SCALE_MARGIN
+        {
+            return false;
+        }
+
+        self.price_scale_top_margin = top;
+        self.price_scale_bottom_margin = bottom;
+        if self.price_scale_auto {
+            self.zoom_y = self.auto_price_scale_zoom();
+            self.offset_y = 0.0;
+        }
+        true
+    }
+
+    /// Restablece los márgenes verticales predeterminados (5% arriba y abajo).
+    pub fn reset_price_scale_margins(&mut self) {
+        let _ = self.set_price_scale_margins(
+            DEFAULT_PRICE_SCALE_MARGIN,
+            DEFAULT_PRICE_SCALE_MARGIN,
+        );
+    }
+
+    /// Zoom vertical disponible después de reservar los márgenes configurados.
+    fn auto_price_scale_zoom(&self) -> f64 {
+        (1.0 - self.price_scale_top_margin - self.price_scale_bottom_margin)
+            .clamp(self.min_zoom, self.max_zoom)
+    }
+
+    /// Desplaza el centro de referencia para respetar márgenes asimétricos.
+    fn auto_price_scale_center(&self, midpoint: f64, range: f64, zoom: f64) -> f64 {
+        midpoint + (self.price_scale_top_margin - self.price_scale_bottom_margin) * range
+            / (2.0 * zoom)
+    }
+
     /// Activa o desactiva la autoescala vertical.
     ///
     /// Al activarla se restablecen zoom y desplazamiento vertical; el rango
@@ -159,7 +221,7 @@ impl Viewport {
     pub fn set_price_scale_auto(&mut self, enabled: bool) {
         self.price_scale_auto = enabled;
         if enabled {
-            self.zoom_y = AUTO_PRICE_SCALE_ZOOM.clamp(self.min_zoom, self.max_zoom);
+            self.zoom_y = self.auto_price_scale_zoom();
             self.offset_y = 0.0;
         }
     }
@@ -193,7 +255,7 @@ impl Viewport {
             return false;
         }
 
-        let center = min_price + (max_price - min_price) / 2.0;
+        let midpoint = min_price + (max_price - min_price) / 2.0;
         let raw_range = max_price - min_price;
         if !center.is_finite() || !raw_range.is_finite() {
             return false;
@@ -206,7 +268,8 @@ impl Viewport {
         } else {
             (center.abs() * 0.002).max(1e-6)
         };
-        let zoom_y = AUTO_PRICE_SCALE_ZOOM.clamp(self.min_zoom, self.max_zoom);
+        let zoom_y = self.auto_price_scale_zoom();
+        let center = self.auto_price_scale_center(midpoint, range, zoom_y);
 
         let changed = self.price_scale_range != range
             || self.price_scale_center != center
@@ -353,7 +416,7 @@ impl Viewport {
             return;
         }
         let center_x = screen_width / 2.0;
-        let margin = screen_width * MARGIN_RATIO;
+        let margin = screen_width * HORIZONTAL_PAN_MARGIN_RATIO;
 
         // Primera vela (index 0) no puede salir por la izquierda:
         // data_x_to_screen(0) >= margin
@@ -546,9 +609,8 @@ impl Viewport {
         );
     }
 
-    /// Ajusta automáticamente el zoom y el offset vertical para que todo el
-    /// rango de precios quepa en el área de dibujo con un margen del 5% en
-    /// cada lado.
+    /// Ajusta automáticamente el zoom y el offset vertical para que el rango
+    /// de precios quepa en el área de dibujo con los márgenes configurados.
     ///
     /// `price_range` es el rango de precios (mínimo y máximo) de las velas a mostrar.
     /// `candle_count` es la cantidad total de velas (solo se usa para validar
@@ -592,24 +654,16 @@ impl Viewport {
             return;
         };
 
-        let margin = MARGIN_RATIO;
-        let available_height = screen_height * (1.0 - 2.0 * margin);
-
-        let zoom_vertical_max = available_height / screen_height;
-
-        let max_allowed_y = zoom_vertical_max.min(self.max_zoom);
-        let new_zoom_y = if self.min_zoom > max_allowed_y {
-            self.min_zoom
-        } else {
-            self.zoom_y.clamp(self.min_zoom, max_allowed_y)
-        };
-
-        self.price_scale_range = price_range_value;
-        self.price_scale_center = price_range
+        let new_zoom_y = self.auto_price_scale_zoom();
+        let midpoint = price_range
             .midpoint()
             .value()
             .to_f64()
             .expect("centro de precio convertible");
+
+        self.price_scale_range = price_range_value;
+        self.price_scale_center =
+            self.auto_price_scale_center(midpoint, price_range_value, new_zoom_y);
         self.price_scale_auto = true;
         self.offset_y = 0.0;
         self.zoom_y = new_zoom_y;
@@ -632,7 +686,9 @@ impl Viewport {
     /// Restablece el viewport a valores por defecto.
     pub fn reset(&mut self) {
         self.zoom_x = 1.0;
-        self.zoom_y = AUTO_PRICE_SCALE_ZOOM.clamp(self.min_zoom, self.max_zoom);
+        self.price_scale_top_margin = DEFAULT_PRICE_SCALE_MARGIN;
+        self.price_scale_bottom_margin = DEFAULT_PRICE_SCALE_MARGIN;
+        self.zoom_y = self.auto_price_scale_zoom();
         self.offset_x = 0.0;
         self.offset_y = 0.0;
         self.price_scale_range = 1.0;
@@ -911,16 +967,90 @@ mod tests {
     }
 
     #[test]
-    fn enabling_auto_price_scale_restores_the_five_percent_vertical_margins() {
+    fn enabling_auto_price_scale_restores_the_configured_vertical_margins() {
         let mut viewport = Viewport::new();
         viewport.set_zoom(2.5, 3.5);
         viewport.set_offset_y(0.75);
+        assert!(viewport.set_price_scale_margins(0.10, 0.05));
 
         viewport.set_price_scale_auto(true);
 
         assert!(viewport.price_scale_auto());
-        assert!((viewport.zoom_y() - AUTO_PRICE_SCALE_ZOOM).abs() < f64::EPSILON);
+        assert!((viewport.zoom_y() - 0.85).abs() < f64::EPSILON);
         assert_eq!(viewport.offset_y(), 0.0);
+    }
+
+    #[test]
+    fn asymmetric_price_scale_margins_place_visible_extremes_at_configured_edges() {
+        let mut viewport = Viewport::new();
+        assert!(viewport.set_price_scale_margins(0.10, 0.05));
+        assert!(viewport.update_auto_price_scale(90.0, 110.0));
+
+        let (range, center) = viewport.price_scale_reference();
+        let top_y = transforms::price_to_screen(
+            110.0,
+            1_000.0,
+            range,
+            viewport.zoom_y(),
+            viewport.offset_y(),
+            center,
+        );
+        let bottom_y = transforms::price_to_screen(
+            90.0,
+            1_000.0,
+            range,
+            viewport.zoom_y(),
+            viewport.offset_y(),
+            center,
+        );
+
+        assert!((top_y - 100.0).abs() < 1e-9);
+        assert!((bottom_y - 950.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn invalid_price_scale_margins_are_rejected_without_changing_the_configuration() {
+        let mut viewport = Viewport::new();
+        let defaults = viewport.price_scale_margins();
+
+        for (top, bottom) in [
+            (-0.01, 0.05),
+            (0.05, -0.01),
+            (0.46, 0.05),
+            (0.05, 0.46),
+            (0.45, 0.46),
+            (f64::NAN, 0.05),
+            (0.05, f64::INFINITY),
+        ] {
+            assert!(!viewport.set_price_scale_margins(top, bottom));
+            assert_eq!(viewport.price_scale_margins(), defaults);
+        }
+    }
+
+    #[test]
+    fn manual_price_scale_keeps_its_reference_when_margins_change() {
+        let mut viewport = Viewport::new();
+        assert!(viewport.update_auto_price_scale(90.0, 110.0));
+        viewport.set_price_scale_auto(false);
+        let reference = viewport.price_scale_reference();
+        let zoom = viewport.zoom_y();
+
+        assert!(viewport.set_price_scale_margins(0.15, 0.10));
+
+        assert_eq!(viewport.price_scale_reference(), reference);
+        assert_eq!(viewport.zoom_y(), zoom);
+        assert_eq!(viewport.price_scale_margins(), (0.15, 0.10));
+    }
+
+    #[test]
+    fn reset_restores_default_price_scale_margins() {
+        let mut viewport = Viewport::new();
+        assert!(viewport.set_price_scale_margins(0.20, 0.10));
+
+        viewport.reset();
+
+        assert_eq!(viewport.price_scale_margins(), (0.05, 0.05));
+        assert!((viewport.zoom_y() - 0.90).abs() < f64::EPSILON);
     }
 
     #[test]

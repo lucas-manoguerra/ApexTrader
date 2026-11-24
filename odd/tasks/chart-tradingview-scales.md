@@ -49,5 +49,9 @@
 - [x] Criterio de autoescala seleccionable: extremos OHLC o solo cierres.
 - [x] El criterio seleccionado se aplica al rango de velas visibles y se conserva en el viewport.
 - [x] Cobertura de pruebas para ambos criterios y para el valor predeterminado.
+- [x] Márgenes superior e inferior configurables e independientes (0% a 45% cada uno).
+- [x] Autoescala asimétrica: los extremos visibles se ubican en los límites definidos.
+- [x] Controles de margen en porcentaje y restablecimiento rápido a 5% / 5%.
+- [x] Validación de límites y preservación de la escala manual al cambiar la configuración.
 
 **Nota:** el incremento mínimo se infiere con reglas limitadas para el mock (BTC/USDT, futuros CME comunes y pares FX). El proveedor real deberá suministrar el tick size exacto del contrato/instrumento.
