@@ -1334,6 +1334,7 @@ mod tests {
             candle_count: candles.len(),
             screen_width: 800.0,
             screen_height: 500.0,
+            price_axis_width: 88.0,
             crosshair_pos: None,
             invalidation_mask: crate::renderer::InvalidationMask {
                 level: InvalidationReason::Full,

@@ -76,6 +76,23 @@ impl ChartLayout {
     /// de una franja propia y el volumen utiliza una porción visible del chart.
     /// Dimensiones demasiado pequeñas o inválidas producen un layout vacío.
     pub fn compute(full_width: f64, full_height: f64) -> Self {
+        let default_price_axis_width = if full_width.is_finite() && full_width > 0.0 {
+            (full_width * 0.09).clamp(64.0, 96.0).min(full_width * 0.35)
+        } else {
+            0.0
+        };
+        Self::compute_with_price_axis_width(full_width, full_height, default_price_axis_width)
+    }
+
+    /// Calcula el layout reservando el ancho solicitado para la escala de precios.
+    ///
+    /// El ancho se limita para conservar un área útil de plot incluso en ventanas
+    /// pequeñas. Un valor inválido utiliza el ancho predeterminado.
+    pub fn compute_with_price_axis_width(
+        full_width: f64,
+        full_height: f64,
+        requested_price_axis_width: f64,
+    ) -> Self {
         if !full_width.is_finite()
             || !full_height.is_finite()
             || full_width <= 0.0
@@ -87,7 +104,15 @@ impl ChartLayout {
         let full = Rect::new(0.0, 0.0, full_width, full_height);
 
         let left_gutter = (full_width * 0.012).clamp(8.0, 16.0).min(full_width * 0.12);
-        let price_axis_width = (full_width * 0.09).clamp(64.0, 96.0).min(full_width * 0.35);
+        let default_price_axis_width = (full_width * 0.09).clamp(64.0, 96.0);
+        let requested_price_axis_width = if requested_price_axis_width.is_finite()
+            && requested_price_axis_width > 0.0
+        {
+            requested_price_axis_width
+        } else {
+            default_price_axis_width
+        };
+        let price_axis_width = requested_price_axis_width.clamp(64.0, 144.0).min(full_width * 0.35);
         let title_height = (full_height * 0.02).clamp(4.0, 12.0);
         let mut time_axis_height = (full_height * 0.075).clamp(12.0, 40.0);
         let mut volume_panel_height = (full_height * 0.14).clamp(18.0, 72.0);
@@ -222,6 +247,25 @@ mod tests {
         );
         assert!((layout.price_axis_right.right - layout.full.right).abs() < 1.0);
         assert!((layout.price_axis_right.left - layout.plot.right).abs() < 1.0);
+    }
+
+    #[test]
+    fn price_axis_width_adapts_to_the_requested_label_width() {
+        let compact = ChartLayout::compute_with_price_axis_width(1_000.0, 600.0, 72.0);
+        let wide = ChartLayout::compute_with_price_axis_width(1_000.0, 600.0, 124.0);
+
+        assert!((compact.price_axis_right.width() - 72.0).abs() < 1e-9);
+        assert!((wide.price_axis_right.width() - 124.0).abs() < 1e-9);
+        assert!(wide.plot.width() < compact.plot.width());
+        assert_eq!(wide.plot.right, wide.price_axis_right.left);
+    }
+
+    #[test]
+    fn price_axis_width_is_capped_to_preserve_a_usable_plot() {
+        let layout = ChartLayout::compute_with_price_axis_width(240.0, 180.0, 500.0);
+
+        assert!((layout.price_axis_right.width() - 84.0).abs() < 1e-9);
+        assert!(layout.plot.width() >= 24.0);
     }
 
     #[test]

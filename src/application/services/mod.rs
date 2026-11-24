@@ -35,6 +35,109 @@ const MOCK_TICKS_PER_CANDLE: u32 = 20;
 const MOCK_REALTIME_VOLUME: f64 = 35.0;
 const MOCK_REALTIME_TICK_INTERVAL: Duration = Duration::from_millis(250);
 
+/// Estima el ancho necesario para las etiquetas visibles del eje de precios.
+///
+/// Se consideran los extremos del rango transformado y el último precio. El
+/// ancho se recalcula al cambiar el zoom, el pan vertical o la escala activa.
+fn estimate_price_axis_width(
+    viewport: &Viewport,
+    minimum_tick: f64,
+    current_price: Option<f64>,
+) -> f64 {
+    let (price_range, center_price) = viewport.price_scale_reference();
+    let zoom_y = viewport.zoom_y();
+    if !price_range.is_finite()
+        || price_range <= 0.0
+        || !center_price.is_finite()
+        || !zoom_y.is_finite()
+        || zoom_y <= 0.0
+    {
+        return 88.0;
+    }
+
+    let visible_center = center_price + viewport.offset_y() * price_range;
+    let half_range = price_range / (2.0 * zoom_y);
+    let visible_min = visible_center - half_range;
+    let visible_max = visible_center + half_range;
+    if !visible_min.is_finite() || !visible_max.is_finite() {
+        return 88.0;
+    }
+
+    let mut widest_label_chars = 0usize;
+    match viewport.price_scale_type() {
+        PriceScaleType::Percentage => {
+            for value in [visible_min, visible_max] {
+                widest_label_chars =
+                    widest_label_chars.max(format!("{value:+.2}%").chars().count());
+            }
+            if let Some(price) = current_price
+                && let Some(value) = viewport.price_to_scale_value(price)
+                && (visible_min..=visible_max).contains(&value)
+            {
+                widest_label_chars =
+                    widest_label_chars.max(format!("{value:+.2}%").chars().count());
+            }
+        }
+        PriceScaleType::Linear | PriceScaleType::Logarithmic => {
+            let decimals = axis_price_decimal_places(minimum_tick);
+            for scale_value in [visible_min, visible_max] {
+                if let Some(price) = viewport.scale_value_to_price(scale_value) {
+                    widest_label_chars = widest_label_chars
+                        .max(axis_price_label_char_count(price, decimals));
+                }
+            }
+            if let Some(price) = current_price
+                && let Some(scale_value) = viewport.price_to_scale_value(price)
+                && (visible_min..=visible_max).contains(&scale_value)
+            {
+                widest_label_chars = widest_label_chars
+                    .max(axis_price_label_char_count(price, decimals));
+            }
+        }
+    }
+
+    // Los 7 px por carácter aproximan la fuente proporcional de 11 pt del eje.
+    // Se agregan 22 px para los márgenes y el espacio entre el plot y el texto.
+    (widest_label_chars.max(7) as f64 * 7.0 + 22.0).clamp(64.0, 144.0)
+}
+
+fn axis_price_decimal_places(minimum_tick: f64) -> usize {
+    if !minimum_tick.is_finite() || minimum_tick <= 0.0 {
+        return 2;
+    }
+
+    for decimals in 0_i32..=8 {
+        let scale = 10.0_f64.powi(decimals);
+        let scaled = minimum_tick * scale;
+        if scaled.is_finite()
+            && (scaled - scaled.round()).abs() <= 1e-8 * scaled.abs().max(1.0)
+        {
+            return (decimals as usize).max(2);
+        }
+    }
+    8
+}
+
+fn axis_price_label_char_count(price: f64, decimals: usize) -> usize {
+    if !price.is_finite() {
+        return 0;
+    }
+
+    let formatted = format!("{:.*}", decimals.clamp(2, 8), price.abs());
+    let integer_digits = formatted
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .chars()
+        .count();
+    let separators = integer_digits.saturating_sub(1) / 3;
+    let fraction_chars = decimals.min(8) + 1;
+    integer_digits
+        + separators
+        + fraction_chars
+        + if price.is_sign_negative() { 1 } else { 0 }
+}
+
 /// Estado de carga de datos de mercado.
 #[derive(Debug, Clone, PartialEq)]
 enum LoadState {
@@ -305,8 +408,17 @@ impl eframe::App for ApexTraderApp {
             );
             let response = ui.allocate_rect(chart_rect, egui::Sense::click_and_drag());
             let painter = ui.painter_at(chart_rect);
-            let chart_layout =
-                ChartLayout::compute(chart_rect.width() as f64, chart_rect.height() as f64);
+            let current_price = self.chart.data_points().last().map(|point| point.close());
+            let price_axis_width = estimate_price_axis_width(
+                self.chart.viewport(),
+                self.price_tick_size,
+                current_price,
+            );
+            let chart_layout = ChartLayout::compute_with_price_axis_width(
+                chart_rect.width() as f64,
+                chart_rect.height() as f64,
+                price_axis_width,
+            );
 
             // Ajustar el historial completo solo al iniciar o tras una carga
             // explícita. Las actualizaciones incrementales no deben resetear
@@ -377,6 +489,7 @@ impl eframe::App for ApexTraderApp {
                     ui,
                     &response,
                     interaction_rect,
+                    &chart_layout,
                     chart,
                 );
                 self.input_handler.crosshair_pos()
@@ -447,6 +560,7 @@ impl eframe::App for ApexTraderApp {
                 candle_count: logical_count,
                 screen_width: drawing_width,
                 screen_height: drawing_height,
+                price_axis_width: chart_layout.price_axis_right.width(),
                 crosshair_pos,
                 invalidation_mask: mask,
             };

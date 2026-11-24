@@ -72,12 +72,9 @@ pub fn handle_input(
     ui: &egui::Ui,
     response: &egui::Response,
     interaction_rect: egui::Rect,
+    layout: &ChartLayout,
     chart: &mut ChartState,
 ) {
-    let layout = ChartLayout::compute(
-        interaction_rect.width() as f64,
-        interaction_rect.height() as f64,
-    );
     if !layout.is_valid() {
         input_handler.crosshair_pos = None;
         input_handler.controller.set_screen_size(0.0, 0.0);
@@ -98,7 +95,7 @@ pub fn handle_input(
     if (scroll_delta.x != 0.0 || scroll_delta.y != 0.0)
         && let Some(pos) = ui.input(|input| input.pointer.hover_pos())
     {
-        if let Some((axis, chart_point)) = axis_pointer_coordinates(pos, interaction_rect, &layout)
+        if let Some((axis, chart_point)) = axis_pointer_coordinates(pos, interaction_rect, layout)
         {
             if axis == ScaleAxis::Price && scroll_delta.y != 0.0 {
                 let event = InteractionEvent::AxisScroll(AxisScrollEvent {
@@ -112,7 +109,7 @@ pub fn handle_input(
                     .on_event(chart.viewport_mut(), candle_count, &event);
             }
         } else if let Some((screen_point, chart_point)) =
-            pointer_coordinates(pos, interaction_rect, &layout)
+            pointer_coordinates(pos, interaction_rect, layout)
         {
             let event = InteractionEvent::Scroll(ScrollEvent {
                 delta_x: scroll_delta.x as f64,
@@ -132,7 +129,7 @@ pub fn handle_input(
     // El doble clic sobre un eje restablece exclusivamente esa escala.
     if response.double_clicked_by(egui::PointerButton::Primary)
         && let Some(pos) = response.interact_pointer_pos()
-        && let Some((axis, _)) = axis_pointer_coordinates(pos, interaction_rect, &layout)
+        && let Some((axis, _)) = axis_pointer_coordinates(pos, interaction_rect, layout)
     {
         let event = InteractionEvent::AxisDoubleClick(AxisDoubleClickEvent { axis });
         input_handler
@@ -145,7 +142,7 @@ pub fn handle_input(
     if response.drag_started_by(egui::PointerButton::Primary)
         && let Some(pos) = response.interact_pointer_pos()
     {
-        if let Some((axis, point)) = axis_pointer_coordinates(pos, interaction_rect, &layout) {
+        if let Some((axis, point)) = axis_pointer_coordinates(pos, interaction_rect, layout) {
             let event = InteractionEvent::AxisPointerDown(AxisPointerDownEvent {
                 axis,
                 x: point.x,
@@ -154,7 +151,7 @@ pub fn handle_input(
             input_handler
                 .controller
                 .on_event(chart.viewport_mut(), candle_count, &event);
-        } else if let Some((_, point)) = pointer_coordinates(pos, interaction_rect, &layout) {
+        } else if let Some((_, point)) = pointer_coordinates(pos, interaction_rect, layout) {
             let event = InteractionEvent::PointerDown(PointerDownEvent {
                 button: PointerButton::Primary,
                 x: point.x,
@@ -169,7 +166,7 @@ pub fn handle_input(
 
     if response.drag_started_by(egui::PointerButton::Secondary)
         && let Some(pos) = response.interact_pointer_pos()
-        && let Some((_, point)) = pointer_coordinates(pos, interaction_rect, &layout)
+        && let Some((_, point)) = pointer_coordinates(pos, interaction_rect, layout)
     {
         let event = InteractionEvent::PointerDown(PointerDownEvent {
             button: PointerButton::Secondary,
@@ -187,7 +184,7 @@ pub fn handle_input(
     if response.dragged_by(egui::PointerButton::Primary)
         && let Some(pos) = response.interact_pointer_pos()
     {
-        let (_, point) = pointer_coordinates_unbounded(pos, interaction_rect, &layout);
+        let (_, point) = pointer_coordinates_unbounded(pos, interaction_rect, layout);
         let event = InteractionEvent::PointerDrag(PointerDragEvent {
             x: point.x,
             y: point.y,
@@ -200,7 +197,7 @@ pub fn handle_input(
     if response.dragged_by(egui::PointerButton::Secondary)
         && let Some(pos) = response.interact_pointer_pos()
     {
-        let (_, point) = pointer_coordinates_unbounded(pos, interaction_rect, &layout);
+        let (_, point) = pointer_coordinates_unbounded(pos, interaction_rect, layout);
         let event = InteractionEvent::PointerDrag(PointerDragEvent {
             x: point.x,
             y: point.y,
@@ -231,7 +228,7 @@ pub fn handle_input(
     // coordenadas del controlador, en cambio, son relativas al plot.
     input_handler.crosshair_pos = ui
         .input(|input| input.pointer.hover_pos())
-        .and_then(|pos| pointer_coordinates(pos, interaction_rect, &layout))
+        .and_then(|pos| pointer_coordinates(pos, interaction_rect, layout))
         .map(|(screen_point, _)| screen_point);
 }
 

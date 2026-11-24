@@ -151,7 +151,11 @@ impl RenderFrame {
         origin: ScreenPoint,
         include_series: bool,
     ) -> Self {
-        let layout = ChartLayout::compute(width, height);
+        let layout = ChartLayout::compute_with_price_axis_width(
+            width,
+            height,
+            scene.price_axis_width,
+        );
         let layers = if include_series && layout.is_valid() {
             vec![build_series_layer(scene, &layout)]
         } else {
@@ -205,6 +209,8 @@ pub struct ChartScene<'a> {
     pub screen_width: f64,
     /// Alto del área de dibujo (píxeles).
     pub screen_height: f64,
+    /// Ancho calculado para la escala de precios, compartido con el hit-testing.
+    pub price_axis_width: f64,
     /// Posición del crosshair en pantalla, si hay uno activo.
     pub crosshair_pos: Option<ScreenPoint>,
     /// Máscara de invalidación: qué partes del chart necesitan ser re-renderizadas.
@@ -276,6 +282,7 @@ impl<'a> ChartScene<'a> {
             candle_count: 0,
             screen_width: 0.0,
             screen_height: 0.0,
+            price_axis_width: 0.0,
             crosshair_pos: None,
             invalidation_mask: InvalidationMask::none(),
         }
@@ -394,6 +401,7 @@ mod tests {
             candle_count: points.len(),
             screen_width: 744.0,
             screen_height: 405.0,
+            price_axis_width: 88.0,
             crosshair_pos: None,
             invalidation_mask: InvalidationMask {
                 level: InvalidationReason::Full,
@@ -459,6 +467,20 @@ mod tests {
         assert_eq!(layer.volume_bars[1].index, layer.candles[1].index);
         assert!(layer.candles.iter().all(|candle| candle.body_width > 0.0));
         assert!(layer.volume_bars.iter().all(|bar| bar.height > 0.0));
+    }
+
+    #[test]
+    fn render_frame_uses_the_shared_adaptive_price_axis_width() {
+        let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).expect("vela válida");
+        let time = TimePoint::new(0, 60_000, 60_000).expect("tiempo válido");
+        let points = [ChartDataPoint::new(candle, time)];
+        let mut scene = sample_scene(&points);
+        scene.price_axis_width = 128.0;
+
+        let frame =
+            RenderFrame::from_scene(&scene, 800.0, 500.0, ScreenPoint { x: 0.0, y: 0.0 }, false);
+
+        assert!((frame.layout.price_axis_right.width() - 128.0).abs() < 1e-9);
     }
 
     #[test]
