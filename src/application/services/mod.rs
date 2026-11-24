@@ -40,6 +40,7 @@ const MOCK_REALTIME_TICK_INTERVAL: Duration = Duration::from_millis(250);
 /// Se consideran los extremos del rango transformado y el último precio. El
 /// ancho se recalcula al cambiar el zoom, el pan vertical o la escala activa.
 fn estimate_price_axis_width(
+    ui: &egui::Ui,
     viewport: &Viewport,
     minimum_tick: f64,
     current_price: Option<f64>,
@@ -63,42 +64,50 @@ fn estimate_price_axis_width(
         return 88.0;
     }
 
-    let mut widest_label_chars = 0usize;
+    let mut labels = Vec::with_capacity(3);
     match viewport.price_scale_type() {
         PriceScaleType::Percentage => {
-            for value in [visible_min, visible_max] {
-                widest_label_chars =
-                    widest_label_chars.max(format!("{value:+.2}%").chars().count());
-            }
+            labels.extend([visible_min, visible_max].map(|value| format!("{value:+.2}%")));
             if let Some(price) = current_price
                 && let Some(value) = viewport.price_to_scale_value(price)
                 && (visible_min..=visible_max).contains(&value)
             {
-                widest_label_chars =
-                    widest_label_chars.max(format!("{value:+.2}%").chars().count());
+                labels.push(format!("{value:+.2}%"));
             }
         }
         PriceScaleType::Linear | PriceScaleType::Logarithmic => {
             let decimals = axis_price_decimal_places(minimum_tick);
             for scale_value in [visible_min, visible_max] {
                 if let Some(price) = viewport.scale_value_to_price(scale_value) {
-                    widest_label_chars =
-                        widest_label_chars.max(axis_price_label_char_count(price, decimals));
+                    labels.push(format_axis_price_label(price, decimals));
                 }
             }
             if let Some(price) = current_price
                 && let Some(scale_value) = viewport.price_to_scale_value(price)
                 && (visible_min..=visible_max).contains(&scale_value)
             {
-                widest_label_chars =
-                    widest_label_chars.max(axis_price_label_char_count(price, decimals));
+                labels.push(format_axis_price_label(price, decimals));
             }
         }
     }
 
-    // Los 7 px por carácter aproximan la fuente proporcional de 11 pt del eje.
-    // Se agregan 22 px para los márgenes y el espacio entre el plot y el texto.
-    (widest_label_chars.max(7) as f64 * 7.0 + 22.0).clamp(64.0, 144.0)
+    // Medir con la fuente real del eje evita aproximaciones por cantidad de
+    // caracteres: comas, signos y dígitos tienen anchos distintos.
+    let font_id = egui::FontId::proportional(11.0);
+    let widest_label_width = ui.fonts(|fonts| {
+        labels
+            .iter()
+            .map(|label| {
+                fonts
+                    .layout_no_wrap(label.clone(), font_id.clone(), egui::Color32::WHITE)
+                    .size()
+                    .x as f64
+            })
+            .fold(0.0_f64, f64::max)
+    });
+
+    // 18 px cubren el margen izquierdo del texto y el espacio al borde derecho.
+    (widest_label_width + 18.0).clamp(64.0, 144.0)
 }
 
 fn axis_price_decimal_places(minimum_tick: f64) -> usize {
@@ -116,21 +125,31 @@ fn axis_price_decimal_places(minimum_tick: f64) -> usize {
     8
 }
 
-fn axis_price_label_char_count(price: f64, decimals: usize) -> usize {
+fn format_axis_price_label(price: f64, decimals: usize) -> String {
     if !price.is_finite() {
-        return 0;
+        return String::new();
     }
 
-    let formatted = format!("{:.*}", decimals.clamp(2, 8), price.abs());
-    let integer_digits = formatted
-        .split('.')
-        .next()
-        .unwrap_or_default()
-        .chars()
-        .count();
-    let separators = integer_digits.saturating_sub(1) / 3;
-    let fraction_chars = decimals.min(8) + 1;
-    integer_digits + separators + fraction_chars + if price.is_sign_negative() { 1 } else { 0 }
+    let formatted = format!("{:.*}", decimals.clamp(2, 8), price);
+    let (sign, unsigned) = formatted
+        .strip_prefix('-')
+        .map_or(("", formatted.as_str()), |value| ("-", value));
+    let (integer, fraction) = unsigned.split_once('.').unwrap_or((unsigned, ""));
+    let mut grouped = String::with_capacity(formatted.len() + integer.len() / 3);
+
+    grouped.push_str(sign);
+    for (index, digit) in integer.chars().enumerate() {
+        if index > 0 && (integer.len() - index) % 3 == 0 {
+            grouped.push(',');
+        }
+        grouped.push(digit);
+    }
+    if !fraction.is_empty() {
+        grouped.push('.');
+        grouped.push_str(fraction);
+    }
+
+    grouped
 }
 
 /// Estado de carga de datos de mercado.
@@ -405,6 +424,7 @@ impl eframe::App for ApexTraderApp {
             let painter = ui.painter_at(chart_rect);
             let current_price = self.chart.data_points().last().map(|point| point.close());
             let price_axis_width = estimate_price_axis_width(
+                ui,
                 self.chart.viewport(),
                 self.price_tick_size,
                 current_price,
@@ -1066,6 +1086,49 @@ mod price_scale_mode_tests {
                 second_time,
             ),
         ]
+    }
+
+    #[test]
+    fn axis_price_labels_preserve_grouping_sign_and_precision() {
+        assert_eq!(format_axis_price_label(12_345.5, 2), "12,345.50");
+        assert_eq!(format_axis_price_label(-1_234_567.25, 2), "-1,234,567.25");
+        assert_eq!(format_axis_price_label(0.00001234, 8), "0.00001234");
+        assert_eq!(format_axis_price_label(f64::NAN, 2), "");
+    }
+
+    #[test]
+    fn adaptive_price_axis_width_uses_the_actual_font_metrics() {
+        let context = egui::Context::default();
+        let mut compact_width = None;
+        let mut large_width = None;
+
+        let mut compact_viewport = Viewport::new();
+        compact_viewport.update_auto_price_scale(100.0, 200.0);
+        let mut large_viewport = Viewport::new();
+        large_viewport.update_auto_price_scale(100_000.0, 200_000.0);
+
+        let _output = context.run(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                compact_width = Some(estimate_price_axis_width(
+                    ui,
+                    &compact_viewport,
+                    0.01,
+                    Some(150.0),
+                ));
+                large_width = Some(estimate_price_axis_width(
+                    ui,
+                    &large_viewport,
+                    0.01,
+                    Some(150_000.0),
+                ));
+            });
+        });
+
+        let compact_width = compact_width.expect("debe medir la escala compacta");
+        let large_width = large_width.expect("debe medir la escala de precios grandes");
+        assert!(compact_width >= 64.0);
+        assert!(large_width > compact_width);
+        assert!(large_width <= 144.0);
     }
 
     #[test]
