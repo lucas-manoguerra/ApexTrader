@@ -1,12 +1,9 @@
 //! Cálculo único y autoritativo del layout del chart.
 //!
-//! Proporciona un solo `ChartLayout` que tanto el sistema de input como
-//! el renderer consumen, eliminando los cálculos de margen hardcodeados
-//! distribuidos por separado (AT-002).
-//!
-//! El módulo no depende de `egui` ni de `wgpu`: trabaja con valores `f64`
-//! planos. Las capas que lo consumen convierten a `egui::Rect` según sea
-//! necesario.
+//! El plot reserva un gutter mínimo a la izquierda y una escala de precios
+//! visible a la derecha, siguiendo la distribución habitual de plataformas
+//! de gráficos. El panel de volumen y el eje temporal tienen áreas separadas.
+//! El módulo no depende de egui ni de wgpu.
 
 /// Rectángulo con bordes en píxeles de pantalla.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -52,19 +49,19 @@ pub struct PaneRect {
     pub rect: Rect,
 }
 
-/// Layout completo del chart: una sola fuente de verdad para dimensiones
-/// y márgenes de ejes y paneles.
+/// Layout completo del chart: una sola fuente de verdad para dimensiones,
+/// márgenes, escalas y paneles.
 #[derive(Debug, Clone)]
 pub struct ChartLayout {
     /// Rectángulo completo disponible (incluye todos los márgenes).
     pub full: Rect,
     /// Área útil de dibujo principal (dentro de los márgenes de ejes).
     pub plot: Rect,
-    /// Eje de precios izquierdo.
+    /// Gutter izquierdo sin escala visible.
     pub price_axis_left: Rect,
-    /// Eje de precios derecho.
+    /// Escala de precios visible a la derecha.
     pub price_axis_right: Rect,
-    /// Eje de tiempo inferior.
+    /// Eje temporal inferior, separado del panel de volumen.
     pub time_axis: Rect,
     /// Panel de volumen (debajo del plot principal).
     pub volume_panel: Rect,
@@ -75,9 +72,9 @@ pub struct ChartLayout {
 impl ChartLayout {
     /// Calcula el layout a partir del ancho y alto disponibles.
     ///
-    /// Los márgenes son proporcionales al tamaño disponible para que el
-    /// layout responda a cambios de tamaño y escalado de pantalla.
-    /// Dimensiones inválidas producen un layout vacío (`is_valid() == false`).
+    /// La escala de precios conserva un ancho legible, el eje temporal dispone
+    /// de una franja propia y el volumen utiliza una porción visible del chart.
+    /// Dimensiones demasiado pequeñas o inválidas producen un layout vacío.
     pub fn compute(full_width: f64, full_height: f64) -> Self {
         if !full_width.is_finite()
             || !full_height.is_finite()
@@ -89,29 +86,40 @@ impl ChartLayout {
 
         let full = Rect::new(0.0, 0.0, full_width, full_height);
 
-        // Márgenes proporcionales al tamaño disponible.
-        let price_axis_width = full_width * 0.05;
-        let right_margin = full_width * 0.02;
-        let title_height = full_height * 0.04;
-        let time_axis_height = full_height * 0.04;
-        let volume_panel_height = full_height * 0.05;
+        let left_gutter = (full_width * 0.012).clamp(8.0, 16.0).min(full_width * 0.12);
+        let price_axis_width = (full_width * 0.09).clamp(64.0, 96.0).min(full_width * 0.35);
+        let title_height = (full_height * 0.02).clamp(4.0, 12.0);
+        let mut time_axis_height = (full_height * 0.075).clamp(12.0, 40.0);
+        let mut volume_panel_height = (full_height * 0.14).clamp(18.0, 72.0);
 
-        let plot_left = price_axis_width;
-        let plot_right = full_width - right_margin;
+        // Mantener al menos 24 px para el plot incluso en ventanas pequeñas.
+        let available_for_bottom = (full_height - title_height - 24.0).max(0.0);
+        let reserved_bottom = time_axis_height + volume_panel_height;
+        if reserved_bottom > available_for_bottom && reserved_bottom > 0.0 {
+            let factor = available_for_bottom / reserved_bottom;
+            time_axis_height *= factor;
+            volume_panel_height *= factor;
+        }
+
+        let plot_left = left_gutter;
+        let plot_right = full_width - price_axis_width;
         let plot_top = title_height;
         let plot_bottom = full_height - time_axis_height - volume_panel_height;
 
         let plot = Rect::new(plot_left, plot_top, plot_right, plot_bottom);
+        if plot.width() < 24.0 || plot.height() < 16.0 {
+            return Self::empty();
+        }
 
-        let price_axis_left = Rect::new(0.0, plot_top, price_axis_width, plot_bottom);
+        let price_axis_left = Rect::new(0.0, plot_top, plot_left, plot_bottom);
         let price_axis_right = Rect::new(plot_right, plot_top, full_width, plot_bottom);
-        let time_axis = Rect::new(plot_left, plot_bottom, plot_right, full_height);
         let volume_panel = Rect::new(
             plot_left,
             plot_bottom,
             plot_right,
             plot_bottom + volume_panel_height,
         );
+        let time_axis = Rect::new(plot_left, volume_panel.bottom, plot_right, full_height);
 
         Self {
             full,
@@ -172,7 +180,6 @@ mod tests {
         assert_eq!(layout.full.height(), 1080.0);
         assert!(layout.plot.width() > 0.0);
         assert!(layout.plot.height() > 0.0);
-        // El plot está contenido dentro del rect completo.
         assert!(layout.plot.left >= layout.full.left);
         assert!(layout.plot.right <= layout.full.right);
         assert!(layout.plot.top >= layout.full.top);
@@ -202,24 +209,36 @@ mod tests {
     }
 
     #[test]
-    fn layout_respects_proportions() {
-        let layout = ChartLayout::compute(1920.0, 1080.0);
-        // El eje de precios izquierdo ocupa ~5% del ancho.
-        let expected_price_axis_width = 1920.0 * 0.05;
+    fn price_scale_is_on_the_right_and_has_readable_width() {
+        let layout = ChartLayout::compute(1024.0, 480.0);
+        assert!(layout.is_valid());
         assert!(
-            (layout.price_axis_left.width() - expected_price_axis_width).abs() < 1.0,
-            "price_axis_left width = {}, expected ~{}",
-            layout.price_axis_left.width(),
-            expected_price_axis_width
+            layout.plot.left < 20.0,
+            "el margen izquierdo debe ser pequeño"
         );
-        // El panel de volumen ocupa ~5% del alto.
-        let expected_volume_height = 1080.0 * 0.05;
         assert!(
-            (layout.volume_panel.height() - expected_volume_height).abs() < 1.0,
-            "volume_panel height = {}, expected ~{}",
-            layout.volume_panel.height(),
-            expected_volume_height
+            layout.price_axis_right.width() >= 64.0,
+            "la escala derecha debe tener espacio para etiquetas"
         );
+        assert!((layout.price_axis_right.right - layout.full.right).abs() < 1.0);
+        assert!((layout.price_axis_right.left - layout.plot.right).abs() < 1.0);
+    }
+
+    #[test]
+    fn volume_and_time_axis_have_separate_non_overlapping_regions() {
+        let layout = ChartLayout::compute(1024.0, 480.0);
+        assert!(layout.volume_panel.height() > 40.0);
+        assert!(layout.time_axis.height() >= 24.0);
+        assert!((layout.volume_panel.bottom - layout.time_axis.top).abs() < 1.0);
+        assert!((layout.time_axis.bottom - layout.full.bottom).abs() < 1.0);
+    }
+
+    #[test]
+    fn layout_remains_valid_in_a_small_window() {
+        let layout = ChartLayout::compute(360.0, 180.0);
+        assert!(layout.is_valid());
+        assert!(layout.plot.width() >= 24.0);
+        assert!(layout.plot.height() >= 16.0);
     }
 
     #[test]

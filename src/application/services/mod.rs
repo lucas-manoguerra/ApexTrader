@@ -7,17 +7,17 @@
 use crate::application::commands::load_candles::LoadCandles;
 use crate::application::events::{self, InputHandler};
 use crate::chart::layout::ChartLayout;
-use crate::domain::candle::Candle;
 use crate::domain::chart::chart_data::ChartDataPoint;
-use crate::domain::chart::time_point::TimePoint;
 use crate::domain::chart_state::ChartState;
 use crate::domain::price::Price;
 use crate::domain::price_range::PriceRange;
 use crate::domain::transforms::ScreenPoint;
-use crate::domain::viewport::Viewport;
+use crate::domain::viewport::{PriceScaleMode, PriceScaleType, Viewport};
 use crate::logging::init as init_logging;
+use crate::market::candle::MarketCandle;
 use crate::market::mock::MockMarketDataProvider;
-use crate::market::provider::MarketDataProvider;
+use crate::market::mock_realtime::MockRealtimeMarketDataProvider;
+use crate::market::provider::{MarketDataProvider, RealtimeMarketDataProvider};
 use crate::market::symbol::Symbol;
 use crate::renderer::{
     ChartRenderer, ChartScene, InvalidationMask, InvalidationReason, create_renderer,
@@ -26,7 +26,14 @@ use eframe::egui;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 use std::str::FromStr;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tracing;
+
+const MOCK_INTERVAL_MS: i64 = 60_000;
+const MOCK_HISTORY_CANDLES: i64 = 200;
+const MOCK_TICKS_PER_CANDLE: u32 = 20;
+const MOCK_REALTIME_VOLUME: f64 = 35.0;
+const MOCK_REALTIME_TICK_INTERVAL: Duration = Duration::from_millis(250);
 
 /// Estado de carga de datos de mercado.
 #[derive(Debug, Clone, PartialEq)]
@@ -55,23 +62,146 @@ struct ApexTraderApp {
     load_state: LoadState,
     /// Símbolo ingresado por el usuario para cargar datos de mercado.
     symbol_input: String,
+    /// Incremento mínimo de precio del instrumento seleccionado.
+    price_tick_size: f64,
     /// Viewport del frame anterior (para calcular invalidation mask).
     prev_viewport: Option<Viewport>,
     /// Posición del crosshair del frame anterior.
     prev_crosshair_pos: Option<ScreenPoint>,
     /// Revisión de datos del frame anterior.
     prev_data_revision: u64,
+    /// Indica que una carga completa de historial requiere ajustar el eje X una vez.
+    fit_content_pending: bool,
+    /// Stream realtime intercambiable por un proveedor WebSocket real.
+    realtime_provider: Option<Box<dyn RealtimeMarketDataProvider>>,
+    /// Sigue la última vela cuando el usuario está mirando el extremo derecho.
+    follow_latest: bool,
+    /// Indica que se agregó una vela nueva y hay que evaluar el seguimiento.
+    follow_latest_pending: bool,
+    /// Instante previsto para la siguiente actualización realtime.
+    next_realtime_tick: Instant,
     /// Rect de dibujo del frame anterior.
     prev_rect: Option<egui::Rect>,
 }
 
 impl eframe::App for ApexTraderApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.advance_realtime(ui.ctx());
+
         egui::CentralPanel::default().show(ui, |ui| {
             ui.heading("ApexTrader — Chart de Velas");
             ui.separator();
 
             ui.label(format!("Renderer: {}", self.renderer.name()));
+            ui.checkbox(&mut self.follow_latest, "Seguir última vela");
+            ui.horizontal(|ui| {
+                let mut auto_scale = self.chart.viewport().price_scale_auto();
+                if ui.checkbox(&mut auto_scale, "Auto escala de precios").changed() {
+                    self.chart.viewport_mut().set_price_scale_auto(auto_scale);
+                }
+
+                let mut locked = self.chart.viewport().price_scale_locked();
+                if ui.checkbox(&mut locked, "Bloquear escala vertical").changed() {
+                    self.chart.viewport_mut().set_price_scale_locked(locked);
+                }
+
+                let current_mode = self.chart.viewport().price_scale_mode();
+                let mut selected_mode = current_mode;
+                egui::ComboBox::from_id_salt("price-scale-auto-mode")
+                    .selected_text(selected_mode.label())
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut selected_mode,
+                            PriceScaleMode::HighLow,
+                            "Máximo/Mínimo (OHLC)",
+                        );
+                        ui.selectable_value(
+                            &mut selected_mode,
+                            PriceScaleMode::Close,
+                            "Solo cierres",
+                        );
+                    });
+                if selected_mode != current_mode {
+                    self.chart
+                        .viewport_mut()
+                        .set_price_scale_mode(selected_mode);
+                }
+
+                let current_scale_type = self.chart.viewport().price_scale_type();
+                let mut selected_scale_type = current_scale_type;
+                let points = self.chart.data_points();
+                let logarithmic_supported = points.iter().all(|point| point.low() > 0.0);
+                let percentage_base = points
+                    .first()
+                    .map(|point| point.close())
+                    .filter(|price| price.is_finite() && *price > 0.0);
+
+                egui::ComboBox::from_id_salt("price-scale-type")
+                    .selected_text(selected_scale_type.label())
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut selected_scale_type,
+                            PriceScaleType::Linear,
+                            "Lineal",
+                        );
+                        ui.add_enabled_ui(logarithmic_supported, |ui| {
+                            ui.selectable_value(
+                                &mut selected_scale_type,
+                                PriceScaleType::Logarithmic,
+                                "Logarítmica",
+                            );
+                        });
+                        ui.add_enabled_ui(percentage_base.is_some(), |ui| {
+                            ui.selectable_value(
+                                &mut selected_scale_type,
+                                PriceScaleType::Percentage,
+                                "Porcentual (%)",
+                            );
+                        });
+                    });
+                if selected_scale_type != current_scale_type {
+                    let viewport = self.chart.viewport_mut();
+                    if selected_scale_type == PriceScaleType::Percentage
+                        && let Some(base) = percentage_base
+                    {
+                        let _ = viewport.set_price_scale_percentage_base(base);
+                    }
+                    let _ = viewport.set_price_scale_type(selected_scale_type);
+                }
+            });
+
+            ui.horizontal(|ui| {
+                let (top_margin, bottom_margin) = self.chart.viewport().price_scale_margins();
+                let mut top_percent = top_margin * 100.0;
+                let mut bottom_percent = bottom_margin * 100.0;
+
+                ui.label("Margen superior:");
+                let top_changed = ui
+                    .add(
+                        egui::DragValue::new(&mut top_percent)
+                            .range(0.0..=45.0)
+                            .suffix("%"),
+                    )
+                    .changed();
+
+                ui.label("Inferior:");
+                let bottom_changed = ui
+                    .add(
+                        egui::DragValue::new(&mut bottom_percent)
+                            .range(0.0..=45.0)
+                            .suffix("%"),
+                    )
+                    .changed();
+
+                if ui.small_button("Restablecer 5%").clicked() {
+                    self.chart.viewport_mut().reset_price_scale_margins();
+                } else if top_changed || bottom_changed {
+                    let _ = self
+                        .chart
+                        .viewport_mut()
+                        .set_price_scale_margins(top_percent / 100.0, bottom_percent / 100.0);
+                }
+            });
 
             ui.separator();
 
@@ -85,18 +215,32 @@ impl eframe::App for ApexTraderApp {
                 if recargar {
                     match Symbol::from_str(&self.symbol_input) {
                         Ok(symbol) => {
-                            let provider = MockMarketDataProvider::new(50000.0);
-                            let to_ms = 0;
-                            let from_ms = -(200i64 * 60_000);
+                            self.price_tick_size = price_tick_size_for_symbol(&symbol);
+                            let provider = MockMarketDataProvider::new(50_000.0)
+                                .with_interval_ms(MOCK_INTERVAL_MS)
+                                .with_base_volume(MOCK_REALTIME_VOLUME);
+                            let to_ms = latest_closed_candle_open_time(MOCK_INTERVAL_MS);
+                            let from_ms = to_ms.saturating_sub(
+                                (MOCK_HISTORY_CANDLES - 1) * MOCK_INTERVAL_MS,
+                            );
                             self.load_state = load_symbol_into_chart(
                                 &mut self.chart,
                                 &provider,
-                                symbol,
+                                symbol.clone(),
                                 from_ms,
                                 to_ms,
                             );
+                            self.realtime_provider = create_realtime_provider(
+                                &self.chart,
+                                symbol,
+                                MOCK_REALTIME_VOLUME,
+                                MOCK_TICKS_PER_CANDLE,
+                            );
+                            self.next_realtime_tick = Instant::now() + MOCK_REALTIME_TICK_INTERVAL;
+                            self.fit_content_pending = true;
                         }
                         Err(e) => {
+                            self.realtime_provider = None;
                             self.load_state = LoadState::Error(format!("Símbolo inválido: {e}"));
                         }
                     }
@@ -106,14 +250,78 @@ impl eframe::App for ApexTraderApp {
             ui.separator();
 
             let available = ui.available_rect_before_wrap();
-            let painter = ui.painter();
-
-            let interaction_rect = available.shrink(0.0);
-            let response = ui.interact(
-                interaction_rect,
-                ui.scope_id().with("chart_area"),
-                egui::Sense::click_and_drag(),
+            let footer_height = 58.0_f32.min(available.height() * 0.24);
+            let chart_height = (available.height() - footer_height).max(96.0);
+            let chart_rect = egui::Rect::from_min_size(
+                available.min,
+                egui::vec2(available.width(), chart_height.min(available.height())),
             );
+            let response = ui.allocate_rect(chart_rect, egui::Sense::click_and_drag());
+            let painter = ui.painter_at(chart_rect);
+            let chart_layout =
+                ChartLayout::compute(chart_rect.width() as f64, chart_rect.height() as f64);
+
+            // Ajustar el historial completo solo al iniciar o tras una carga
+            // explícita. Las actualizaciones incrementales no deben resetear
+            // el zoom ni el desplazamiento que eligió el usuario.
+            if self.fit_content_pending {
+                let logical_count = self.chart.time_scale().len();
+                if logical_count > 0 {
+                    self.chart
+                        .viewport_mut()
+                        .fit_content(logical_count, chart_layout.plot_width());
+                    self.fit_content_pending = false;
+                }
+            } else if self.follow_latest_pending && self.follow_latest {
+                let point_count = self.chart.len();
+                if point_count > 1 && chart_layout.plot_width() > 0.0 {
+                    let (was_at_right_edge, current_offset) = {
+                        let viewport = self.chart.viewport();
+                        let previous_last = (point_count - 2) as f64;
+                        let last_x = viewport
+                            .logical_to_screen(previous_last, chart_layout.plot_width());
+                        (
+                            last_x >= chart_layout.plot_width() * 0.8
+                                && last_x <= chart_layout.plot_width() * 1.05,
+                            viewport.offset_x(),
+                        )
+                    };
+                    if was_at_right_edge {
+                        // Una posición lógica a la izquierda mantiene la nueva
+                        // vela en el borde derecho sin tocar zoom ni escala Y.
+                        self.chart
+                            .viewport_mut()
+                            .set_offset_x(current_offset - 1.0);
+                    }
+                }
+            }
+            self.follow_latest_pending = false;
+
+            let pre_input_scale_range = {
+                let pre_input_count = self.chart.time_scale().len();
+                let pre_input_visible = self
+                    .chart
+                    .viewport()
+                    .visible_range(pre_input_count, chart_layout.plot_width());
+                if pre_input_visible.is_empty() {
+                    None
+                } else {
+                    let points = self.chart.data_points();
+                    let visible_points =
+                        &points[pre_input_visible.first..=pre_input_visible.last];
+                    visible_price_range(
+                        visible_points,
+                        self.chart.viewport().price_scale_mode(),
+                    )
+                }
+            };
+            if let Some((min_price, max_price)) = pre_input_scale_range {
+                self.chart
+                    .viewport_mut()
+                    .update_auto_price_scale(min_price, max_price);
+            }
+
+            let interaction_rect = chart_rect;
 
             let crosshair_pos = {
                 let chart = &mut self.chart;
@@ -127,44 +335,58 @@ impl eframe::App for ApexTraderApp {
                 self.input_handler.crosshair_pos()
             };
 
-            let viewport = self.chart.viewport();
-            let points = self.chart.data_points();
-
-            // Calcular máscara de invalidación basada en qué cambió entre frames.
             let data_revision = self.chart.data_revision();
-            let mask =
-                self.calculate_invalidation_mask(viewport, crosshair_pos, data_revision, available);
-
-            // Calcular rango de precios y centro a partir de los puntos visibles.
-            let chart_layout =
-                ChartLayout::compute(available.width() as f64, available.height() as f64);
             let drawing_width = chart_layout.plot_width();
             let drawing_height = chart_layout.plot_height();
-            let visible = viewport.visible_range(points.len(), drawing_width);
-            let (price_range, center_price, max_volume) = if visible.is_empty() {
-                (0.0, 0.0, 0.0)
-            } else {
-                // Una sola pasada calcula rango de precios y volumen visibles.
-                let visible_points = &points[visible.first..=visible.last];
-                let (min_price, max_price, max_volume) = visible_points.iter().fold(
-                    (f64::INFINITY, f64::NEG_INFINITY, 0.0_f64),
-                    |(min_price, max_price, max_volume), point| {
-                        (
-                            min_price.min(point.low()),
-                            max_price.max(point.high()),
-                            max_volume.max(point.volume()),
-                        )
-                    },
-                );
+            let logical_count = self.chart.time_scale().len();
+            let visible_before_scale_update = self
+                .chart
+                .viewport()
+                .visible_range(logical_count, drawing_width);
 
-                let raw_price_range = max_price - min_price;
-                let price_range = if raw_price_range == 0.0 {
-                    1.0
-                } else {
-                    raw_price_range
-                };
-                let center_price = (min_price + max_price) / 2.0;
-                (price_range, center_price, max_volume)
+            // Recalcular la autoescala después de procesar input permite que
+            // un pan horizontal actualice el rango en el mismo frame. Si el
+            // gesto fue vertical, el controlador ya habrá cambiado a Manual.
+            let auto_scale_range = if self.chart.viewport().price_scale_auto()
+                && !visible_before_scale_update.is_empty()
+            {
+                let points = self.chart.data_points();
+                let visible_points = &points[visible_before_scale_update.first
+                    ..=visible_before_scale_update.last];
+                visible_price_range(
+                    visible_points,
+                    self.chart.viewport().price_scale_mode(),
+                )
+            } else {
+                None
+            };
+            if let Some((min_price, max_price)) = auto_scale_range {
+                self.chart
+                    .viewport_mut()
+                    .update_auto_price_scale(min_price, max_price);
+            }
+
+            let viewport = self.chart.viewport();
+            let points = self.chart.data_points();
+            let visible = viewport.visible_range(logical_count, drawing_width);
+
+            // Calcular máscara de invalidación basada en qué cambió entre frames.
+            let mask =
+                self.calculate_invalidation_mask(viewport, crosshair_pos, data_revision, chart_rect);
+
+            let max_volume = if visible.is_empty() {
+                0.0
+            } else {
+                let visible_points = &points[visible.first..=visible.last];
+                visible_points
+                    .iter()
+                    .map(|point| point.volume())
+                    .fold(0.0_f64, f64::max)
+            };
+            let (price_range, center_price) = if visible.is_empty() {
+                (0.0, 0.0)
+            } else {
+                viewport.price_scale_reference()
             };
 
             let scene = ChartScene {
@@ -173,15 +395,16 @@ impl eframe::App for ApexTraderApp {
                 viewport: *viewport,
                 price_range,
                 center_price,
+                price_tick_size: self.price_tick_size,
                 max_volume,
-                candle_count: points.len(),
+                candle_count: logical_count,
                 screen_width: drawing_width,
                 screen_height: drawing_height,
                 crosshair_pos,
                 invalidation_mask: mask,
             };
 
-            if let Err(e) = self.renderer.draw(painter, available, &scene) {
+            if let Err(e) = self.renderer.draw(&painter, chart_rect, &scene) {
                 tracing::error!("Error renderizando chart: {}", e);
                 ui.colored_label(egui::Color32::RED, format!("Error: {}", e));
             }
@@ -190,22 +413,27 @@ impl eframe::App for ApexTraderApp {
             self.prev_viewport = Some(*viewport);
             self.prev_crosshair_pos = crosshair_pos;
             self.prev_data_revision = data_revision;
-            self.prev_rect = Some(available);
+            self.prev_rect = Some(chart_rect);
 
-            ui.label(format!(
-                "Zoom X: {:.2}x | Zoom Y: {:.2}x | Offset: ({:.2}, {:.2})",
-                viewport.zoom_x(),
-                viewport.zoom_y(),
-                viewport.offset_x(),
-                viewport.offset_y()
-            ));
-
-            ui.label(format!("Carga de mercado: {:?}", self.load_state));
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
-                ui.label(format!("Puntos: {}", points.len()));
-                ui.label("Scroll: zoom Y | Arrastre izquierdo: pan | derecho: zoom");
+            ui.horizontal_wrapped(|ui| {
+                ui.small(format!(
+                    "Zoom X: {:.2}x | Zoom Y: {:.2}x | Offset: ({:.2}, {:.2})",
+                    viewport.zoom_x(),
+                    viewport.zoom_y(),
+                    viewport.offset_x(),
+                    viewport.offset_y()
+                ));
+                ui.separator();
+                ui.small(format!(
+                    "Carga: {:?} | Realtime: {} | Puntos: {}",
+                    self.load_state,
+                    if self.realtime_provider.is_some() { "activo" } else { "inactivo" },
+                    points.len()
+                ));
             });
+            ui.small(
+                "Rueda vertical: zoom temporal | Rueda horizontal: desplazar tiempo | Arrastrar: mover | Arrastrar escala derecha/inferior: ajustar | Doble clic en escala: restablecer",
+            );
         });
     }
 }
@@ -215,6 +443,48 @@ impl eframe::App for ApexTraderApp {
 /// Compara el estado actual con el del frame anterior para determinar
 /// qué partes del chart necesitan ser re-renderizadas.
 impl ApexTraderApp {
+    fn advance_realtime(&mut self, ctx: &egui::Context) {
+        let now = Instant::now();
+        if let Some(provider) = self.realtime_provider.as_mut() {
+            if now >= self.next_realtime_tick {
+                self.next_realtime_tick = now + MOCK_REALTIME_TICK_INTERVAL;
+                match provider.next_update() {
+                    Ok(update) => {
+                        let candle_closed = update.is_closed;
+                        match update.candle.to_chart_data_point() {
+                            Ok(point) => {
+                                let previous_count = self.chart.len();
+                                if let Err(error) = self.chart.add_data_point(point) {
+                                    tracing::error!(
+                                        "No se pudo aplicar la actualización realtime: {error}"
+                                    );
+                                } else {
+                                    self.follow_latest_pending |= self.chart.len() > previous_count;
+                                    if candle_closed {
+                                        tracing::debug!(
+                                            "Mock realtime cerró vela {} en {} ms",
+                                            update.candle.symbol,
+                                            update.candle.open_time_ms
+                                        );
+                                    }
+                                }
+                            }
+                            Err(error) => tracing::error!(
+                                "El mock realtime generó un punto inválido: {error}"
+                            ),
+                        }
+                    }
+                    Err(error) => tracing::error!("Error en mock realtime: {error}"),
+                }
+            }
+
+            ctx.request_repaint_after(
+                self.next_realtime_tick
+                    .saturating_duration_since(Instant::now()),
+            );
+        }
+    }
+
     fn calculate_invalidation_mask(
         &self,
         viewport: &Viewport,
@@ -289,12 +559,22 @@ pub fn run() -> eframe::Result {
 
             let mut chart = ChartState::new();
 
-            let provider = MockMarketDataProvider::new(50000.0);
+            let provider = MockMarketDataProvider::new(50_000.0)
+                .with_interval_ms(MOCK_INTERVAL_MS)
+                .with_base_volume(MOCK_REALTIME_VOLUME);
             let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
-            let to_ms = 0;
-            let from_ms = -(200i64 * 60_000);
+            let price_tick_size = price_tick_size_for_symbol(&symbol);
+            let to_ms = latest_closed_candle_open_time(MOCK_INTERVAL_MS);
+            let from_ms = to_ms.saturating_sub((MOCK_HISTORY_CANDLES - 1) * MOCK_INTERVAL_MS);
 
-            let load_state = load_symbol_into_chart(&mut chart, &provider, symbol, from_ms, to_ms);
+            let load_state =
+                load_symbol_into_chart(&mut chart, &provider, symbol.clone(), from_ms, to_ms);
+            let realtime_provider = create_realtime_provider(
+                &chart,
+                symbol,
+                MOCK_REALTIME_VOLUME,
+                MOCK_TICKS_PER_CANDLE,
+            );
 
             // Crear renderer (intenta wgpu, cae a glow si falla)
             let renderer = create_renderer();
@@ -306,13 +586,90 @@ pub fn run() -> eframe::Result {
                 input_handler: InputHandler::new(),
                 load_state,
                 symbol_input: "BTC/USDT".to_string(),
+                price_tick_size,
                 prev_viewport: None,
                 prev_crosshair_pos: None,
                 prev_data_revision: data_revision,
+                fit_content_pending: true,
+                realtime_provider,
+                follow_latest: true,
+                follow_latest_pending: false,
+                next_realtime_tick: Instant::now() + MOCK_REALTIME_TICK_INTERVAL,
                 prev_rect: None,
             }))
         }),
     )
+}
+
+/// Incremento mínimo para los instrumentos soportados por el mock.
+///
+/// La precisión de mercado real debe provenir de los metadatos del exchange;
+/// estas reglas solo permiten que el gráfico sintético represente formatos
+/// habituales para BTC, futuros CME y pares FX.
+fn price_tick_size_for_symbol(symbol: &Symbol) -> f64 {
+    let base = symbol.base().to_ascii_uppercase();
+    let quote = symbol.quote().to_ascii_uppercase();
+
+    if matches!(base.as_str(), "ES" | "MES" | "NQ" | "MNQ") {
+        return 0.25;
+    }
+
+    const FX_CURRENCIES: [&str; 8] = ["USD", "EUR", "GBP", "JPY", "CHF", "CAD", "AUD", "NZD"];
+    if FX_CURRENCIES.contains(&base.as_str()) && FX_CURRENCIES.contains(&quote.as_str()) {
+        return if quote == "JPY" { 0.001 } else { 0.00001 };
+    }
+
+    0.01
+}
+
+/// Timestamp de apertura de la última vela completamente cerrada.
+fn latest_closed_candle_open_time(interval_ms: i64) -> i64 {
+    let now_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .min(i64::MAX as u128) as i64;
+    let current_open = now_ms.div_euclid(interval_ms) * interval_ms;
+    current_open.saturating_sub(interval_ms)
+}
+
+/// Construye el stream realtime a continuación del último punto histórico.
+fn create_realtime_provider(
+    chart: &ChartState,
+    symbol: Symbol,
+    base_volume: f64,
+    ticks_per_candle: u32,
+) -> Option<Box<dyn RealtimeMarketDataProvider>> {
+    let last_point = chart.data_points().last()?;
+    let close_time_ms = last_point
+        .time_point
+        .open_time_ms
+        .checked_add(last_point.time_point.interval_ms)?;
+    let last_candle = MarketCandle {
+        symbol: symbol.clone(),
+        open_time_ms: last_point.time_point.open_time_ms,
+        open: last_point.open(),
+        high: last_point.high(),
+        low: last_point.low(),
+        close: last_point.close(),
+        volume: last_point.volume(),
+        close_time_ms,
+    };
+    let seed_provider = MockMarketDataProvider::new(last_point.close())
+        .with_interval_ms(last_point.time_point.interval_ms)
+        .with_base_volume(base_volume);
+    match MockRealtimeMarketDataProvider::from_last_candle(
+        last_candle,
+        ticks_per_candle,
+        base_volume,
+        seed_provider.seed_for_symbol(&symbol),
+    ) {
+        Ok(provider) => Some(Box::new(provider)),
+        Err(error) => {
+            tracing::warn!("No se pudo iniciar el mock realtime: {error}");
+            None
+        }
+    }
 }
 
 /// Carga velas de un símbolo desde un proveedor de mercado en el `ChartState`.
@@ -328,7 +685,7 @@ fn load_symbol_into_chart(
     from_ms: i64,
     to_ms: i64,
 ) -> LoadState {
-    match LoadCandles::execute(provider, symbol, from_ms, to_ms) {
+    match LoadCandles::execute(provider, symbol.clone(), from_ms, to_ms) {
         Ok(result) => {
             if !result.is_clean() {
                 tracing::warn!(
@@ -343,11 +700,10 @@ fn load_symbol_into_chart(
             }
 
             chart.clear();
-            for dp in &result.data_points {
-                if let Err(e) = chart.add_data_point(*dp) {
-                    tracing::error!("No se pudo agregar punto de datos: {}", e);
-                }
+            if let Err(e) = chart.add_data_points(&result.data_points) {
+                tracing::error!("No se pudieron agregar los datos al chart: {}", e);
             }
+            refresh_price_scale_type_for_data(chart);
             tracing::info!(
                 "ChartState inicializado con {} puntos de datos del mercado ({})",
                 chart.len(),
@@ -368,26 +724,30 @@ fn load_symbol_into_chart(
         Err(e) => {
             tracing::error!("No se pudieron cargar datos de mercado: {e}");
             chart.clear();
-            let mut price = 100.0;
-            for i in 0..20 {
-                let open = price;
-                let change = (i as f64 * 0.5).sin() * 3.0;
-                let close = open + change * 0.7;
-                let high = open.max(close) + change.abs() * 0.3;
-                let low = open.min(close) - change.abs() * 0.3;
-                let volume = 1000.0 + (i as f64 * 0.5).sin().abs() * 500.0;
-                let open_time_ms = i as i64 * 60_000;
-                let close_time_ms = open_time_ms + 60_000 - 1;
-                if let Some(tp) = TimePoint::new(open_time_ms, close_time_ms, 60_000) {
-                    if let Ok(candle) = Candle::new(open, high, low, close, volume) {
-                        if let Err(e) = chart.add_data_point(ChartDataPoint::new(candle, tp)) {
-                            tracing::error!("No se pudo agregar punto de datos {}: {}", i, e);
-                        }
-                    } else {
-                        tracing::error!("No se pudo crear vela sintética {}: {}", i, open);
+
+            // El fallback usa el mismo generador OHLCV realista para no volver
+            // a introducir una serie simplista y desconectada del histórico.
+            let fallback_provider = MockMarketDataProvider::new(100.0)
+                .with_interval_ms(MOCK_INTERVAL_MS)
+                .with_base_volume(MOCK_REALTIME_VOLUME);
+            match LoadCandles::execute(&fallback_provider, symbol.clone(), from_ms, to_ms) {
+                Ok(fallback) => {
+                    if let Err(error) = chart.add_data_points(&fallback.data_points) {
+                        tracing::error!("No se pudo cargar el histórico de fallback: {error}");
+                    }
+                    refresh_price_scale_type_for_data(chart);
+                    if let Some(range) = price_range_from_data_points(chart) {
+                        let point_count = chart.len();
+                        chart
+                            .viewport_mut()
+                            .auto_scale(range, point_count, 1920.0, 1080.0);
                     }
                 }
-                price = close;
+                Err(fallback_error) => {
+                    tracing::error!(
+                        "También falló el histórico sintético de fallback: {fallback_error}"
+                    );
+                }
             }
             tracing::info!(
                 "ChartState inicializado con {} puntos de datos (fallback)",
@@ -437,6 +797,50 @@ fn configure_fonts(ctx: &egui::Context) {
     ctx.set_fonts(font_defs);
 }
 
+/// Actualiza los parámetros de escala que dependen del símbolo recién cargado.
+fn refresh_price_scale_type_for_data(chart: &mut ChartState) {
+    let points = chart.data_points();
+    let first_close = points.first().map(|point| point.close());
+    let logarithmic_supported = points.iter().all(|point| point.low() > 0.0);
+    let scale_type = chart.viewport().price_scale_type();
+
+    if scale_type == PriceScaleType::Percentage {
+        if let Some(base) = first_close.filter(|price| price.is_finite() && *price > 0.0) {
+            let _ = chart.viewport_mut().set_price_scale_percentage_base(base);
+        } else {
+            let _ = chart
+                .viewport_mut()
+                .set_price_scale_type(PriceScaleType::Linear);
+        }
+    } else if scale_type == PriceScaleType::Logarithmic && !logarithmic_supported {
+        let _ = chart
+            .viewport_mut()
+            .set_price_scale_type(PriceScaleType::Linear);
+    }
+}
+
+/// Calcula el rango de precios visible según el criterio de autoescala.
+fn visible_price_range(points: &[ChartDataPoint], mode: PriceScaleMode) -> Option<(f64, f64)> {
+    let mut range: Option<(f64, f64)> = None;
+
+    for point in points {
+        let (point_min, point_max) = match mode {
+            PriceScaleMode::HighLow => (point.low(), point.high()),
+            PriceScaleMode::Close => (point.close(), point.close()),
+        };
+        if !point_min.is_finite() || !point_max.is_finite() {
+            continue;
+        }
+
+        range = Some(match range {
+            Some((min_price, max_price)) => (min_price.min(point_min), max_price.max(point_max)),
+            None => (point_min, point_max),
+        });
+    }
+
+    range
+}
+
 /// Calcula el `PriceRange` (mínimo/máximo) de los puntos de datos del chart.
 ///
 /// Devuelve `None` si no hay puntos de datos.
@@ -460,4 +864,76 @@ fn price_range_from_data_points(chart: &ChartState) -> Option<PriceRange> {
         .expect("precio máximo válido");
 
     PriceRange::new(min, max).ok()
+}
+
+#[cfg(test)]
+mod price_tick_tests {
+    use super::*;
+
+    #[test]
+    fn price_tick_size_uses_known_mock_instrument_conventions() {
+        assert_eq!(
+            price_tick_size_for_symbol(&Symbol::from_str("BTC/USDT").unwrap()),
+            0.01
+        );
+        assert_eq!(
+            price_tick_size_for_symbol(&Symbol::from_str("MNQ/USD").unwrap()),
+            0.25
+        );
+        assert_eq!(
+            price_tick_size_for_symbol(&Symbol::from_str("EUR/USD").unwrap()),
+            0.00001
+        );
+        assert_eq!(
+            price_tick_size_for_symbol(&Symbol::from_str("USD/JPY").unwrap()),
+            0.001
+        );
+    }
+}
+
+#[cfg(test)]
+mod price_scale_mode_tests {
+    use super::*;
+    use crate::domain::candle::Candle;
+    use crate::domain::chart::time_point::TimePoint;
+
+    fn sample_points() -> Vec<ChartDataPoint> {
+        let first_time = TimePoint::new(0, 60_000, 60_000).expect("intervalo válido");
+        let second_time = TimePoint::new(60_000, 120_000, 60_000).expect("intervalo válido");
+        vec![
+            ChartDataPoint::new(
+                Candle::new(100.0, 120.0, 80.0, 110.0, 500.0).expect("vela válida"),
+                first_time,
+            ),
+            ChartDataPoint::new(
+                Candle::new(112.0, 130.0, 90.0, 105.0, 700.0).expect("vela válida"),
+                second_time,
+            ),
+        ]
+    }
+
+    #[test]
+    fn high_low_auto_scale_includes_visible_wicks() {
+        let points = sample_points();
+
+        assert_eq!(
+            visible_price_range(&points, PriceScaleMode::HighLow),
+            Some((80.0, 130.0))
+        );
+    }
+
+    #[test]
+    fn close_auto_scale_ignores_wicks_outside_visible_closes() {
+        let points = sample_points();
+
+        assert_eq!(
+            visible_price_range(&points, PriceScaleMode::Close),
+            Some((105.0, 110.0))
+        );
+    }
+
+    #[test]
+    fn auto_scale_range_is_empty_without_valid_points() {
+        assert_eq!(visible_price_range(&[], PriceScaleMode::HighLow), None);
+    }
 }

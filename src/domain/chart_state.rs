@@ -1,4 +1,5 @@
 use crate::domain::chart::chart_data::ChartDataPoint;
+use crate::domain::chart::time_scale::TimeScale;
 use crate::domain::viewport::Viewport;
 use crate::errors::ChartError;
 
@@ -13,6 +14,8 @@ use crate::errors::ChartError;
 pub struct ChartState {
     data_points: Vec<ChartDataPoint>,
     viewport: Viewport,
+    /// Mapeo compartido entre timestamps e índices lógicos.
+    time_scale: TimeScale,
     /// Versión monótona de los datos para invalidar cachés incluso si la longitud no cambia.
     data_revision: u64,
 }
@@ -23,14 +26,16 @@ impl ChartState {
         Self {
             data_points: Vec::new(),
             viewport: Viewport::new(),
+            time_scale: TimeScale::new(),
             data_revision: 0,
         }
     }
 
-    /// Agrega un punto de datos al estado del gráfico.
+    /// Agrega o actualiza una vela identificada por su timestamp de apertura.
     ///
-    /// El punto de datos debe haber sido creado mediante `ChartDataPoint::new()`,
-    /// que valida las invariantes del dominio a través de `Candle::new()`.
+    /// Si ya existe una vela con el mismo timestamp, el nuevo punto la reemplaza.
+    /// Esto permite incorporar correcciones o actualizaciones de la vela actual
+    /// sin crear índices lógicos duplicados.
     pub fn add_data_point(&mut self, data_point: ChartDataPoint) -> Result<(), ChartError> {
         tracing::debug!(
             "Agregando punto de datos: open={:.2}, high={:.2}, low={:.2}, close={:.2}, tiempo={}",
@@ -41,20 +46,53 @@ impl ChartState {
             data_point.time_point.open_time_ms
         );
 
-        self.data_points.push(data_point);
+        let timestamp_ms = data_point.time_point.open_time_ms;
+        match self
+            .data_points
+            .binary_search_by_key(&timestamp_ms, |point| point.time_point.open_time_ms)
+        {
+            Ok(index) => {
+                // Los ticks realtime reescriben repetidamente la última vela.
+                // Su índice temporal ya existe, así que no es necesario ordenar
+                // ni reconstruir TimeScale en cada actualización.
+                let mut updated_point = data_point;
+                updated_point.logical_index = Some(index);
+                self.data_points[index] = updated_point;
+            }
+            Err(index) if index == self.data_points.len() => {
+                // Las velas nuevas llegan cronológicamente: se agregan al final
+                // y la escala temporal crece en O(1) amortizado.
+                if self.time_scale.push(timestamp_ms) {
+                    let mut appended_point = data_point;
+                    appended_point.logical_index = Some(self.data_points.len());
+                    self.data_points.push(appended_point);
+                } else {
+                    self.data_points.insert(index, data_point);
+                    self.rebuild_time_scale();
+                }
+            }
+            Err(index) => {
+                // La inserción histórica fuera de orden conserva la ruta general.
+                self.data_points.insert(index, data_point);
+                self.rebuild_time_scale();
+            }
+        }
         self.data_revision = self.data_revision.wrapping_add(1);
         Ok(())
     }
 
     /// Agrega varios puntos de datos al estado del gráfico.
     ///
-    /// Los puntos de datos deben estar ordenados y sin duplicados (responsabilidad del
-    /// llamante, típicamente la capa de aplicación que conecta con un
-    /// `MarketDataProvider`). Cada punto se agrega mediante `add_data_point`.
+    /// Los puntos pueden llegar desordenados o contener timestamps repetidos.
+    /// Se ordenan por tiempo y, ante duplicados, prevalece el último punto
+    /// recibido en este lote o en el historial existente.
     pub fn add_data_points(&mut self, data_points: &[ChartDataPoint]) -> Result<(), ChartError> {
-        for data_point in data_points {
-            self.add_data_point(*data_point)?;
+        if data_points.is_empty() {
+            return Ok(());
         }
+        self.data_points.extend_from_slice(data_points);
+        self.rebuild_time_scale();
+        self.data_revision = self.data_revision.wrapping_add(1);
         Ok(())
     }
 
@@ -65,6 +103,7 @@ impl ChartState {
     pub fn clear(&mut self) {
         if !self.data_points.is_empty() {
             self.data_points.clear();
+            self.time_scale = TimeScale::new();
             self.data_revision = self.data_revision.wrapping_add(1);
         }
     }
@@ -77,6 +116,96 @@ impl ChartState {
             self.data_points.len()
         );
         &self.data_points
+    }
+
+    /// Devuelve la escala temporal compartida del chart.
+    pub fn time_scale(&self) -> &TimeScale {
+        &self.time_scale
+    }
+
+    /// Centra el viewport en un timestamp del historial.
+    ///
+    /// Acepta timestamps situados entre dos velas y utiliza la interpolación
+    /// de `TimeScale`. Devuelve `false` cuando el timestamp está fuera del
+    /// historial o no hay datos.
+    pub fn center_on_time(&mut self, timestamp_ms: i64) -> bool {
+        let Some(logical_index) = self.time_scale.time_to_logical(timestamp_ms) else {
+            return false;
+        };
+
+        self.viewport.center_on_logical(logical_index)
+    }
+
+    /// Ajusta el viewport para mostrar un intervalo temporal inclusivo.
+    ///
+    /// Los extremos se recortan a los límites del historial disponible.
+    /// `screen_width` debe ser el ancho del área de plot, no el ancho total
+    /// del widget. Devuelve `false` si el intervalo no intersecta el historial
+    /// o las dimensiones no son válidas.
+    pub fn fit_time_range(
+        &mut self,
+        start_time_ms: i64,
+        end_time_ms: i64,
+        screen_width: f64,
+    ) -> bool {
+        let Some((first, last)) = self
+            .time_scale
+            .time_range_to_logical_range(start_time_ms, end_time_ms)
+        else {
+            return false;
+        };
+
+        self.viewport.fit_logical_range(first, last, screen_width)
+    }
+
+    /// Devuelve los timestamps de la primera y última vela visibles.
+    ///
+    /// El rango se calcula con el mismo `Viewport::visible_range` que utiliza
+    /// el renderer, evitando una segunda fórmula para la navegación temporal.
+    pub fn visible_time_range(&self, screen_width: f64) -> Option<(i64, i64)> {
+        if !screen_width.is_finite() || screen_width <= 0.0 {
+            return None;
+        }
+
+        let visible = self
+            .viewport
+            .visible_range(self.time_scale.len(), screen_width);
+        if visible.is_empty() {
+            return None;
+        }
+
+        self.time_scale
+            .logical_range_to_time_range(visible.first as f64, visible.last as f64)
+    }
+
+    /// Reconstruye los índices lógicos después de cambiar los datos.
+    fn rebuild_time_scale(&mut self) {
+        self.data_points
+            .sort_by_key(|point| point.time_point.open_time_ms);
+
+        // Una serie OHLCV solo puede tener una vela por timestamp de apertura.
+        // sort_by_key es estable: al colapsar duplicados conservamos el último
+        // punto recibido, que normalmente contiene la actualización más reciente.
+        let mut unique_points: Vec<ChartDataPoint> = Vec::with_capacity(self.data_points.len());
+        for point in self.data_points.drain(..) {
+            if let Some(previous) = unique_points.last_mut()
+                && previous.time_point.open_time_ms == point.time_point.open_time_ms
+            {
+                *previous = point;
+                continue;
+            }
+            unique_points.push(point);
+        }
+        self.data_points = unique_points;
+
+        self.time_scale.rebuild(
+            self.data_points
+                .iter()
+                .map(|point| point.time_point.open_time_ms),
+        );
+        for (index, point) in self.data_points.iter_mut().enumerate() {
+            point.logical_index = Some(index);
+        }
     }
 
     /// Devuelve un préstamo inmutable del viewport (`borrowing`).
@@ -148,6 +277,60 @@ mod tests {
     }
 
     #[test]
+    fn updating_the_latest_candle_does_not_rebuild_the_time_scale() {
+        let mut state = ChartState::new();
+        let first_time = TimePoint::new(0, 60_000, 60_000).unwrap();
+        let second_time = TimePoint::new(60_000, 120_000, 60_000).unwrap();
+        let initial = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
+        let update = Candle::new(100.0, 106.0, 98.0, 104.0, 1_500.0).unwrap();
+
+        state
+            .add_data_point(ChartDataPoint::new(initial, first_time))
+            .unwrap();
+        state
+            .add_data_point(ChartDataPoint::new(initial, second_time))
+            .unwrap();
+
+        let timestamps_ptr = state.time_scale().timestamps().as_ptr();
+        let revision = state.data_revision();
+        state
+            .add_data_point(ChartDataPoint::new(update, second_time))
+            .unwrap();
+
+        assert_eq!(state.len(), 2);
+        assert_eq!(state.data_points()[1].close(), 104.0);
+        assert_eq!(state.data_points()[1].volume(), 1_500.0);
+        assert_eq!(state.data_points()[1].logical_index, Some(1));
+        assert_eq!(state.time_scale().timestamps().as_ptr(), timestamps_ptr);
+        assert_eq!(state.time_scale().timestamps(), &[0, 60_000]);
+        assert_eq!(state.data_revision(), revision + 1);
+    }
+
+    #[test]
+    fn appending_realtime_candles_extends_the_time_scale_incrementally() {
+        let mut state = ChartState::new();
+        let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
+        for index in 0..3 {
+            let open_time = index * 60_000;
+            let time = TimePoint::new(open_time, open_time + 60_000, 60_000).unwrap();
+            state
+                .add_data_point(ChartDataPoint::new(candle, time))
+                .unwrap();
+        }
+
+        assert_eq!(state.len(), 3);
+        assert_eq!(state.time_scale().timestamps(), &[0, 60_000, 120_000]);
+        assert_eq!(
+            state
+                .data_points()
+                .iter()
+                .map(|point| point.logical_index)
+                .collect::<Vec<_>>(),
+            vec![Some(0), Some(1), Some(2)]
+        );
+    }
+
+    #[test]
     fn add_data_points_stores_all() {
         let mut state = ChartState::new();
         let candle1 = Candle::new(100.0, 105.0, 99.0, 103.0, 1000.0).unwrap();
@@ -166,5 +349,139 @@ mod tests {
         assert_eq!(state.data_points()[1].close(), 106.0);
         assert_eq!(state.data_points()[0].time_point.open_time_ms, 0);
         assert_eq!(state.data_points()[1].time_point.open_time_ms, 60_000);
+    }
+    #[test]
+    fn duplicate_timestamps_replace_the_existing_candle_without_duplicate_indices() {
+        let mut state = ChartState::new();
+        let time = TimePoint::new(60_000, 120_000, 60_000).unwrap();
+        let initial = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
+        let updated = Candle::new(103.0, 108.0, 102.0, 107.0, 1_500.0).unwrap();
+
+        state
+            .add_data_point(ChartDataPoint::new(initial, time))
+            .unwrap();
+        state
+            .add_data_point(ChartDataPoint::new(updated, time))
+            .unwrap();
+
+        assert_eq!(state.len(), 1);
+        assert_eq!(state.time_scale().len(), 1);
+        assert_eq!(state.data_points()[0].close(), 107.0);
+        assert_eq!(state.data_points()[0].logical_index, Some(0));
+    }
+
+    #[test]
+    fn batch_ingestion_sorts_and_keeps_the_last_duplicate_timestamp() {
+        let mut state = ChartState::new();
+        let first = TimePoint::new(0, 60_000, 60_000).unwrap();
+        let middle = TimePoint::new(60_000, 120_000, 60_000).unwrap();
+        let last = TimePoint::new(120_000, 180_000, 60_000).unwrap();
+        let candle_a = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
+        let candle_b = Candle::new(103.0, 108.0, 102.0, 107.0, 1_500.0).unwrap();
+        let candle_c = Candle::new(107.0, 110.0, 106.0, 109.0, 1_800.0).unwrap();
+
+        state
+            .add_data_points(&[
+                ChartDataPoint::new(candle_a, last),
+                ChartDataPoint::new(candle_b, first),
+                ChartDataPoint::new(candle_c, last),
+                ChartDataPoint::new(candle_a, middle),
+            ])
+            .unwrap();
+
+        assert_eq!(state.len(), 3);
+        assert_eq!(state.time_scale().timestamps(), &[0, 60_000, 120_000]);
+        assert_eq!(
+            state
+                .data_points()
+                .iter()
+                .map(|point| point.logical_index)
+                .collect::<Vec<_>>(),
+            vec![Some(0), Some(1), Some(2)]
+        );
+        assert_eq!(state.data_points()[2].close(), 109.0);
+    }
+
+    #[test]
+    fn chart_state_assigns_stable_logical_indices_in_time_order() {
+        let mut state = ChartState::new();
+        let later = TimePoint::new(120_000, 180_000, 60_000).unwrap();
+        let earlier = TimePoint::new(0, 60_000, 60_000).unwrap();
+        let middle = TimePoint::new(60_000, 120_000, 60_000).unwrap();
+        let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
+
+        state
+            .add_data_points(&[
+                ChartDataPoint::new(candle, later),
+                ChartDataPoint::new(candle, earlier),
+                ChartDataPoint::new(candle, middle),
+            ])
+            .unwrap();
+
+        let points = state.data_points();
+        assert_eq!(points[0].time_point.open_time_ms, 0);
+        assert_eq!(points[1].time_point.open_time_ms, 60_000);
+        assert_eq!(points[2].time_point.open_time_ms, 120_000);
+        assert_eq!(
+            points
+                .iter()
+                .map(|point| point.logical_index)
+                .collect::<Vec<_>>(),
+            vec![Some(0), Some(1), Some(2)]
+        );
+        assert_eq!(state.time_scale().len(), 3);
+    }
+
+    fn chart_with_irregular_times() -> ChartState {
+        let mut state = ChartState::new();
+        let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
+        let points = [
+            ChartDataPoint::new(candle, TimePoint::new(0, 60_000, 60_000).unwrap()),
+            ChartDataPoint::new(candle, TimePoint::new(60_000, 120_000, 60_000).unwrap()),
+            ChartDataPoint::new(
+                candle,
+                TimePoint::new(3_600_000, 3_660_000, 60_000).unwrap(),
+            ),
+            ChartDataPoint::new(
+                candle,
+                TimePoint::new(3_660_000, 3_720_000, 60_000).unwrap(),
+            ),
+        ];
+        state.add_data_points(&points).unwrap();
+        state
+    }
+
+    #[test]
+    fn chart_state_navigates_to_interpolated_historical_time() {
+        let mut state = chart_with_irregular_times();
+
+        assert!(state.center_on_time(1_830_000));
+        assert!((state.viewport().screen_to_logical(250.0, 500.0) - 1.5).abs() < 1e-10);
+        assert!(!state.center_on_time(-1));
+        assert!(!state.center_on_time(3_720_001));
+    }
+
+    #[test]
+    fn chart_state_fits_and_reports_visible_time_range() {
+        let mut state = chart_with_irregular_times();
+
+        assert!(state.fit_time_range(0, 3_660_000, 500.0));
+        let visible = state.visible_time_range(500.0);
+        assert_eq!(visible, Some((0, 3_660_000)));
+        assert_eq!(state.visible_time_range(f64::NAN), None);
+        assert!(!state.fit_time_range(3_720_001, 4_000_000, 500.0));
+        assert!(!state.fit_time_range(3_660_000, 0, 500.0));
+    }
+
+    #[test]
+    fn clearing_chart_also_clears_time_scale() {
+        let mut state = ChartState::new();
+        let candle = Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0).unwrap();
+        let time = TimePoint::new(0, 60_000, 60_000).unwrap();
+        state
+            .add_data_point(ChartDataPoint::new(candle, time))
+            .unwrap();
+        state.clear();
+        assert!(state.time_scale().is_empty());
     }
 }

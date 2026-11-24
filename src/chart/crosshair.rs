@@ -5,7 +5,6 @@
 //! Es un tipo puro de dominio: no conoce `egui` ni `wgpu`.
 
 use crate::chart::layout::ChartLayout;
-use crate::domain::transforms::screen_y_to_price;
 use crate::domain::viewport::Viewport;
 
 /// Modo de visualización del crosshair.
@@ -120,14 +119,10 @@ impl Crosshair {
             self.index = 0;
         }
 
-        self.price = screen_y_to_price(
-            rel_y,
-            plot_height,
-            price_range,
-            viewport.zoom_y(),
-            viewport.offset_y(),
-            center_price,
-        );
+        self.price = viewport
+            .screen_y_to_price_value(rel_y, plot_height, price_range, center_price)
+            .or_else(|| viewport.scale_value_to_price(center_price))
+            .unwrap_or_default();
     }
 
     /// Devuelve `true` si el crosshair está visible y debe dibujarse.
