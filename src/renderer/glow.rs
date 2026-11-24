@@ -110,9 +110,7 @@ fn decimal_places_for_increment(increment: f64) -> usize {
     for decimals in 0..=8 {
         let scale = 10.0_f64.powi(decimals);
         let scaled = increment * scale;
-        if scaled.is_finite()
-            && (scaled - scaled.round()).abs() <= 1e-8 * scaled.abs().max(1.0)
-        {
+        if scaled.is_finite() && (scaled - scaled.round()).abs() <= 1e-8 * scaled.abs().max(1.0) {
             return decimals;
         }
     }
@@ -203,11 +201,8 @@ fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<Price
     let min_visible = visible_center - half_range_visible;
     let max_visible = visible_center + half_range_visible;
     let target_ticks = ((height / 56.0).floor() as usize).clamp(4, 8);
-    let tick_step = aligned_price_tick_step(
-        max_visible - min_visible,
-        target_ticks,
-        params.minimum_tick,
-    );
+    let tick_step =
+        aligned_price_tick_step(max_visible - min_visible, target_ticks, params.minimum_tick);
     if !tick_step.is_finite() || tick_step <= 0.0 {
         return Vec::new();
     }

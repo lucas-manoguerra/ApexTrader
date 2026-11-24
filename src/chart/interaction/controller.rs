@@ -600,7 +600,11 @@ mod tests {
         viewport.update_auto_price_scale(90.0, 110.0);
         let mut controller = InteractionController::new(1920.0, 1080.0);
 
-        controller.on_event(&mut viewport, 100, &pointer_down(PointerButton::Primary, 700.0, 300.0));
+        controller.on_event(
+            &mut viewport,
+            100,
+            &pointer_down(PointerButton::Primary, 700.0, 300.0),
+        );
         controller.on_event(&mut viewport, 100, &pointer_drag(700.0, 380.0));
 
         assert!(!viewport.price_scale_auto());
@@ -617,7 +621,11 @@ mod tests {
         let initial_offset_x = viewport.offset_x();
         let mut controller = InteractionController::new(1920.0, 1080.0);
 
-        controller.on_event(&mut viewport, 100, &pointer_down(PointerButton::Primary, 700.0, 300.0));
+        controller.on_event(
+            &mut viewport,
+            100,
+            &pointer_down(PointerButton::Primary, 700.0, 300.0),
+        );
         controller.on_event(&mut viewport, 100, &pointer_drag(760.0, 380.0));
 
         assert_ne!(viewport.offset_x(), initial_offset_x);

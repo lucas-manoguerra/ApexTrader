@@ -566,7 +566,10 @@ impl Viewport {
         };
 
         self.price_scale_range = price_range_value;
-        self.price_scale_center = price_range.midpoint().value().to_f64()
+        self.price_scale_center = price_range
+            .midpoint()
+            .value()
+            .to_f64()
             .expect("centro de precio convertible");
         self.price_scale_auto = true;
         self.offset_y = 0.0;
