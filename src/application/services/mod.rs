@@ -721,10 +721,7 @@ fn configure_fonts(ctx: &egui::Context) {
 }
 
 /// Calcula el rango de precios visible según el criterio de autoescala.
-fn visible_price_range(
-    points: &[ChartDataPoint],
-    mode: PriceScaleMode,
-) -> Option<(f64, f64)> {
+fn visible_price_range(points: &[ChartDataPoint], mode: PriceScaleMode) -> Option<(f64, f64)> {
     let mut range: Option<(f64, f64)> = None;
 
     for point in points {
@@ -737,9 +734,7 @@ fn visible_price_range(
         }
 
         range = Some(match range {
-            Some((min_price, max_price)) => {
-                (min_price.min(point_min), max_price.max(point_max))
-            }
+            Some((min_price, max_price)) => (min_price.min(point_min), max_price.max(point_max)),
             None => (point_min, point_max),
         });
     }
@@ -805,8 +800,7 @@ mod price_scale_mode_tests {
 
     fn sample_points() -> Vec<ChartDataPoint> {
         let first_time = TimePoint::new(0, 60_000, 60_000).expect("intervalo válido");
-        let second_time =
-            TimePoint::new(60_000, 120_000, 60_000).expect("intervalo válido");
+        let second_time = TimePoint::new(60_000, 120_000, 60_000).expect("intervalo válido");
         vec![
             ChartDataPoint::new(
                 Candle::new(100.0, 120.0, 80.0, 110.0, 500.0).expect("vela válida"),
@@ -841,9 +835,6 @@ mod price_scale_mode_tests {
 
     #[test]
     fn auto_scale_range_is_empty_without_valid_points() {
-        assert_eq!(
-            visible_price_range(&[], PriceScaleMode::HighLow),
-            None
-        );
+        assert_eq!(visible_price_range(&[], PriceScaleMode::HighLow), None);
     }
 }
