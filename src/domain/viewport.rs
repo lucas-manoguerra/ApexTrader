@@ -67,6 +67,65 @@ impl PriceScaleMode {
     }
 }
 
+/// Transformación utilizada por el eje vertical de precios.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum PriceScaleType {
+    /// Distancias lineales en unidades de precio.
+    #[default]
+    Linear,
+    /// Distancias lineales en el logaritmo natural del precio.
+    Logarithmic,
+    /// Variación porcentual respecto al precio base configurado.
+    Percentage,
+}
+
+impl PriceScaleType {
+    /// Etiqueta breve para los controles de la interfaz.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Linear => "Lineal",
+            Self::Logarithmic => "Logarítmica",
+            Self::Percentage => "Porcentual (%)",
+        }
+    }
+
+    /// Convierte un precio de mercado al espacio numérico del eje.
+    pub fn to_scale_value(self, price: f64, percentage_base: Option<f64>) -> Option<f64> {
+        if !price.is_finite() {
+            return None;
+        }
+
+        let value = match self {
+            Self::Linear => price,
+            Self::Logarithmic if price > 0.0 => price.ln(),
+            Self::Logarithmic => return None,
+            Self::Percentage => {
+                let base = percentage_base.filter(|base| base.is_finite() && *base > 0.0)?;
+                (price / base - 1.0) * 100.0
+            }
+        };
+        value.is_finite().then_some(value)
+    }
+
+    /// Convierte un valor del eje vertical al precio de mercado correspondiente.
+    pub fn from_scale_value(self, value: f64, percentage_base: Option<f64>) -> Option<f64> {
+        if !value.is_finite() {
+            return None;
+        }
+
+        let price = match self {
+            Self::Linear => value,
+            Self::Logarithmic => value.exp(),
+            Self::Percentage => {
+                let base = percentage_base.filter(|base| base.is_finite() && *base > 0.0)?;
+                base * (1.0 + value / 100.0)
+            }
+        };
+        (price.is_finite() && (self != Self::Logarithmic || price > 0.0))
+            .then_some(price)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Viewport {
     /// Nivel de zoom del eje X (tiempo / índice de vela).
@@ -104,6 +163,10 @@ pub struct Viewport {
     price_scale_auto: bool,
     /// Criterio de precios que determina el rango de la autoescala.
     price_scale_mode: PriceScaleMode,
+    /// Transformación numérica aplicada al eje de precios.
+    price_scale_type: PriceScaleType,
+    /// Precio de referencia para el modo porcentual.
+    price_scale_percentage_base: Option<f64>,
     /// Márgenes verticales relativos al alto del plot (0.05 = 5%).
     price_scale_top_margin: f64,
     price_scale_bottom_margin: f64,
@@ -126,6 +189,8 @@ impl Viewport {
             price_scale_center: 0.0,
             price_scale_auto: true,
             price_scale_mode: PriceScaleMode::HighLow,
+            price_scale_type: PriceScaleType::Linear,
+            price_scale_percentage_base: None,
             price_scale_top_margin: DEFAULT_PRICE_SCALE_MARGIN,
             price_scale_bottom_margin: DEFAULT_PRICE_SCALE_MARGIN,
             price_scale_locked: false,
@@ -158,6 +223,98 @@ impl Viewport {
     /// manual se conserva la referencia actual hasta volver a activar Auto.
     pub fn set_price_scale_mode(&mut self, mode: PriceScaleMode) {
         self.price_scale_mode = mode;
+    }
+
+    /// Devuelve la transformación usada por el eje vertical.
+    pub fn price_scale_type(&self) -> PriceScaleType {
+        self.price_scale_type
+    }
+
+    /// Devuelve el precio base utilizado por la escala porcentual.
+    pub fn price_scale_percentage_base(&self) -> Option<f64> {
+        self.price_scale_percentage_base
+    }
+
+    /// Actualiza el precio base porcentual. Los valores deben ser positivos y finitos.
+    ///
+    /// Si el modo porcentual está activo, la referencia se recalculará con los
+    /// datos visibles en el siguiente frame.
+    pub fn set_price_scale_percentage_base(&mut self, base: f64) -> bool {
+        if !base.is_finite() || base <= 0.0 {
+            return false;
+        }
+        if self.price_scale_percentage_base == Some(base) {
+            return true;
+        }
+
+        self.price_scale_percentage_base = Some(base);
+        if self.price_scale_type == PriceScaleType::Percentage {
+            self.price_scale_auto = true;
+            self.zoom_y = self.auto_price_scale_zoom();
+            self.offset_y = 0.0;
+        }
+        true
+    }
+
+    /// Cambia la transformación del eje vertical.
+    ///
+    /// El cambio vuelve a Auto para recalcular el rango en las nuevas unidades.
+    /// El modo porcentual requiere que exista un precio base válido.
+    pub fn set_price_scale_type(&mut self, scale_type: PriceScaleType) -> bool {
+        if scale_type == self.price_scale_type {
+            return true;
+        }
+        if scale_type == PriceScaleType::Percentage
+            && self.price_scale_percentage_base.is_none()
+        {
+            return false;
+        }
+
+        self.price_scale_type = scale_type;
+        self.price_scale_auto = true;
+        self.zoom_y = self.auto_price_scale_zoom();
+        self.offset_y = 0.0;
+        true
+    }
+
+    /// Convierte un precio de mercado al espacio numérico del eje.
+    pub fn price_to_scale_value(&self, price: f64) -> Option<f64> {
+        self.price_scale_type
+            .to_scale_value(price, self.price_scale_percentage_base)
+    }
+
+    /// Convierte un valor del eje al precio de mercado correspondiente.
+    pub fn scale_value_to_price(&self, value: f64) -> Option<f64> {
+        self.price_scale_type
+            .from_scale_value(value, self.price_scale_percentage_base)
+    }
+
+    /// Convierte una coordenada vertical a precio usando la referencia de escala actual.
+    pub fn screen_y_to_price_value(
+        &self,
+        screen_y: f64,
+        screen_height: f64,
+        price_range: f64,
+        center_scale_value: f64,
+    ) -> Option<f64> {
+        if !screen_height.is_finite()
+            || screen_height <= 0.0
+            || !price_range.is_finite()
+            || price_range <= 0.0
+            || !center_scale_value.is_finite()
+        {
+            return None;
+        }
+
+        let scale_value = transforms::screen_y_to_price(
+            screen_y,
+            screen_height,
+            price_range,
+            self.zoom_y,
+            self.offset_y,
+            center_scale_value,
+        );
+        self.scale_value_to_price(scale_value)
     }
 
     /// Márgenes superior e inferior de autoescala como fracción del alto del plot.
@@ -253,14 +410,19 @@ impl Viewport {
             return false;
         }
 
-        let midpoint = min_price + (max_price - min_price) / 2.0;
-        let raw_range = max_price - min_price;
+        let Some(min_scale_value) = self.price_to_scale_value(min_price) else {
+            return false;
+        };
+        let Some(max_scale_value) = self.price_to_scale_value(max_price) else {
+            return false;
+        };
+        let midpoint = min_scale_value + (max_scale_value - min_scale_value) / 2.0;
+        let raw_range = max_scale_value - min_scale_value;
         if !midpoint.is_finite() || !raw_range.is_finite() {
             return false;
         }
 
-        // Una serie plana necesita un rango no degenerado para las
-        // transformaciones de coordenadas.
+        // Una serie plana necesita un rango no degenerado en el espacio del eje.
         let range = if raw_range > f64::EPSILON {
             raw_range
         } else {
@@ -646,18 +808,20 @@ impl Viewport {
             .to_f64()
             .expect("precio máximo convertible");
 
+        let (Some(min_scale_value), Some(max_scale_value)) = (
+            self.price_to_scale_value(min_price_f64),
+            self.price_to_scale_value(max_price_f64),
+        ) else {
+            return;
+        };
         let Some(price_range_value) =
-            transforms::validate_price_range(min_price_f64, max_price_f64)
+            transforms::validate_price_range(min_scale_value, max_scale_value)
         else {
             return;
         };
 
         let new_zoom_y = self.auto_price_scale_zoom();
-        let midpoint = price_range
-            .midpoint()
-            .value()
-            .to_f64()
-            .expect("centro de precio convertible");
+        let midpoint = min_scale_value + price_range_value / 2.0;
 
         self.price_scale_range = price_range_value;
         self.price_scale_center =
@@ -693,6 +857,8 @@ impl Viewport {
         self.price_scale_center = 0.0;
         self.price_scale_auto = true;
         self.price_scale_mode = PriceScaleMode::HighLow;
+        self.price_scale_type = PriceScaleType::Linear;
+        self.price_scale_percentage_base = None;
         self.price_scale_locked = false;
         tracing::debug!("Viewport restablecido a valores por defecto");
     }
@@ -825,31 +991,28 @@ impl Viewport {
 
         let center_y = screen_height / 2.0;
 
-        let min_price_f64 = price_range
-            .min()
-            .value()
-            .to_f64()
-            .expect("el precio mínimo debe ser convertible a f64 para renderizado");
-        let max_price_f64 = price_range
-            .max()
-            .value()
-            .to_f64()
-            .expect("el precio máximo debe ser convertible a f64 para renderizado");
-        let Some(range_value_f64) = transforms::validate_price_range(min_price_f64, max_price_f64)
-        else {
+        let min_price = price_range.min().value().to_f64().expect("precio mínimo convertible");
+        let max_price = price_range.max().value().to_f64().expect("precio máximo convertible");
+        let (Some(min_value), Some(max_value)) = (
+            self.price_to_scale_value(min_price),
+            self.price_to_scale_value(max_price),
+        ) else {
+            return center_y;
+        };
+        let Some(range_value) = transforms::validate_price_range(min_value, max_value) else {
+            return center_y;
+        };
+        let price_value = price.value().to_f64().expect("precio convertible");
+        let center_value = center_price.value().to_f64().expect("precio central convertible");
+        let (Some(price_scale_value), Some(center_scale_value)) = (
+            self.price_to_scale_value(price_value),
+            self.price_to_scale_value(center_value),
+        ) else {
             return center_y;
         };
 
-        let pixels_per_unit = screen_height / range_value_f64 * self.zoom_y;
-        let price_f64 = price
-            .value()
-            .to_f64()
-            .expect("el precio debe ser convertible a f64 para renderizado");
-        let center_price_f64 = center_price
-            .value()
-            .to_f64()
-            .expect("el precio central debe ser convertible a f64 para renderizado");
-        let relative_price = price_f64 - center_price_f64 - self.offset_y * range_value_f64;
+        let pixels_per_unit = screen_height / range_value * self.zoom_y;
+        let relative_price = price_scale_value - center_scale_value - self.offset_y * range_value;
         center_y - relative_price * pixels_per_unit
     }
 
@@ -871,17 +1034,27 @@ impl Viewport {
         center_price: Price,
     ) -> Price {
         let center_y = screen_height / 2.0;
-        let range_value = price_range.max().value() - price_range.min().value();
-        let range_value_f64 = range_value
-            .to_f64()
-            .expect("el rango de precios debe ser convertible a f64 para renderizado");
-        let pixels_per_unit = screen_height / range_value_f64 * self.zoom_y;
+        let min_price = price_range.min().value().to_f64().expect("precio mínimo convertible");
+        let max_price = price_range.max().value().to_f64().expect("precio máximo convertible");
+        let (Some(min_value), Some(max_value)) = (
+            self.price_to_scale_value(min_price),
+            self.price_to_scale_value(max_price),
+        ) else {
+            return center_price;
+        };
+        let Some(range_value) = transforms::validate_price_range(min_value, max_value) else {
+            return center_price;
+        };
+        let center_price_value = center_price.value().to_f64().expect("precio central convertible");
+        let Some(center_scale_value) = self.price_to_scale_value(center_price_value) else {
+            return center_price;
+        };
+        let pixels_per_unit = screen_height / range_value * self.zoom_y;
         let relative_price = (center_y - screen_y) / pixels_per_unit;
-        let center_price_f64 = center_price
-            .value()
-            .to_f64()
-            .expect("el precio central debe ser convertible a f64 para renderizado");
-        let price_value = center_price_f64 + self.offset_y * range_value_f64 + relative_price;
+        let scale_value = center_scale_value + self.offset_y * range_value + relative_price;
+        let Some(price_value) = self.scale_value_to_price(scale_value) else {
+            return center_price;
+        };
 
         let decimal = Decimal::from_f64(price_value);
         match decimal {
@@ -962,6 +1135,69 @@ mod tests {
 
         viewport.reset();
         assert_eq!(viewport.price_scale_mode(), PriceScaleMode::HighLow);
+    }
+
+    #[test]
+    fn price_scale_type_defaults_to_linear_and_resets_to_linear() {
+        let mut viewport = Viewport::new();
+        assert_eq!(viewport.price_scale_type(), PriceScaleType::Linear);
+
+        assert!(viewport.set_price_scale_percentage_base(100.0));
+        assert!(viewport.set_price_scale_type(PriceScaleType::Percentage));
+        assert_eq!(viewport.price_scale_type(), PriceScaleType::Percentage);
+
+        viewport.reset();
+        assert_eq!(viewport.price_scale_type(), PriceScaleType::Linear);
+        assert_eq!(viewport.price_scale_percentage_base(), None);
+    }
+
+    #[test]
+    fn logarithmic_scale_round_trips_positive_prices_and_rejects_non_positive_prices() {
+        let scale = PriceScaleType::Logarithmic;
+        for price in [0.01, 1.0, 50.0, 50_000.0, 1_000_000.0] {
+            let value = scale.to_scale_value(price, None).expect("precio positivo");
+            let restored = scale.from_scale_value(value, None).expect("inversa válida");
+            assert!((restored - price).abs() <= price.abs() * 1e-12);
+        }
+
+        assert_eq!(scale.to_scale_value(0.0, None), None);
+        assert_eq!(scale.to_scale_value(-1.0, None), None);
+    }
+
+    #[test]
+    fn percentage_scale_uses_configured_base_and_round_trips_prices() {
+        let scale = PriceScaleType::Percentage;
+        assert!((scale.to_scale_value(100.0, Some(100.0)).unwrap()).abs() < 1e-12);
+        assert!((scale.to_scale_value(110.0, Some(100.0)).unwrap() - 10.0).abs() < 1e-12);
+        assert!((scale.from_scale_value(10.0, Some(100.0)).unwrap() - 110.0).abs() < 1e-12);
+        assert_eq!(scale.to_scale_value(110.0, None), None);
+        assert_eq!(scale.from_scale_value(10.0, Some(0.0)), None);
+    }
+
+    #[test]
+    fn auto_price_scale_stores_values_in_the_selected_transformed_space() {
+        let mut logarithmic = Viewport::new();
+        assert!(logarithmic.set_price_scale_type(PriceScaleType::Logarithmic));
+        assert!(logarithmic.update_auto_price_scale(10.0, 100.0));
+        let (log_range, log_center) = logarithmic.price_scale_reference();
+        assert!((log_range - 10.0_f64.ln()).abs() < 1e-12);
+        assert!((log_center - 10.0_f64.ln() - 10.0_f64.ln() / 2.0).abs() < 1e-12);
+
+        let mut percentage = Viewport::new();
+        assert!(percentage.set_price_scale_percentage_base(100.0));
+        assert!(percentage.set_price_scale_type(PriceScaleType::Percentage));
+        assert!(percentage.update_auto_price_scale(90.0, 110.0));
+        assert_eq!(percentage.price_scale_reference(), (20.0, 0.0));
+    }
+
+    #[test]
+    fn logarithmic_auto_scale_rejects_ranges_with_non_positive_prices() {
+        let mut viewport = Viewport::new();
+        assert!(viewport.set_price_scale_type(PriceScaleType::Logarithmic));
+        let reference = viewport.price_scale_reference();
+
+        assert!(!viewport.update_auto_price_scale(-10.0, 100.0));
+        assert_eq!(viewport.price_scale_reference(), reference);
     }
 
     #[test]

@@ -12,7 +12,7 @@ use crate::domain::chart_state::ChartState;
 use crate::domain::price::Price;
 use crate::domain::price_range::PriceRange;
 use crate::domain::transforms::ScreenPoint;
-use crate::domain::viewport::{PriceScaleMode, Viewport};
+use crate::domain::viewport::{PriceScaleMode, PriceScaleType, Viewport};
 use crate::logging::init as init_logging;
 use crate::market::candle::MarketCandle;
 use crate::market::mock::MockMarketDataProvider;
@@ -125,6 +125,48 @@ impl eframe::App for ApexTraderApp {
                     self.chart
                         .viewport_mut()
                         .set_price_scale_mode(selected_mode);
+                }
+
+                let current_scale_type = self.chart.viewport().price_scale_type();
+                let mut selected_scale_type = current_scale_type;
+                let points = self.chart.data_points();
+                let logarithmic_supported = points.iter().all(|point| point.low() > 0.0);
+                let percentage_base = points
+                    .first()
+                    .map(|point| point.close())
+                    .filter(|price| price.is_finite() && *price > 0.0);
+
+                egui::ComboBox::from_id_salt("price-scale-type")
+                    .selected_text(selected_scale_type.label())
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(
+                            &mut selected_scale_type,
+                            PriceScaleType::Linear,
+                            "Lineal",
+                        );
+                        ui.add_enabled_ui(logarithmic_supported, |ui| {
+                            ui.selectable_value(
+                                &mut selected_scale_type,
+                                PriceScaleType::Logarithmic,
+                                "Logarítmica",
+                            );
+                        });
+                        ui.add_enabled_ui(percentage_base.is_some(), |ui| {
+                            ui.selectable_value(
+                                &mut selected_scale_type,
+                                PriceScaleType::Percentage,
+                                "Porcentual (%)",
+                            );
+                        });
+                    });
+                if selected_scale_type != current_scale_type {
+                    let viewport = self.chart.viewport_mut();
+                    if selected_scale_type == PriceScaleType::Percentage
+                        && let Some(base) = percentage_base
+                    {
+                        let _ = viewport.set_price_scale_percentage_base(base);
+                    }
+                    let _ = viewport.set_price_scale_type(selected_scale_type);
                 }
             });
 
@@ -661,6 +703,7 @@ fn load_symbol_into_chart(
             if let Err(e) = chart.add_data_points(&result.data_points) {
                 tracing::error!("No se pudieron agregar los datos al chart: {}", e);
             }
+            refresh_price_scale_type_for_data(chart);
             tracing::info!(
                 "ChartState inicializado con {} puntos de datos del mercado ({})",
                 chart.len(),
@@ -692,6 +735,7 @@ fn load_symbol_into_chart(
                     if let Err(error) = chart.add_data_points(&fallback.data_points) {
                         tracing::error!("No se pudo cargar el histórico de fallback: {error}");
                     }
+                    refresh_price_scale_type_for_data(chart);
                     if let Some(range) = price_range_from_data_points(chart) {
                         let point_count = chart.len();
                         chart
@@ -751,6 +795,28 @@ fn configure_fonts(ctx: &egui::Context) {
     }
 
     ctx.set_fonts(font_defs);
+}
+
+/// Actualiza los parámetros de escala que dependen del símbolo recién cargado.
+fn refresh_price_scale_type_for_data(chart: &mut ChartState) {
+    let points = chart.data_points();
+    let first_close = points.first().map(|point| point.close());
+    let logarithmic_supported = points.iter().all(|point| point.low() > 0.0);
+    let scale_type = chart.viewport().price_scale_type();
+
+    if scale_type == PriceScaleType::Percentage {
+        if let Some(base) = first_close.filter(|price| price.is_finite() && *price > 0.0) {
+            let _ = chart.viewport_mut().set_price_scale_percentage_base(base);
+        } else {
+            let _ = chart
+                .viewport_mut()
+                .set_price_scale_type(PriceScaleType::Linear);
+        }
+    } else if scale_type == PriceScaleType::Logarithmic && !logarithmic_supported {
+        let _ = chart
+            .viewport_mut()
+            .set_price_scale_type(PriceScaleType::Linear);
+    }
 }
 
 /// Calcula el rango de precios visible según el criterio de autoescala.

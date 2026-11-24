@@ -2,6 +2,7 @@ use crate::domain::chart::time_scale::TimeScale;
 use crate::domain::transforms::{self, ScreenPoint, screen_to_chart_point};
 use crate::domain::viewport::Viewport;
 use crate::errors::RendererError;
+use crate::domain::viewport::PriceScaleType;
 use crate::renderer::{ChartRenderer, ChartScene, RenderFrame, RenderLayer};
 use eframe::egui;
 
@@ -155,6 +156,8 @@ struct PriceAxisParams {
     price_range: f64,
     zoom_y: f64,
     minimum_tick: f64,
+    scale_type: PriceScaleType,
+    percentage_base: Option<f64>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -170,7 +173,10 @@ struct TimeAxisParams<'a> {
 
 #[derive(Debug, Clone, Copy)]
 struct PriceTick {
+    /// Valor que se muestra en la etiqueta (precio o variación porcentual).
     value: f64,
+    /// Valor transformado utilizado para calcular la posición vertical.
+    scale_value: f64,
     y: f64,
     label_step: f64,
 }
@@ -179,6 +185,15 @@ struct PriceTick {
 struct TimeAxisTick {
     screen_x: f64,
     label: String,
+}
+
+fn price_axis_label(value: f64, step: f64, minimum_tick: f64, scale_type: PriceScaleType) -> String {
+    match scale_type {
+        PriceScaleType::Percentage => format!("{value:+.2}%"),
+        PriceScaleType::Linear | PriceScaleType::Logarithmic => {
+            format_price_tick(value, step, minimum_tick)
+        }
+    }
 }
 
 fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<PriceTick> {
@@ -200,30 +215,103 @@ fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<Price
     let min_visible = visible_center - half_range_visible;
     let max_visible = visible_center + half_range_visible;
     let target_ticks = ((height / 56.0).floor() as usize).clamp(4, 8);
-    let tick_step =
-        aligned_price_tick_step(max_visible - min_visible, target_ticks, params.minimum_tick);
-    if !tick_step.is_finite() || tick_step <= 0.0 {
-        return Vec::new();
-    }
-
     let pixels_per_unit = height / params.price_range * params.zoom_y;
-    let mut tick = (min_visible / tick_step).ceil() * tick_step;
+    let y_for_scale_value = |value: f64| {
+        top + height / 2.0 - (value - visible_center) * pixels_per_unit
+    };
     let mut ticks = Vec::with_capacity(target_ticks + 2);
 
-    for _ in 0..(target_ticks + 4) {
-        if !tick.is_finite() || tick > max_visible + tick_step * 1e-9 {
-            break;
+    match params.scale_type {
+        PriceScaleType::Linear => {
+            let tick_step = aligned_price_tick_step(
+                max_visible - min_visible,
+                target_ticks,
+                params.minimum_tick,
+            );
+            if !tick_step.is_finite() || tick_step <= 0.0 {
+                return Vec::new();
+            }
+
+            let mut value = (min_visible / tick_step).ceil() * tick_step;
+            for _ in 0..(target_ticks + 4) {
+                if !value.is_finite() || value > max_visible + tick_step * 1e-9 {
+                    break;
+                }
+                ticks.push(PriceTick {
+                    value,
+                    scale_value: value,
+                    y: y_for_scale_value(value),
+                    label_step: tick_step,
+                });
+                value += tick_step;
+            }
         }
-        let relative_price = tick - visible_center;
-        // El centro de precio debe coincidir con el centro del plot, igual
-        // que en transforms::price_to_screen y screen_y_to_price.
-        let y = top + height / 2.0 - relative_price * pixels_per_unit;
-        ticks.push(PriceTick {
-            value: tick,
-            y,
-            label_step: tick_step,
-        });
-        tick += tick_step;
+        PriceScaleType::Percentage => {
+            let tick_step = nice_tick_step(max_visible - min_visible, target_ticks);
+            if !tick_step.is_finite() || tick_step <= 0.0 {
+                return Vec::new();
+            }
+
+            let mut value = (min_visible / tick_step).ceil() * tick_step;
+            for _ in 0..(target_ticks + 4) {
+                if !value.is_finite() || value > max_visible + tick_step * 1e-9 {
+                    break;
+                }
+                ticks.push(PriceTick {
+                    value,
+                    scale_value: value,
+                    y: y_for_scale_value(value),
+                    label_step: tick_step,
+                });
+                value += tick_step;
+            }
+        }
+        PriceScaleType::Logarithmic => {
+            let Some(min_price) = params
+                .scale_type
+                .from_scale_value(min_visible, params.percentage_base)
+            else {
+                return Vec::new();
+            };
+            let Some(max_price) = params
+                .scale_type
+                .from_scale_value(max_visible, params.percentage_base)
+            else {
+                return Vec::new();
+            };
+            if min_price <= 0.0 || max_price <= min_price {
+                return Vec::new();
+            }
+
+            let first_decade = min_price.log10().floor() as i32 - 1;
+            let last_decade = max_price.log10().ceil() as i32 + 1;
+            let decade_count = (last_decade - first_decade + 1).max(1) as usize;
+            let decade_stride = decade_count.div_ceil((target_ticks / 2).max(1)).max(1);
+            for exponent in (first_decade..=last_decade).step_by(decade_stride) {
+                let decade = 10.0_f64.powi(exponent);
+                if !decade.is_finite() || decade <= 0.0 {
+                    continue;
+                }
+                for multiplier in [1.0, 2.0, 5.0] {
+                    let price = decade * multiplier;
+                    let Some(scale_value) =
+                        params.scale_type.to_scale_value(price, params.percentage_base)
+                    else {
+                        continue;
+                    };
+                    if scale_value < min_visible - 1e-10 || scale_value > max_visible + 1e-10 {
+                        continue;
+                    }
+                    ticks.push(PriceTick {
+                        value: price,
+                        scale_value,
+                        y: y_for_scale_value(scale_value),
+                        label_step: params.minimum_tick,
+                    });
+                }
+            }
+            ticks.sort_by(|left, right| left.scale_value.total_cmp(&right.scale_value));
+        }
     }
 
     ticks
@@ -416,6 +504,7 @@ fn draw_price_axis(
     origin: ScreenPoint,
     ticks: &[PriceTick],
     minimum_tick: f64,
+    scale_type: PriceScaleType,
     font_id: egui::FontId,
 ) {
     let axis_left = (layout.price_axis_right.left + origin.x) as f32;
@@ -435,7 +524,7 @@ fn draw_price_axis(
         painter.text(
             egui::pos2(axis_left + 9.0, y),
             egui::Align2::LEFT_CENTER,
-            format_price_tick(tick.value, tick.label_step, minimum_tick),
+            price_axis_label(tick.value, tick.label_step, minimum_tick, scale_type),
             font_id.clone(),
             axis_text,
         );
@@ -529,7 +618,13 @@ fn draw_current_price_marker(
 
     let top = layout.plot.top;
     let height = layout.plot_height();
-    let relative_price = price - params.center_price - params.offset_y * params.price_range;
+    let Some(scale_value) = params
+        .scale_type
+        .to_scale_value(price, params.percentage_base)
+    else {
+        return;
+    };
+    let relative_price = scale_value - params.center_price - params.offset_y * params.price_range;
     let pixels_per_unit = height / params.price_range * params.zoom_y;
     let y = top + height / 2.0 - relative_price * pixels_per_unit;
     if !y.is_finite() || y < top || y > layout.plot.bottom {
@@ -557,7 +652,16 @@ fn draw_current_price_marker(
     painter.text(
         marker_rect.center(),
         egui::Align2::CENTER_CENTER,
-        format_price_tick(price, params.minimum_tick, params.minimum_tick),
+        price_axis_label(
+            if params.scale_type == PriceScaleType::Percentage {
+                scale_value
+            } else {
+                price
+            },
+            params.minimum_tick,
+            params.minimum_tick,
+            params.scale_type,
+        ),
         egui::FontId::proportional(11.0),
         egui::Color32::WHITE,
     );
@@ -699,6 +803,8 @@ impl ChartRenderer for GlowChartRenderer {
             price_range: scene.price_range,
             zoom_y: scene.viewport.zoom_y(),
             minimum_tick: scene.price_tick_size,
+            scale_type: scene.viewport.price_scale_type(),
+            percentage_base: scene.viewport.price_scale_percentage_base(),
         };
         let price_ticks = price_axis_ticks(top, bottom, price_params);
         let time_params = TimeAxisParams {
@@ -747,6 +853,7 @@ impl ChartRenderer for GlowChartRenderer {
             frame.origin,
             &price_ticks,
             price_params.minimum_tick,
+            price_params.scale_type,
             font_id.clone(),
         );
         if let Some((price, color)) = current_price {
@@ -794,7 +901,7 @@ impl ChartRenderer for GlowChartRenderer {
                     egui::Stroke::new(1.0, crosshair_color),
                 );
 
-                let price_at_cursor = transforms::screen_y_to_price(
+                let price_scale_value = transforms::screen_y_to_price(
                     chart_point.y,
                     layout.plot_height(),
                     scene.price_range,
@@ -802,6 +909,10 @@ impl ChartRenderer for GlowChartRenderer {
                     scene.viewport.offset_y(),
                     scene.center_price,
                 );
+                let price_at_cursor = scene
+                    .viewport
+                    .scale_value_to_price(price_scale_value)
+                    .unwrap_or_default();
                 let logical_at_cursor = scene
                     .viewport
                     .screen_to_logical(chart_point.x, layout.plot_width());
@@ -821,10 +932,21 @@ impl ChartRenderer for GlowChartRenderer {
                 painter.text(
                     price_marker_rect.center(),
                     egui::Align2::CENTER_CENTER,
-                    format_price_tick(
-                        price_at_cursor,
+                    price_axis_label(
+                        if price_params.scale_type == PriceScaleType::Percentage {
+                            price_params
+                                .scale_type
+                                .to_scale_value(
+                                    price_at_cursor,
+                                    price_params.percentage_base,
+                                )
+                                .unwrap_or_default()
+                        } else {
+                            price_at_cursor
+                        },
                         scene.price_tick_size,
                         scene.price_tick_size,
+                        price_params.scale_type,
                     ),
                     egui::FontId::proportional(11.0),
                     egui::Color32::WHITE,
@@ -882,13 +1004,56 @@ mod tests {
             price_range: 20.0,
             zoom_y: 1.0,
             minimum_tick: 0.01,
+            scale_type: PriceScaleType::Linear,
+            percentage_base: None,
         };
         let ticks = price_axis_ticks(100.0, 300.0, params);
         let center = ticks
             .iter()
-            .find(|tick| (tick.value - 100.0).abs() < 1e-9)
+            .find(|tick| (tick.scale_value - 100.0).abs() < 1e-9)
             .expect("debe existir un tick en el precio central");
         assert!((center.y - 200.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn logarithmic_price_ticks_are_geometrically_spaced_and_label_market_prices() {
+        let params = PriceAxisParams {
+            center_price: 5.0_f64.ln(),
+            offset_y: 0.0,
+            price_range: 4.0_f64.ln(),
+            zoom_y: 1.0,
+            minimum_tick: 0.01,
+            scale_type: PriceScaleType::Logarithmic,
+            percentage_base: None,
+        };
+        let ticks = price_axis_ticks(0.0, 400.0, params);
+
+        assert!(ticks.len() >= 4);
+        assert!(ticks.iter().any(|tick| (tick.value - 10.0).abs() < 1e-9));
+        assert!(ticks.iter().all(|tick| {
+            (tick.scale_value - tick.value.ln()).abs() < 1e-10
+        }));
+    }
+
+    #[test]
+    fn percentage_price_ticks_are_labeled_as_relative_changes() {
+        let params = PriceAxisParams {
+            center_price: 0.0,
+            offset_y: 0.0,
+            price_range: 20.0,
+            zoom_y: 1.0,
+            minimum_tick: 0.01,
+            scale_type: PriceScaleType::Percentage,
+            percentage_base: Some(100.0),
+        };
+        let ticks = price_axis_ticks(0.0, 400.0, params);
+
+        assert!(ticks.len() >= 4);
+        assert!(ticks.iter().any(|tick| tick.value.abs() < 1e-9));
+        assert_eq!(
+            price_axis_label(5.0, 1.0, 0.01, PriceScaleType::Percentage),
+            "+5.00%"
+        );
     }
 
     #[test]
@@ -998,6 +1163,8 @@ mod tests {
             price_range: 0.8,
             zoom_y: 1.0,
             minimum_tick: 0.25,
+            scale_type: PriceScaleType::Linear,
+            percentage_base: None,
         };
         let ticks = price_axis_ticks(0.0, 200.0, params);
 

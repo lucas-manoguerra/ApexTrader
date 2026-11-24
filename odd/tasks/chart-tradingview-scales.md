@@ -53,5 +53,8 @@
 - [x] Autoescala asimétrica: los extremos visibles se ubican en los límites definidos.
 - [x] Controles de margen en porcentaje y restablecimiento rápido a 5% / 5%.
 - [x] Validación de límites y preservación de la escala manual al cambiar la configuración.
+- [x] Modos de escala Lineal, Logarítmica y Porcentual.
+- [x] Base porcentual vinculada al primer cierre del historial y actualizada al cambiar de símbolo.
+- [x] Ticks y etiquetas consistentes con cada transformación.
 
 **Nota:** el incremento mínimo se infiere con reglas limitadas para el mock (BTC/USDT, futuros CME comunes y pares FX). El proveedor real deberá suministrar el tick size exacto del contrato/instrumento.
