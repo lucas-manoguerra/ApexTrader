@@ -1107,7 +1107,7 @@ mod price_scale_mode_tests {
         let mut large_viewport = Viewport::new();
         large_viewport.update_auto_price_scale(100_000.0, 200_000.0);
 
-        let _output = context.run_ui(egui::RawInput::default(), |ctx| {
+        let output = context.run_ui(egui::RawInput::default(), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
                 compact_width = Some(estimate_price_axis_width(
                     ui,
@@ -1123,6 +1123,8 @@ mod price_scale_mode_tests {
                 ));
             });
         });
+        // Esta prueba no tiene un renderer que aplique las actualizaciones del atlas de fuentes.
+        output.drop_without_applying_deltas();
 
         let compact_width = compact_width.expect("debe medir la escala compacta");
         let large_width = large_width.expect("debe medir la escala de precios grandes");
