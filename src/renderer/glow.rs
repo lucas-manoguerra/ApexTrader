@@ -2,7 +2,7 @@ use crate::domain::chart::time_scale::TimeScale;
 use crate::domain::transforms::{self, ScreenPoint, screen_to_chart_point};
 use crate::domain::viewport::Viewport;
 use crate::errors::RendererError;
-use crate::renderer::{ChartRenderer, ChartScene, RenderColor, RenderFrame, RenderLayer};
+use crate::renderer::{ChartRenderer, ChartScene, RenderFrame, RenderLayer};
 use eframe::egui;
 
 /// Renderizador de chart usando el Painter de egui (backend glow/OpenGL).
@@ -208,7 +208,7 @@ fn time_axis_ticks(left: f64, right: f64, params: &TimeAxisParams<'_>) -> Vec<Ti
     let target_labels = ((width / 118.0).floor() as usize).clamp(2, 9);
     let span = visible.len().saturating_sub(1);
     let divisor = target_labels.saturating_sub(1).max(1);
-    let index_step = ((span + divisor - 1) / divisor).max(1);
+    let index_step = span.div_ceil(divisor).max(1);
 
     let mut ticks = Vec::with_capacity(target_labels + 1);
     let mut last_screen_x: Option<f64> = None;
