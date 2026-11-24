@@ -529,31 +529,6 @@ fn price_tick_size_for_symbol(symbol: &Symbol) -> f64 {
     0.01
 }
 
-#[cfg(test)]
-mod price_tick_tests {
-    use super::*;
-
-    #[test]
-    fn price_tick_size_uses_known_mock_instrument_conventions() {
-        assert_eq!(
-            price_tick_size_for_symbol(&Symbol::from_str("BTC/USDT").unwrap()),
-            0.01
-        );
-        assert_eq!(
-            price_tick_size_for_symbol(&Symbol::from_str("MNQ/USD").unwrap()),
-            0.25
-        );
-        assert_eq!(
-            price_tick_size_for_symbol(&Symbol::from_str("EUR/USD").unwrap()),
-            0.00001
-        );
-        assert_eq!(
-            price_tick_size_for_symbol(&Symbol::from_str("USD/JPY").unwrap()),
-            0.001
-        );
-    }
-}
-
 /// Timestamp de apertura de la última vela completamente cerrada.
 fn latest_closed_candle_open_time(interval_ms: i64) -> i64 {
     let now_ms = SystemTime::now()
@@ -751,3 +726,29 @@ fn price_range_from_data_points(chart: &ChartState) -> Option<PriceRange> {
 
     PriceRange::new(min, max).ok()
 }
+
+#[cfg(test)]
+mod price_tick_tests {
+    use super::*;
+
+    #[test]
+    fn price_tick_size_uses_known_mock_instrument_conventions() {
+        assert_eq!(
+            price_tick_size_for_symbol(&Symbol::from_str("BTC/USDT").unwrap()),
+            0.01
+        );
+        assert_eq!(
+            price_tick_size_for_symbol(&Symbol::from_str("MNQ/USD").unwrap()),
+            0.25
+        );
+        assert_eq!(
+            price_tick_size_for_symbol(&Symbol::from_str("EUR/USD").unwrap()),
+            0.00001
+        );
+        assert_eq!(
+            price_tick_size_for_symbol(&Symbol::from_str("USD/JPY").unwrap()),
+            0.001
+        );
+    }
+}
+
