@@ -196,10 +196,8 @@ impl Viewport {
 
     /// Restablece los márgenes verticales predeterminados (5% arriba y abajo).
     pub fn reset_price_scale_margins(&mut self) {
-        let _ = self.set_price_scale_margins(
-            DEFAULT_PRICE_SCALE_MARGIN,
-            DEFAULT_PRICE_SCALE_MARGIN,
-        );
+        let _ =
+            self.set_price_scale_margins(DEFAULT_PRICE_SCALE_MARGIN, DEFAULT_PRICE_SCALE_MARGIN);
     }
 
     /// Zoom vertical disponible después de reservar los márgenes configurados.
@@ -210,8 +208,8 @@ impl Viewport {
 
     /// Desplaza el centro de referencia para respetar márgenes asimétricos.
     fn auto_price_scale_center(&self, midpoint: f64, range: f64, zoom: f64) -> f64 {
-        midpoint + (self.price_scale_top_margin - self.price_scale_bottom_margin) * range
-            / (2.0 * zoom)
+        midpoint
+            + (self.price_scale_top_margin - self.price_scale_bottom_margin) * range / (2.0 * zoom)
     }
 
     /// Activa o desactiva la autoescala vertical.
