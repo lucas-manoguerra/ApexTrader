@@ -289,7 +289,7 @@ fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<Price
             let first_decade = min_price.log10().floor() as i32 - 1;
             let last_decade = max_price.log10().ceil() as i32 + 1;
             let decade_count = (last_decade - first_decade + 1).max(1) as usize;
-            let decade_stride = decade_count.div_ceil((target_ticks / 2).max(1)).max(1);
+            let decade_stride = decade_count.div_ceil(target_ticks.max(1)).max(1);
             for exponent in (first_decade..=last_decade).step_by(decade_stride) {
                 let decade = 10.0_f64.powi(exponent);
                 if !decade.is_finite() || decade <= 0.0 {
@@ -1019,9 +1019,9 @@ mod tests {
     #[test]
     fn logarithmic_price_ticks_are_geometrically_spaced_and_label_market_prices() {
         let params = PriceAxisParams {
-            center_price: 5.0_f64.ln(),
+            center_price: 10.0_f64.ln(),
             offset_y: 0.0,
-            price_range: 4.0_f64.ln(),
+            price_range: 100.0_f64.ln(),
             zoom_y: 1.0,
             minimum_tick: 0.01,
             scale_type: PriceScaleType::Logarithmic,

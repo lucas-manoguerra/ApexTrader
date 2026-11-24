@@ -191,9 +191,9 @@ pub struct ChartScene<'a> {
     pub data_points: &'a [ChartDataPoint],
     /// Viewport (zoom y pan).
     pub viewport: Viewport,
-    /// Rango de precios visible (máximo - mínimo).
+    /// Rango transformado visible para el tipo de escala activo.
     pub price_range: f64,
-    /// Precio central de zoom.
+    /// Centro de zoom en las unidades transformadas del eje.
     pub center_price: f64,
     /// Incremento mínimo de precio del instrumento, para alinear y formatear ticks.
     pub price_tick_size: f64,

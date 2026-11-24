@@ -154,7 +154,7 @@ pub struct Viewport {
     /// Nivel máximo de zoom permitido (ambos ejes).
     max_zoom: f64,
 
-    /// Rango de referencia y centro persistentes de la escala vertical.
+    /// Rango y centro persistentes expresados en las unidades del tipo de escala.
     /// En modo manual no cambian cuando llegan nuevas velas.
     price_scale_range: f64,
     price_scale_center: f64,
@@ -388,7 +388,7 @@ impl Viewport {
         self.price_scale_locked = locked;
     }
 
-    /// Rango base y centro de precios utilizados por la transformación vertical.
+    /// Rango y centro de referencia en las unidades transformadas del eje vertical.
     pub fn price_scale_reference(&self) -> (f64, f64) {
         (self.price_scale_range, self.price_scale_center)
     }
@@ -1206,7 +1206,9 @@ mod tests {
         assert!(percentage.set_price_scale_percentage_base(100.0));
         assert!(percentage.set_price_scale_type(PriceScaleType::Percentage));
         assert!(percentage.update_auto_price_scale(90.0, 110.0));
-        assert_eq!(percentage.price_scale_reference(), (20.0, 0.0));
+        let (percentage_range, percentage_center) = percentage.price_scale_reference();
+        assert!((percentage_range - 20.0).abs() < 1e-12);
+        assert!(percentage_center.abs() < 1e-12);
     }
 
     #[test]
