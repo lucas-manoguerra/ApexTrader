@@ -992,11 +992,12 @@ mod tests {
     }
 
     #[test]
-    fn price_axis_double_click_resets_only_vertical_scale() {
+    fn price_axis_double_click_restores_auto_scale_without_changing_time_axis() {
         let mut viewport = make_viewport();
         viewport.set_zoom(2.5, 3.5);
         viewport.set_offset_x(-12.0);
         viewport.set_offset_y(0.75);
+        viewport.set_price_scale_auto(false);
         let mut controller = InteractionController::new(1_000.0, 600.0);
         let zoom_x_before = viewport.zoom_x();
         let offset_x_before = viewport.offset_x();
@@ -1012,7 +1013,8 @@ mod tests {
         assert!(result.viewport_changed);
         assert_eq!(viewport.zoom_x(), zoom_x_before);
         assert_eq!(viewport.offset_x(), offset_x_before);
-        assert_eq!(viewport.zoom_y(), 1.0);
+        assert!(viewport.price_scale_auto());
+        assert!((viewport.zoom_y() - 0.9).abs() < f64::EPSILON);
         assert_eq!(viewport.offset_y(), 0.0);
     }
 

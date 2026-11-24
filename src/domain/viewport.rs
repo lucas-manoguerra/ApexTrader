@@ -41,6 +41,9 @@ use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 /// Margen porcentual usado en auto_scale y clamping (5% cada lado).
 const MARGIN_RATIO: f64 = 0.05;
 
+/// Zoom que deja el 90% del alto disponible para el rango de precios.
+const AUTO_PRICE_SCALE_ZOOM: f64 = 1.0 - 2.0 * MARGIN_RATIO;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Viewport {
     /// Nivel de zoom del eje X (tiempo / índice de vela).
@@ -120,7 +123,7 @@ impl Viewport {
     pub fn set_price_scale_auto(&mut self, enabled: bool) {
         self.price_scale_auto = enabled;
         if enabled {
-            self.zoom_y = (1.0 - 2.0 * MARGIN_RATIO).clamp(self.min_zoom, self.max_zoom);
+            self.zoom_y = AUTO_PRICE_SCALE_ZOOM.clamp(self.min_zoom, self.max_zoom);
             self.offset_y = 0.0;
         }
     }
@@ -167,7 +170,7 @@ impl Viewport {
         } else {
             (center.abs() * 0.002).max(1e-6)
         };
-        let zoom_y = (1.0 - 2.0 * MARGIN_RATIO).clamp(self.min_zoom, self.max_zoom);
+        let zoom_y = AUTO_PRICE_SCALE_ZOOM.clamp(self.min_zoom, self.max_zoom);
 
         let changed = self.price_scale_range != range
             || self.price_scale_center != center
@@ -593,7 +596,7 @@ impl Viewport {
     /// Restablece el viewport a valores por defecto.
     pub fn reset(&mut self) {
         self.zoom_x = 1.0;
-        self.zoom_y = 1.0 - 2.0 * MARGIN_RATIO;
+        self.zoom_y = AUTO_PRICE_SCALE_ZOOM.clamp(self.min_zoom, self.max_zoom);
         self.offset_x = 0.0;
         self.offset_y = 0.0;
         self.price_scale_range = 1.0;
@@ -855,6 +858,19 @@ mod tests {
 
         assert!(viewport.update_auto_price_scale(80.0, 120.0));
         assert_eq!(viewport.price_scale_reference(), (40.0, 100.0));
+    }
+
+    #[test]
+    fn enabling_auto_price_scale_restores_the_five_percent_vertical_margins() {
+        let mut viewport = Viewport::new();
+        viewport.set_zoom(2.5, 3.5);
+        viewport.set_offset_y(0.75);
+
+        viewport.set_price_scale_auto(true);
+
+        assert!(viewport.price_scale_auto());
+        assert!((viewport.zoom_y() - AUTO_PRICE_SCALE_ZOOM).abs() < f64::EPSILON);
+        assert_eq!(viewport.offset_y(), 0.0);
     }
 
     #[test]
