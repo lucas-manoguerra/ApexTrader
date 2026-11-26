@@ -122,7 +122,7 @@ La implementación comienza con la eliminación de la ruta WGPU manual e incompl
 - eframe/winit posee ventana, eventos, surface y ciclo de vida de la presentación.
 - eframe/egui-wgpu posee instancia, adapter, device, queue, surface y render pass de egui.
 - ApexTrader posee únicamente recursos específicos del chart: pipeline(s), buffers, layouts y datos de geometría.
-- Los recursos GPU persistentes se registran en RenderState.renderer.callback_resources durante la creación de la aplicación, usando el device y el formato de destino suministrados por eframe.
+- Los recursos GPU persistentes se registran de forma diferida en RenderState.renderer.callback_resources durante el primer prepare del callback, usando el device y el formato de destino suministrados por eframe.
 - Cada callback recibe una instantánea inmutable y acotada de la geometría visible. No retiene referencias a estado mutable del dominio ni a datos de mercado.
 - prepare actualiza buffers y recursos antes del render pass; paint solo enlaza recursos y emite draw calls en el render pass compartido de egui.
 - El rectángulo del callback delimita el viewport lógico del chart; el clip rect de egui limita la región efectiva. Las conversiones entre puntos lógicos y píxeles físicos deben usar pixels_per_point.
@@ -148,3 +148,18 @@ La conversión a coordenadas NDC debe rechazar dimensiones no finitas o no posit
 ### Evidencia y alcance
 
 La eliminación de la ruta manual solo elimina código inoperante; no representa por sí misma un renderer WGPU de chart. La fase 2 se considera implementada cuando callbacks reales dibujen cuerpos, mechas y volumen usando recursos persistentes y existan tests de geometría/invalidación más CI multiplataforma verde. La ejecución con GPU/driver real sigue requiriendo validación de runtime.
+
+
+## Estado de implementación de la Fase 2
+
+El primer recorrido WGPU del chart está integrado en el head actual:
+
+- La geometría neutral CPU genera triángulos para mechas, cuerpos y barras de volumen.
+- `ChartGpuCallback` implementa `egui_wgpu::CallbackTrait` y consume un snapshot inmutable compartido mediante `Arc`.
+- El shader WGSL y el pipeline usan el formato de destino que eframe expone en `CreationContext::wgpu_render_state`.
+- `prepare` crea de forma diferida los recursos dentro de `CallbackResources`, amplía el buffer si hace falta y evita volver a subir un snapshot sin cambios.
+- `paint` solo enlaza pipeline/buffer y ejecuta el draw call.
+- La serie del chart utiliza el callback cuando hay target WGPU; paneles, ejes, etiquetas y crosshair siguen en egui.
+- Se añadieron pruebas de conversión clip-space, dimensiones inválidas y coordenadas no finitas.
+
+Esta implementación todavía requiere CI verde sobre el head que la contiene y validación de runtime en Windows, macOS y Linux con hardware/driver real. Resize/DPI, recreación de device, múltiples viewports y recuperación de errores GPU necesitan pruebas dedicadas antes de declarar la fase completa.
