@@ -2,8 +2,6 @@
 name = "apex-trader"
 
 [skills]
-# Skills registradas para este proyecto. OpenCode las detecta y carga
-# automáticamente cuando el contexto del task coincida con su descripción.
 ids = [
     "wgpu-rust-engineering",
     "winit-gtk-rust-engineering",
@@ -20,9 +18,6 @@ ids = [
 ]
 
 [rust]
-# Versiones fuente de verdad — deben coincidir exactamente con Cargo.toml.
-# glyphon está planificado para renderizado de texto avanzado (Etapa 4+)
-# pero aún no se agregó como dependencia; se incorporará cuando se implemente.
 wgpu = "30"
 winit = "0.30.13"
 egui = "0.37"
