@@ -1,59 +1,59 @@
-//! Modelo de crosshair del chart.
-//!
-//! El crosshair usa las mismas transformaciones y estado de escala que el
-//! renderer, sin duplicar fórmulas de conversión de coordenadas.
-//! Es un tipo puro de dominio: no conoce `egui` ni `wgpu`.
+
+
+
+
+
 
 use crate::chart::layout::ChartLayout;
 use crate::domain::viewport::Viewport;
 
-/// Modo de visualización del crosshair.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CrosshairMode {
-    /// Líneas vertical y horizontal completas.
+
     #[default]
     Full,
-    /// Solo etiquetas, sin líneas.
+
     LabelsOnly,
-    /// Crosshair oculto.
+
     Hidden,
 }
 
-/// Parámetros de contexto para actualizar el crosshair.
-///
-/// Agrupa los datos que no cambian por frame (dimensiones, rango de precio,
-/// cantidad de velas) para evitar pasar muchos argumentos sueltos.
+
+
+
+
 #[derive(Debug, Clone, Copy)]
 pub struct CrosshairUpdateParams<'a> {
-    /// Layout del chart (dimensiones y márgenes).
+
     pub layout: &'a ChartLayout,
-    /// Rango de precios visible (máximo - mínimo).
+
     pub price_range: f64,
-    /// Precio central de zoom.
+
     pub center_price: f64,
-    /// Cantidad total de velas cargadas.
+
     pub candle_count: usize,
 }
 
-/// Estado del crosshair: posición, precio e índice bajo el cursor.
+
 #[derive(Debug, Clone, Copy)]
 pub struct Crosshair {
-    /// Modo actual.
+
     pub mode: CrosshairMode,
-    /// Posición X en el área de plot (píxeles).
+
     pub x: f64,
-    /// Posición Y en el área de plot (píxeles).
+
     pub y: f64,
-    /// Índice de vela bajo el cursor (redondeado al entero más cercano).
+
     pub index: usize,
-    /// Precio bajo el cursor.
+
     pub price: f64,
-    /// `true` si el cursor está dentro del área de plot.
+
     pub visible: bool,
 }
 
 impl Crosshair {
-    /// Crea un crosshair oculto.
+
     pub fn hidden() -> Self {
         Self {
             mode: CrosshairMode::Hidden,
@@ -65,12 +65,12 @@ impl Crosshair {
         }
     }
 
-    /// Actualiza la posición del crosshair a partir de la posición del cursor
-    /// en el área de plot, usando las transformaciones del viewport y el
-    /// layout del chart.
-    ///
-    /// No modifica el viewport: solo calcula la representación visual del
-    /// crosshair a partir del estado actual.
+
+
+
+
+
+
     pub fn update(
         &mut self,
         cursor_x: f64,
@@ -125,17 +125,17 @@ impl Crosshair {
             .unwrap_or_default();
     }
 
-    /// Devuelve `true` si el crosshair está visible y debe dibujarse.
+
     pub fn is_visible(&self) -> bool {
         self.visible && self.mode != CrosshairMode::Hidden
     }
 
-    /// Devuelve `true` si se deben dibujar las líneas del crosshair.
+
     pub fn draw_lines(&self) -> bool {
         self.is_visible() && self.mode == CrosshairMode::Full
     }
 
-    /// Devuelve `true` si se deben mostrar las etiquetas.
+
     pub fn draw_labels(&self) -> bool {
         self.is_visible() && self.mode != CrosshairMode::Hidden
     }
@@ -215,7 +215,7 @@ mod tests {
         let layout = make_layout();
         let viewport = make_viewport();
 
-        // Centro del plot.
+
         let cx = layout.plot.left + layout.plot.width() / 2.0;
         let cy = layout.plot.top + layout.plot.height() / 2.0;
         let params = CrosshairUpdateParams {
@@ -247,7 +247,7 @@ mod tests {
         };
         ch.update(cx, cy, params, &viewport);
 
-        // Con offset_x = 0, el índice en el centro es 0.
+
         assert_eq!(ch.index, 0);
     }
 
