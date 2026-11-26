@@ -6,7 +6,6 @@ pub struct Quantity {
 }
 
 impl Quantity {
-
     pub fn new(value: rust_decimal::Decimal) -> Result<Self, QuantityError> {
         if value.is_zero() || value.is_sign_negative() {
             return Err(QuantityError::NonPositiveQuantity {
