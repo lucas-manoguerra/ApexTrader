@@ -14,7 +14,7 @@ pub trait ChartRenderer {
 
 pub fn create_renderer(target_format: Option<eframe::wgpu::TextureFormat>) -> Box<dyn ChartRenderer> {
     tracing::info!(
-        "Usando renderer basado en egui::Painter; la presentación GPU corresponde al backend seleccionado por eframe."
+        "Usando pipeline WGPU para la serie del chart y egui para los elementos de presentación."
     );
     Box::new(EguiPainterChartRenderer::with_target_format(target_format))
 }
