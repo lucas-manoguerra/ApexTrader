@@ -3,7 +3,6 @@ use apex_trader::domain::price_range::PriceRange;
 use apex_trader::domain::viewport::Viewport;
 use rust_decimal::Decimal;
 
-
 #[test]
 fn auto_scale_zoom_within_limits() {
     let mut viewport = Viewport::new();
@@ -17,7 +16,6 @@ fn auto_scale_zoom_within_limits() {
     assert!(viewport.zoom_x() <= viewport.max_zoom());
 }
 
-
 #[test]
 fn auto_scale_single_candle_reasonable_zoom() {
     let mut viewport = Viewport::new();
@@ -30,7 +28,6 @@ fn auto_scale_single_candle_reasonable_zoom() {
     assert!(viewport.zoom_x() > 0.0);
     assert!(viewport.zoom_x() <= viewport.max_zoom());
 }
-
 
 #[test]
 fn auto_scale_prices_within_screen_bounds() {
@@ -75,7 +72,6 @@ fn auto_scale_prices_within_screen_bounds() {
     );
 }
 
-
 #[test]
 fn auto_scale_center_price_maps_to_center_y() {
     let mut viewport = Viewport::new();
@@ -91,8 +87,6 @@ fn auto_scale_center_price_maps_to_center_y() {
 
     assert!((y_mid - screen_height / 2.0).abs() < 1.0);
 }
-
-
 
 #[test]
 fn auto_scale_only_affects_y_axis() {
@@ -121,9 +115,6 @@ fn auto_scale_only_affects_y_axis() {
         zoom_y_before
     );
 }
-
-
-
 
 #[test]
 fn auto_scale_first_candle_within_horizontal_margin() {
@@ -160,7 +151,6 @@ fn auto_scale_first_candle_within_horizontal_margin() {
         "última vela debe estar dentro de la pantalla"
     );
 }
-
 
 #[test]
 fn auto_scale_idempotent() {
