@@ -1,17 +1,17 @@
-//! Representación intermedia de renderizado.
-//!
-//! Separa la preparación de geometría del backend concreto. La escena toma
-//! datos prestados del dominio; el frame convierte solo el rango visible en
-//! primitivas tipadas que pueden consumir distintos renderers.
-//!
-//! Este módulo no depende de egui ni de wgpu.
+
+
+
+
+
+
+
 
 use crate::chart::layout::{ChartLayout, Rect};
 use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::domain::transforms::ScreenPoint;
 use crate::domain::viewport::Viewport;
 
-/// Color RGBA independiente de cualquier backend gráfico.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RenderColor {
     pub red: u8,
@@ -35,115 +35,115 @@ impl RenderColor {
     }
 }
 
-/// Una capa de renderizado: agrupa elementos del mismo tipo para dibujar juntos.
+
 #[derive(Debug, Clone, Default)]
 pub struct RenderLayer {
-    /// Velas a dibujar en esta capa.
+
     pub candles: Vec<CandleRender>,
-    /// Barras de volumen, ordenadas igual que las velas correspondientes.
+
     pub volume_bars: Vec<VolumeBarRender>,
-    /// Etiquetas de eje de precios.
+
     pub price_axis_labels: Vec<PriceAxisLabel>,
-    /// Etiquetas de eje de tiempo.
+
     pub time_axis_labels: Vec<TimeAxisLabel>,
-    /// Líneas de crosshair.
+
     pub crosshair: Option<CrosshairRender>,
 }
 
-/// Datos para renderizar una vela individual.
+
 #[derive(Debug, Clone, Copy)]
 pub struct CandleRender {
-    /// Índice lógico de la vela en la serie.
+
     pub index: usize,
-    /// Precio de apertura (píxel Y relativo al rect del chart).
+
     pub open_y: f32,
-    /// Precio máximo (píxel Y relativo al rect del chart).
+
     pub high_y: f32,
-    /// Precio mínimo (píxel Y relativo al rect del chart).
+
     pub low_y: f32,
-    /// Precio de cierre (píxel Y relativo al rect del chart).
+
     pub close_y: f32,
-    /// Posición X del centro (píxel relativo al rect del chart).
+
     pub center_x: f32,
-    /// Ancho del cuerpo (píxeles).
+
     pub body_width: f32,
-    /// Color de la vela.
+
     pub color: RenderColor,
-    /// Volumen original de la vela.
+
     pub volume: f64,
 }
 
-/// Datos para renderizar una barra de volumen.
+
 #[derive(Debug, Clone, Copy)]
 pub struct VolumeBarRender {
-    /// Índice lógico de la vela asociada.
+
     pub index: usize,
-    /// Posición X del centro (píxel relativo al rect del chart).
+
     pub center_x: f32,
-    /// Altura de la barra (píxeles).
+
     pub height: f32,
-    /// Posición Y de la base (píxel relativo al rect del chart).
+
     pub base_y: f32,
-    /// Color de la barra.
+
     pub color: RenderColor,
 }
 
-/// Etiqueta de eje de precios (Y).
+
 #[derive(Debug, Clone)]
 pub struct PriceAxisLabel {
-    /// Texto de la etiqueta.
+
     pub text: String,
-    /// Posición Y (píxel).
+
     pub y: f32,
 }
 
-/// Etiqueta de eje de tiempo (X).
+
 #[derive(Debug, Clone)]
 pub struct TimeAxisLabel {
-    /// Texto de la etiqueta.
+
     pub text: String,
-    /// Posición X (píxel).
+
     pub x: f32,
 }
 
-/// Renderizado de crosshair.
+
 #[derive(Debug, Clone, Copy)]
 pub struct CrosshairRender {
-    /// Posición X (píxel).
+
     pub x: f32,
-    /// Posición Y (píxel).
+
     pub y: f32,
-    /// Precio bajo el cursor.
+
     pub price: f64,
-    /// Índice de vela bajo el cursor.
+
     pub index: usize,
-    /// Color de las líneas.
+
     pub color: RenderColor,
 }
 
-/// Un frame preparado para que lo consuma un backend de renderizado.
-///
-/// Las coordenadas de layout y primitivas son locales al rect del chart.
-/// origin permite al backend trasladarlas al espacio de pantalla.
+
+
+
+
 #[derive(Debug, Clone)]
 pub struct RenderFrame {
-    /// Rect de dibujo completo, en coordenadas locales.
+
     pub rect: Rect,
-    /// Origen del rect completo en coordenadas de pantalla.
+
     pub origin: ScreenPoint,
-    /// Layout del chart.
+
     pub layout: ChartLayout,
-    /// Capas preparadas para este frame.
+
     pub layers: Vec<RenderLayer>,
-    /// Posición del crosshair en coordenadas relativas al rect completo.
+
     pub crosshair_pos: Option<ScreenPoint>,
 }
 
 impl RenderFrame {
-    /// Prepara un frame y, opcionalmente, la geometría de la serie.
-    ///
-    /// include_series permite reutilizar la geometría cacheada cuando solo
-    /// cambia el cursor u otro overlay que no modifica velas ni volumen.
+
+
+
+
     pub fn from_scene(
         scene: &ChartScene<'_>,
         width: f64,
@@ -168,91 +168,91 @@ impl RenderFrame {
     }
 }
 
-/// Geometría lista para enviar a un backend GPU.
+
 #[derive(Debug, Clone, Default)]
 pub struct RenderGeometry {
-    /// Vértices para cuerpos de velas (x, y, r, g).
+
     pub candle_vertices: Vec<[f32; 4]>,
-    /// Índices para cuerpos de velas.
+
     pub candle_indices: Vec<u16>,
-    /// Vértices para mechas (wicks).
+
     pub wick_vertices: Vec<[f32; 4]>,
-    /// Vértices para barras de volumen.
+
     pub volume_vertices: Vec<[f32; 4]>,
 }
 
-/// La escena completa del chart: qué dibujar, sin decir cómo.
+
 #[derive(Debug, Clone)]
 pub struct ChartScene<'a> {
-    /// Vista prestada de los puntos de datos propiedad de ChartState.
-    ///
-    /// La escena no clona ni toma posesión de las velas; su vida útil queda
-    /// limitada al préstamo entregado por la aplicación en este frame.
+
+
+
+
     pub data_points: &'a [ChartDataPoint],
-    /// Viewport (zoom y pan).
+
     pub viewport: Viewport,
-    /// Rango transformado visible para el tipo de escala activo.
+
     pub price_range: f64,
-    /// Centro de zoom en las unidades transformadas del eje.
+
     pub center_price: f64,
-    /// Incremento mínimo de precio del instrumento, para alinear y formatear ticks.
+
     pub price_tick_size: f64,
-    /// Volumen máximo entre las velas visibles.
+
     pub max_volume: f64,
-    /// Cantidad de velas cargadas.
+
     pub candle_count: usize,
-    /// Ancho del área de dibujo (píxeles).
+
     pub screen_width: f64,
-    /// Alto del área de dibujo (píxeles).
+
     pub screen_height: f64,
-    /// Posición del crosshair en pantalla, si hay uno activo.
+
     pub crosshair_pos: Option<ScreenPoint>,
-    /// Máscara de invalidación: qué partes del chart necesitan ser re-renderizadas.
+
     pub invalidation_mask: InvalidationMask,
 }
 
-/// Motivo por el cual el chart necesita ser re-renderizado.
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum InvalidationReason {
-    /// No hay cambios; nada que re-renderizar.
+
     #[default]
     None,
-    /// Solo el cursor/crosshair se movió; los datos no cambiaron.
+
     CursorOnly,
-    /// Se superpuso un overlay o dibujo nuevo; el resto del chart es igual.
+
     Overlay,
-    /// Cambiaron los datos de las velas (nuevos símbolos, recarga).
+
     SeriesData,
-    /// Cambiaron escala, layout o dimensiones (zoom, pan, resize).
+
     ScaleLayout,
-    /// Cambio total; hay que re-renderizar todo desde cero.
+
     Full,
 }
 
-/// Máscara de invalidación para el renderizado.
-///
-/// Permite al renderer saber qué partes del chart son caras de regenerar
-/// y cuáles se pueden reusar del frame anterior.
+
+
+
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct InvalidationMask {
-    /// Nivel más alto de invalidación detectado.
+
     pub level: InvalidationReason,
 }
 
 impl InvalidationMask {
-    /// Máscara vacía: no hay cambios.
+
     pub fn none() -> Self {
         Self {
             level: InvalidationReason::None,
         }
     }
 
-    /// Devuelve true si no hay nada que re-renderizar.
+
     pub fn is_none(&self) -> bool {
         self.level == InvalidationReason::None
     }
 
-    /// Combina dos máscaras, quedándose con el nivel de mayor costo.
+
     pub fn merge(self, other: Self) -> Self {
         let level = if self.level as u8 > other.level as u8 {
             self.level
@@ -264,7 +264,7 @@ impl InvalidationMask {
 }
 
 impl<'a> ChartScene<'a> {
-    /// Crea una ChartScene vacía.
+
     pub fn empty() -> Self {
         Self {
             data_points: &[],
