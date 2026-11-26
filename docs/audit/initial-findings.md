@@ -112,3 +112,8 @@ No se reorganizarán directorios ni se extraerán crates hasta tener el mapa de 
 ## Auditoría de integridad de datos de mercado
 
 La revisión del flujo histórico/realtime identificó riesgos adicionales que requieren tratamiento prioritario antes de conectar proveedores reales o implementar cálculos financieros: fallback sintético tras fallos de carga, ingestión parcial presentada como exitosa, OHLCV autoritativo en `f64`, tick size inferido por nombre de símbolo, ausencia de política de finalización/reconciliación realtime, validación temporal insuficiente en `ChartState` y políticas de duplicados distintas entre caminos de ingreso. La evidencia, impacto, severidad y contratos pendientes están detallados en [`market-data-integrity.md`](market-data-integrity.md). Estos hallazgos no se han corregido todavía; se documentan primero para definir invariantes y pruebas antes de alterar comportamiento.
+
+
+## Contrato canónico de datos de mercado
+
+La auditoría se amplía con el borrador normativo `docs/audit/market-data-contract.md`, que establece requisitos para identidad de serie, especificación de instrumento, precisión numérica, tiempo/calendario, ciclo de vida, calidad, reconciliación, atomicidad, capacidad y pruebas. La auditoría detallada registra once hallazgos en `docs/audit/market-data-integrity.md`. Estos documentos son criterios de diseño para la siguiente fase; no implican que el comportamiento actual ya los cumpla.
