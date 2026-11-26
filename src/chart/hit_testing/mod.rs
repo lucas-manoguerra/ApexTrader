@@ -1,14 +1,14 @@
-//! Sistema de hit-testing del chart.
-//!
-//! Permite detectar qué elemento visual (vela, serie, dibujo, marcador,
-//! overlay, etiqueta de eje) está bajo una posición de pantalla, sin que
-//! el dominio conozca `egui` ni `wgpu`.
-//!
-//! Flujo:
-//! 1. La capa de aplicación construye un `HitTestContext` a partir del
-//!    viewport, layout y posición del cursor.
-//! 2. El `HitTester` itera sobre los objetos `HitTestable` ordenados por
-//!    z-order y devuelve el mejor hit.
+
+
+
+
+
+
+
+
+
+
+
 
 pub mod hit_tester;
 pub mod result;
