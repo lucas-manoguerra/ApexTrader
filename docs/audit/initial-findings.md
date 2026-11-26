@@ -117,3 +117,8 @@ La revisión del flujo histórico/realtime identificó riesgos adicionales que r
 ## Contrato canónico de datos de mercado
 
 La auditoría se amplía con el borrador normativo `docs/audit/market-data-contract.md`, que establece requisitos para identidad de serie, especificación de instrumento, precisión numérica, tiempo/calendario, ciclo de vida, calidad, reconciliación, atomicidad, capacidad y pruebas. La auditoría detallada registra once hallazgos en `docs/audit/market-data-integrity.md`. Estos documentos son criterios de diseño para la siguiente fase; no implican que el comportamiento actual ya los cumpla.
+
+
+## Evaluación del modelo numérico financiero
+
+La inspección confirmó que `Price` y `Quantity` usan `Decimal`, pero OHLCV en `MarketCandle` y `domain::Candle` permanece en `f64`. La conversión posterior desde punto flotante no recupera el decimal original. Se documentó la evaluación de Decimal, unidades enteras escaladas y un modelo híbrido en [financial-numeric-model.md](financial-numeric-model.md), con criterios de decisión, arquitectura objetivo, matriz de pruebas y puertas de aceptación. La elección queda abierta hasta conocer mercados, instrumentos y proveedores soportados.
