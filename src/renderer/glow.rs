@@ -6,7 +6,6 @@ use crate::renderer::{ChartRenderer, ChartScene, RenderFrame, RenderLayer};
 use eframe::egui;
 
 pub struct GlowChartRenderer {
-
     cached_series_layer: RenderLayer,
     cached_series_shapes: Vec<egui::Shape>,
     series_cache_valid: bool,
@@ -163,9 +162,7 @@ struct TimeAxisParams<'a> {
 
 #[derive(Debug, Clone, Copy)]
 struct PriceTick {
-
     value: f64,
-
     scale_value: f64,
     y: f64,
     label_step: f64,
