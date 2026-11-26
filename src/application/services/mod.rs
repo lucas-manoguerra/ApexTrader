@@ -1,5 +1,5 @@
 use crate::application::commands::load_candles::LoadCandles;
-use crate::presentation::input::egui::{self, InputHandler};
+use crate::presentation::input::egui::{self as input_egui, InputHandler};
 use crate::chart::layout::ChartLayout;
 use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::domain::chart_state::ChartState;
@@ -293,7 +293,7 @@ impl eframe::App for ApexTraderApp {
 
             let crosshair_pos = {
                 let chart = &mut self.chart;
-                events::handle_input(
+                input_egui::handle_input(
                     &mut self.input_handler,
                     ui,
                     &response,
