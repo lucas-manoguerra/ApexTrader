@@ -20,5 +20,6 @@ Cada decisión nueva usa un archivo numerado `NNNN-titulo.md` con:
 - [ADR-0002: Arquitectura modular](0002-modular-architecture.md)
 - [ADR-0003: WGPU como backend gráfico principal](0003-wgpu-rendering-backend.md)
 - [ADR-0004: Modelo temporal y biblioteca de fechas](0004-time-model-and-library.md)
+- [ADR-0005: Soporte desktop multiplataforma](0005-desktop-cross-platform-support.md)
 
 Las reglas operativas actuales están en los estándares de ingeniería y arquitectura.
