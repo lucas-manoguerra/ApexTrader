@@ -1,15 +1,8 @@
-
-
-
-
-
-
 use crate::market::candle::MarketCandle;
 use crate::market::errors::MarketError;
 use crate::market::mock::{normal_noise, unit_noise};
 use crate::market::provider::{RealtimeMarketDataProvider, RealtimeMarketUpdate};
 use crate::market::symbol::Symbol;
-
 
 #[derive(Debug, Clone)]
 pub struct MockRealtimeMarketDataProvider {
@@ -26,9 +19,6 @@ pub struct MockRealtimeMarketDataProvider {
 }
 
 impl MockRealtimeMarketDataProvider {
-
-
-
 
     pub fn from_last_candle(
         last_candle: MarketCandle,
