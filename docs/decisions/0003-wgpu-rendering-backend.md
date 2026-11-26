@@ -8,10 +8,10 @@ Aceptada
 
 ApexTrader es una aplicación desktop para Windows, macOS y Linux. El motor gráfico de producto debe ser wgpu; Glow/OpenGL no es un backend alternativo de producto ni un fallback silencioso.
 
-El estado actual no cumple esa dirección:
-- `Cargo.toml` habilita `eframe` con `glow`.
-- `bootstrap::desktop::run` usa las opciones nativas por defecto y no selecciona explícitamente el renderer.
-- `renderer::create_renderer` crea `GlowChartRenderer`.
+El estado inicial auditado no cumplía esa dirección:
+- En el baseline, `Cargo.toml` habilitaba `eframe` con `glow`.
+- En el baseline, `bootstrap::desktop::run` usaba las opciones nativas por defecto y no seleccionaba explícitamente el renderer.
+- En el baseline, `renderer::create_renderer` creaba `GlowChartRenderer`.
 - `ChartRenderer::draw` recibe `egui::Painter` y `egui::Rect`, por lo que el contrato de renderer está acoplado a la presentación.
 - `WgpuChartRenderer` crea su propia instancia y device, limita los backends a DX12, no crea una surface y no presenta la escena.
 - `WgpuPipeline` dibuja geometría de prueba y no proyecta la escena real del chart.
@@ -51,11 +51,14 @@ La migración se ejecuta en fases para preservar la UI y evitar que un cambio de
 
 ### Fase 1: activar WGPU en eframe
 
-- Habilitar el feature WGPU de eframe y los backends de ventana requeridos por Windows, macOS y Linux.
-- Seleccionar `eframe::Renderer::Wgpu` explícitamente desde bootstrap.
-- Mantener temporalmente el renderer actual basado en `egui::Painter`, renombrándolo para reflejar su responsabilidad real y no atribuirle Glow.
+- Estado: completada en el head `5afa0a2b1dab150414b625bc9af13018bf0828d0`.
+- `Cargo.toml` habilita `wgpu`, `wayland` y `x11` en eframe; no habilita Glow ni `default_fonts`.
+- `bootstrap::desktop` selecciona explícitamente `eframe::Renderer::Wgpu`.
+- El renderer basado en `egui::Painter` fue renombrado a `EguiPainterChartRenderer`, reflejando su responsabilidad real y sin atribuirle Glow.
+- `Cargo.lock` fue regenerado mediante `cargo check --workspace --all-targets` y quedó versionado. Se retiró `default_fonts` al detectar que añadía licencias no incluidas en la política vigente; no se amplió la allowlist.
 - En esta fase, egui dibuja las primitivas del chart y eframe las presenta mediante WGPU. Esto activa WGPU como backend gráfico de la aplicación, pero todavía no constituye un renderer de chart con pipelines propios.
-- No habilitar Glow como fallback.
+- No se habilita Glow como fallback.
+- CI #321 pasó en Windows, macOS y Linux, incluidos build debug/release, tests, Clippy, documentación y auditoría de dependencias. La validación de runtime gráfico con hardware real sigue pendiente.
 
 ### Fase 2: renderer WGPU propio del chart
 

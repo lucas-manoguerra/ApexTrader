@@ -95,10 +95,10 @@ jobs:
             ${{ runner.os }}-cargo-target-
 
       - name: Check compile (debug)
-        run: cargo check --workspace --all-targets
+        run: cargo check --workspace --all-targets --locked
 
       - name: Check compile (release)
-        run: cargo check --workspace --all-targets --release
+        run: cargo check --workspace --all-targets --release --locked
 
   clippy:
     name: Clippy
@@ -140,7 +140,7 @@ jobs:
             ${{ runner.os }}-cargo-target-
 
       - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
   test:
     name: Run tests
@@ -181,7 +181,7 @@ jobs:
             ${{ runner.os }}-cargo-target-
 
       - name: Run tests
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
 
   documentation:
     name: Documentation
@@ -222,7 +222,7 @@ jobs:
             ${{ runner.os }}-cargo-target-
 
       - name: Build documentation
-        run: cargo doc --workspace --no-deps
+        run: cargo doc --workspace --no-deps --locked
 
   architecture:
     name: Verify architecture boundaries
