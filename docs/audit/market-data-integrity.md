@@ -143,3 +143,40 @@ Cuando el texto ingresado no puede convertirse a `Symbol`, la aplicación detien
 
 **Dirección requerida:** separar el texto de búsqueda del instrumento activo. Mostrar siempre el instrumento/procedencia asociado a la serie actualmente renderizada. Ante una solicitud inválida, conservar la serie previa solo si queda claramente identificada como último instrumento válido; no presentar el texto inválido como identidad de la serie. Añadir pruebas de transición entre símbolo válido, inválido y válido distinto.
 
+
+
+### MD-009 — La identidad de vela no incluye timeframe ni mercado
+
+**Severidad:** crítica para series múltiples.
+
+**Evidencia:** `src/market/provider.rs`, `src/market/candle.rs`, `src/domain/chart_state.rs` y `src/domain/chart/chart_data.rs`.
+
+El contrato histórico recibe símbolo y rango temporal, pero no timeframe ni venue. `MarketCandle` conserva símbolo y timestamps, pero no timeframe, fuente, tipo de precio ni identificador de instrumento canónico. `ChartState` ordena y deduplica exclusivamente por `open_time_ms`.
+
+**Riesgo:** dos series del mismo símbolo con distinta granularidad, venue, proveedor o tipo de precio pueden colisionar si llegan al mismo estado. La deduplicación podría reemplazar una vela de una serie con una vela perteneciente a otra, sin que el modelo pueda detectar el conflicto.
+
+**Dirección requerida:** introducir una identidad de serie explícita y una identidad lógica de vela compuesta por serie más período. Incluir timeframe/definición de agregación y los metadatos de mercado necesarios. Separar estados por serie o impedir que un estado de gráfico mezcle identidades incompatibles. El contrato propuesto está en `market-data-contract.md`.
+
+### MD-010 — La identidad del símbolo no tiene política de canonicalización
+
+**Severidad:** media-alta.
+
+**Evidencia:** `src/market/symbol.rs`.
+
+El parser acepta tanto `BTC/USDT` como `btc/usdt`, pero conserva literalmente las cadenas y la igualdad/hash de `Symbol` distinguen ambos valores. El generador mock también deriva su semilla de la representación textual. No existe un catálogo ni un mapeo explícito de alias a instrumento canónico.
+
+**Riesgo:** identificadores que un proveedor considere equivalentes pueden crear series separadas, fallar la validación de símbolo o generar datos sintéticos distintos. No es correcto imponer uppercase universalmente sin considerar los mercados que pueden tener identificadores sensibles a mayúsculas.
+
+**Dirección requerida:** resolver símbolos mediante metadatos del proveedor y un identificador canónico de instrumento. Mantener el símbolo externo como alias con ámbito de proveedor/venue. Definir equivalencia y normalización por mercado, no por una transformación textual global.
+
+### MD-011 — Parte de las pruebas de propiedades no verifica la propiedad que su nombre anuncia
+
+**Severidad:** alta para confianza de validación.
+
+**Evidencia:** `tests/market_proptest.rs`.
+
+La propiedad `prop_market_candles_unique_timestamps` ordena timestamps, los deduplica y comprueba que el número deduplicado sea menor o igual al original. Esa desigualdad es cierta por construcción y no ejercita `ChartState`, no valida unicidad en el estado final y no comprueba la política de conflictos. Además, `prop_market_candle_to_domain_candle` solo prueba conversión a `Candle`, no conversión completa a `ChartDataPoint`; la estrategia genera timestamps positivos pequeños y no alcanza extremos ni overflow.
+
+**Riesgo:** el nombre de las pruebas puede transmitir una cobertura mayor que la realmente existente. Los casos límite temporales y la reconciliación de datos siguen sin protección basada en propiedades.
+
+**Dirección requerida:** reemplazar las propiedades tautológicas por pruebas sobre comportamiento observable del sistema: inserción en `ChartState`, número de series/puntos, identidad de vela, conflicto y resultado determinista. Generar valores en límites de enteros, escalas decimales, rangos temporales y estados realtime; comprobar que toda vela declarada válida pueda convertirse a cada tipo derivado requerido.
