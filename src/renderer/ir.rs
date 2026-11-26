@@ -28,100 +28,66 @@ impl RenderColor {
 
 #[derive(Debug, Clone, Default)]
 pub struct RenderLayer {
-
     pub candles: Vec<CandleRender>,
-
     pub volume_bars: Vec<VolumeBarRender>,
-
     pub price_axis_labels: Vec<PriceAxisLabel>,
-
     pub time_axis_labels: Vec<TimeAxisLabel>,
-
     pub crosshair: Option<CrosshairRender>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct CandleRender {
-
     pub index: usize,
-
     pub open_y: f32,
-
     pub high_y: f32,
-
     pub low_y: f32,
-
     pub close_y: f32,
-
     pub center_x: f32,
-
     pub body_width: f32,
-
     pub color: RenderColor,
-
     pub volume: f64,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct VolumeBarRender {
-
     pub index: usize,
-
     pub center_x: f32,
-
     pub height: f32,
-
     pub base_y: f32,
-
     pub color: RenderColor,
 }
 
 #[derive(Debug, Clone)]
 pub struct PriceAxisLabel {
-
     pub text: String,
-
     pub y: f32,
 }
 
 #[derive(Debug, Clone)]
 pub struct TimeAxisLabel {
-
     pub text: String,
-
     pub x: f32,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct CrosshairRender {
-
     pub x: f32,
-
     pub y: f32,
-
     pub price: f64,
-
     pub index: usize,
-
     pub color: RenderColor,
 }
 
 #[derive(Debug, Clone)]
 pub struct RenderFrame {
-
     pub rect: Rect,
-
     pub origin: ScreenPoint,
-
     pub layout: ChartLayout,
-
     pub layers: Vec<RenderLayer>,
-
     pub crosshair_pos: Option<ScreenPoint>,
 }
 
 impl RenderFrame {
-
     pub fn from_scene(
         scene: &ChartScene<'_>,
         width: f64,
@@ -148,45 +114,29 @@ impl RenderFrame {
 
 #[derive(Debug, Clone, Default)]
 pub struct RenderGeometry {
-
     pub candle_vertices: Vec<[f32; 4]>,
-
     pub candle_indices: Vec<u16>,
-
     pub wick_vertices: Vec<[f32; 4]>,
-
     pub volume_vertices: Vec<[f32; 4]>,
 }
 
 #[derive(Debug, Clone)]
 pub struct ChartScene<'a> {
-
     pub data_points: &'a [ChartDataPoint],
-
     pub viewport: Viewport,
-
     pub price_range: f64,
-
     pub center_price: f64,
-
     pub price_tick_size: f64,
-
     pub max_volume: f64,
-
     pub candle_count: usize,
-
     pub screen_width: f64,
-
     pub screen_height: f64,
-
     pub crosshair_pos: Option<ScreenPoint>,
-
     pub invalidation_mask: InvalidationMask,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum InvalidationReason {
-
     #[default]
     None,
 
@@ -203,12 +153,10 @@ pub enum InvalidationReason {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct InvalidationMask {
-
     pub level: InvalidationReason,
 }
 
 impl InvalidationMask {
-
     pub fn none() -> Self {
         Self {
             level: InvalidationReason::None,
@@ -230,7 +178,6 @@ impl InvalidationMask {
 }
 
 impl<'a> ChartScene<'a> {
-
     pub fn empty() -> Self {
         Self {
             data_points: &[],
