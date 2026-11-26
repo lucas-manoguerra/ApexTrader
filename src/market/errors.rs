@@ -2,7 +2,6 @@ use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum MarketError {
-
     #[error("símbolo inválido '{symbol}': {reason}")]
     InvalidSymbol { symbol: String, reason: String },
 
