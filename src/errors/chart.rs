@@ -1,10 +1,5 @@
 use crate::domain::candle::Candle;
 
-
-
-
-
-
 #[derive(Debug, thiserror::Error)]
 pub enum ChartError {
     #[error("El rango de precios es inválido: mínimo {min} > máximo {max}")]
