@@ -1,10 +1,6 @@
 use crate::domain::price::Price;
 use crate::errors::PriceError;
 
-
-
-
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PriceRange {
     min: Price,
@@ -12,10 +8,6 @@ pub struct PriceRange {
 }
 
 impl PriceRange {
-
-
-
-
 
     pub fn new(min: Price, max: Price) -> Result<Self, PriceError> {
         if min.value() > max.value() {
@@ -28,21 +20,17 @@ impl PriceRange {
         Ok(Self { min, max })
     }
 
-
     pub fn min(self) -> Price {
         self.min
     }
-
 
     pub fn max(self) -> Price {
         self.max
     }
 
-
     pub fn contains(&self, price: Price) -> bool {
         price.value() >= self.min.value() && price.value() <= self.max.value()
     }
-
 
     pub fn midpoint(self) -> Price {
         let mid = (self.min.value() + self.max.value()) / rust_decimal::Decimal::new(2, 0);
