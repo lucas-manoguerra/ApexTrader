@@ -112,12 +112,15 @@ impl RenderFrame {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RenderVertex {
+    pub position: [f32; 2],
+    pub color: RenderColor,
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct RenderGeometry {
-    pub candle_vertices: Vec<[f32; 4]>,
-    pub candle_indices: Vec<u16>,
-    pub wick_vertices: Vec<[f32; 4]>,
-    pub volume_vertices: Vec<[f32; 4]>,
+    pub vertices: Vec<RenderVertex>,
 }
 
 #[derive(Debug, Clone)]

@@ -20,11 +20,14 @@ pub fn create_renderer() -> Box<dyn ChartRenderer> {
 }
 
 mod egui_painter;
+mod geometry;
 mod ir;
 
 pub use egui_painter::EguiPainterChartRenderer;
 pub use ir::{
     CandleRender, ChartScene, CrosshairRender, InvalidationMask, InvalidationReason,
-    PriceAxisLabel, RenderColor, RenderFrame, RenderGeometry, RenderLayer, TimeAxisLabel,
+    PriceAxisLabel, RenderColor, RenderFrame, RenderGeometry, RenderLayer, RenderVertex, TimeAxisLabel,
     VolumeBarRender,
 };
+
+pub use geometry::build_geometry;
