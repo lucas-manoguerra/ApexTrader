@@ -24,7 +24,7 @@ mod ir;
 mod wgpu;
 mod wgpu_pipeline;
 
-pub use glow::GlowChartRenderer;
+pub use egui_painter::EguiPainterChartRenderer;
 pub use ir::{
     CandleRender, ChartScene, CrosshairRender, InvalidationMask, InvalidationReason,
     PriceAxisLabel, RenderColor, RenderFrame, RenderGeometry, RenderLayer, TimeAxisLabel,
