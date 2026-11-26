@@ -1,15 +1,4 @@
-
-
-
-
-
-
 use crate::domain::candle::Candle;
-
-
-
-
-
 
 #[derive(Debug, Clone, Copy)]
 pub struct ChartDataPoint {
@@ -31,26 +20,21 @@ impl ChartDataPoint {
         }
     }
 
-
     pub fn open(&self) -> f64 {
         self.candle.open()
     }
-
 
     pub fn high(&self) -> f64 {
         self.candle.high()
     }
 
-
     pub fn low(&self) -> f64 {
         self.candle.low()
     }
 
-
     pub fn close(&self) -> f64 {
         self.candle.close()
     }
-
 
     pub fn volume(&self) -> f64 {
         self.candle.volume()
