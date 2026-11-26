@@ -42,24 +42,16 @@ pub struct PaneRect {
 
 #[derive(Debug, Clone)]
 pub struct ChartLayout {
-
     pub full: Rect,
-
     pub plot: Rect,
-
     pub price_axis_left: Rect,
-
     pub price_axis_right: Rect,
-
     pub time_axis: Rect,
-
     pub volume_panel: Rect,
-
     pub additional_panes: Vec<PaneRect>,
 }
 
 impl ChartLayout {
-
     pub fn compute(full_width: f64, full_height: f64) -> Self {
         if !full_width.is_finite()
             || !full_height.is_finite()
