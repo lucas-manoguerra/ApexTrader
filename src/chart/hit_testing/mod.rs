@@ -1,15 +1,3 @@
-
-
-
-
-
-
-
-
-
-
-
-
 pub mod hit_tester;
 pub mod result;
 pub mod r#trait;
