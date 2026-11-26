@@ -14,18 +14,13 @@ const SPIKE_SALT: u64 = 0xBBE0_4E99_8E2A_4C31;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MockMarketDataProvider {
-
     pub base_price: f64,
-
     pub interval_ms: i64,
-
     pub base_volume: f64,
-
     pub seed: u64,
 }
 
 impl MockMarketDataProvider {
-
     pub fn new(base_price: f64) -> Self {
         Self {
             base_price,
