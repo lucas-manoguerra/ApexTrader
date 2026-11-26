@@ -6,7 +6,6 @@ pub struct TimePoint {
 }
 
 impl TimePoint {
-
     pub fn new(open_time_ms: i64, close_time_ms: i64, interval_ms: i64) -> Option<Self> {
         if close_time_ms < open_time_ms || interval_ms <= 0 {
             return None;
