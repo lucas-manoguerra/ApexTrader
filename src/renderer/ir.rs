@@ -1,16 +1,7 @@
-
-
-
-
-
-
-
-
 use crate::chart::layout::{ChartLayout, Rect};
 use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::domain::transforms::ScreenPoint;
 use crate::domain::viewport::Viewport;
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RenderColor {
@@ -35,7 +26,6 @@ impl RenderColor {
     }
 }
 
-
 #[derive(Debug, Clone, Default)]
 pub struct RenderLayer {
 
@@ -49,7 +39,6 @@ pub struct RenderLayer {
 
     pub crosshair: Option<CrosshairRender>,
 }
-
 
 #[derive(Debug, Clone, Copy)]
 pub struct CandleRender {
@@ -73,7 +62,6 @@ pub struct CandleRender {
     pub volume: f64,
 }
 
-
 #[derive(Debug, Clone, Copy)]
 pub struct VolumeBarRender {
 
@@ -88,7 +76,6 @@ pub struct VolumeBarRender {
     pub color: RenderColor,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct PriceAxisLabel {
 
@@ -97,7 +84,6 @@ pub struct PriceAxisLabel {
     pub y: f32,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct TimeAxisLabel {
 
@@ -105,7 +91,6 @@ pub struct TimeAxisLabel {
 
     pub x: f32,
 }
-
 
 #[derive(Debug, Clone, Copy)]
 pub struct CrosshairRender {
@@ -120,10 +105,6 @@ pub struct CrosshairRender {
 
     pub color: RenderColor,
 }
-
-
-
-
 
 #[derive(Debug, Clone)]
 pub struct RenderFrame {
@@ -140,9 +121,6 @@ pub struct RenderFrame {
 }
 
 impl RenderFrame {
-
-
-
 
     pub fn from_scene(
         scene: &ChartScene<'_>,
@@ -168,7 +146,6 @@ impl RenderFrame {
     }
 }
 
-
 #[derive(Debug, Clone, Default)]
 pub struct RenderGeometry {
 
@@ -181,12 +158,8 @@ pub struct RenderGeometry {
     pub volume_vertices: Vec<[f32; 4]>,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct ChartScene<'a> {
-
-
-
 
     pub data_points: &'a [ChartDataPoint],
 
@@ -211,7 +184,6 @@ pub struct ChartScene<'a> {
     pub invalidation_mask: InvalidationMask,
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum InvalidationReason {
 
@@ -229,10 +201,6 @@ pub enum InvalidationReason {
     Full,
 }
 
-
-
-
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct InvalidationMask {
 
@@ -247,11 +215,9 @@ impl InvalidationMask {
         }
     }
 
-
     pub fn is_none(&self) -> bool {
         self.level == InvalidationReason::None
     }
-
 
     pub fn merge(self, other: Self) -> Self {
         let level = if self.level as u8 > other.level as u8 {
