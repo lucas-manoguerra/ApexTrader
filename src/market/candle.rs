@@ -1,7 +1,7 @@
-//! Velas de mercado con metadatos de símbolo y timestamp.
-//!
-//! `MarketCandle` extiende la vela de dominio (`domain::Candle`) con
-//! símbolo, timestamp y volumen, para ordenar y dedup datos del mercado.
+
+
+
+
 
 use crate::domain::candle::Candle;
 use crate::domain::chart::chart_data::ChartDataPoint;
@@ -9,37 +9,37 @@ use crate::domain::chart::time_point::TimePoint;
 use crate::market::errors::MarketError;
 use crate::market::symbol::Symbol;
 
-/// Vela de mercado con metadatos de símbolo y timestamp.
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct MarketCandle {
-    /// Símbolo al que pertenece la vela.
+
     pub symbol: Symbol,
-    /// Timestamp de apertura en milisegundos Unix (UTC).
+
     pub open_time_ms: i64,
-    /// Precio de apertura.
+
     pub open: f64,
-    /// Precio máximo.
+
     pub high: f64,
-    /// Precio mínimo.
+
     pub low: f64,
-    /// Precio de cierre.
+
     pub close: f64,
-    /// Volumen negociado en el período.
+
     pub volume: f64,
-    /// Timestamp de cierre en milisegundos Unix (UTC).
+
     pub close_time_ms: i64,
 }
 
 impl MarketCandle {
-    /// Convierte a `domain::Candle` (solo OHLCV, sin metadatos temporales).
+
     pub fn to_domain_candle(&self) -> Result<Candle, MarketError> {
         Candle::new(self.open, self.high, self.low, self.close, self.volume)
             .map_err(|e| MarketError::InvalidResponse(format!("vela inválida: {e}")))
     }
 
-    /// Convierte a `domain::chart::ChartDataPoint`, preservando el
-    /// timestamp y el intervalo para que el viewport pueda establecer
-    /// la relación entre tiempo e índice lógico.
+
+
+
     pub fn to_chart_data_point(&self) -> Result<ChartDataPoint, MarketError> {
         let candle = Candle::new(self.open, self.high, self.low, self.close, self.volume)
             .map_err(|e| MarketError::InvalidResponse(format!("vela inválida: {e}")))?;
@@ -54,7 +54,7 @@ impl MarketCandle {
         Ok(ChartDataPoint::new(candle, time_point))
     }
 
-    /// Devuelve `true` si la vela es financieramente válida.
+
     pub fn is_valid(&self) -> bool {
         self.open.is_finite()
             && self.high.is_finite()
@@ -103,7 +103,7 @@ mod tests {
             symbol,
             open_time_ms: 2000,
             open: 50000.0,
-            high: 49000.0, // high < open → inválido
+            high: 49000.0,
             low: 49000.0,
             close: 49500.0,
             volume: 10.5,
