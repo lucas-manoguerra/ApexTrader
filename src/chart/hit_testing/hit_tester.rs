@@ -1,13 +1,6 @@
-
-
-
-
-
-
 use crate::chart::hit_testing::result::{HitKind, HitResult, HitSeriesId, HitTestContext};
 use crate::chart::hit_testing::r#trait::HitTestable;
 use crate::domain::transforms::ScreenPoint;
-
 
 #[derive(Debug, Clone)]
 pub struct HitTesterResult {
@@ -53,8 +46,6 @@ where
     best
 }
 
-
-
 pub fn hit_test_all<T>(objects: &[T], ctx: &HitTestContext<'_>) -> Vec<(usize, HitResult)>
 where
     T: HitTestable,
@@ -73,11 +64,6 @@ where
 
     hits
 }
-
-
-
-
-
 
 #[derive(Debug, Clone, Copy)]
 pub struct CandleHitTest {
@@ -211,7 +197,6 @@ mod tests {
         let layout = make_layout();
         let ctx = make_ctx(&viewport, &layout, 500.0, 300.0);
 
-
         let back = CandleHitTest {
             index: 0,
             center_x: 500.0,
@@ -234,7 +219,6 @@ mod tests {
 
         let objects = vec![back, front];
         let result = hit_test_objects(&objects, &ctx).expect("debe haber hit");
-
 
         assert_eq!(result.object_index, 1);
         match result.hit.kind {
