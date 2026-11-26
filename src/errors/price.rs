@@ -1,8 +1,3 @@
-
-
-
-
-
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum PriceError {
     #[error("El precio debe ser un valor finito (no NaN ni infinito)")]
