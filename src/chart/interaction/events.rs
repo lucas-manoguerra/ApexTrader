@@ -1,6 +1,5 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PointerButton {
-
     Primary,
 
     Secondary,
@@ -12,7 +11,6 @@ pub enum PointerButton {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScaleAxis {
-
     Time,
 
     Price,
@@ -27,7 +25,6 @@ pub struct Modifiers {
 
 #[derive(Debug, Clone, Copy)]
 pub struct PointerMoveEvent {
-
     pub x: f64,
     pub y: f64,
 }
@@ -43,9 +40,7 @@ pub struct PointerDownEvent {
 #[derive(Debug, Clone, Copy)]
 pub struct AxisPointerDownEvent {
     pub axis: ScaleAxis,
-
     pub x: f64,
-
     pub y: f64,
 }
 
@@ -61,19 +56,14 @@ pub struct PointerUpEvent {
 
 #[derive(Debug, Clone, Copy)]
 pub struct PointerDragEvent {
-
     pub x: f64,
-
     pub y: f64,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct ScrollEvent {
-
     pub delta_x: f64,
-
     pub delta_y: f64,
-
     pub x: f64,
     pub y: f64,
     pub modifiers: Modifiers,
@@ -81,7 +71,6 @@ pub struct ScrollEvent {
 
 #[derive(Debug, Clone, Copy)]
 pub enum InteractionEvent {
-
     PointerMove(PointerMoveEvent),
 
     PointerDown(PointerDownEvent),
@@ -99,10 +88,7 @@ pub enum InteractionEvent {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct InteractionResult {
-
     pub viewport_changed: bool,
-
     pub crosshair_changed: bool,
-
     pub crosshair_pos: Option<(f64, f64)>,
 }
