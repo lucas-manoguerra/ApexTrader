@@ -2,16 +2,12 @@ use crate::domain::candle::Candle;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ChartDataPoint {
-
     pub candle: Candle,
-
     pub time_point: crate::domain::chart::time_point::TimePoint,
-
     pub logical_index: Option<usize>,
 }
 
 impl ChartDataPoint {
-
     pub fn new(candle: Candle, time_point: crate::domain::chart::time_point::TimePoint) -> Self {
         Self {
             candle,
