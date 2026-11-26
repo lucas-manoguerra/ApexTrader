@@ -1,3 +1,3 @@
 fn main() -> eframe::Result {
-    apex_trader::application::run()
+    apex_trader::bootstrap::desktop::run()
 }
