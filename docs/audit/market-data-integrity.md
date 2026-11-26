@@ -185,3 +185,10 @@ La propiedad `prop_market_candles_unique_timestamps` ordena timestamps, los dedu
 ## Resolución parcial — MD-007 temporal
 
 La implementación de `MarketCandle` ahora requiere una duración estrictamente positiva y calcula la diferencia temporal mediante `checked_sub`. `is_valid` y `to_chart_data_point` comparten la misma condición efectiva: los timestamps iguales, invertidos o cuya resta desborda `i64` se rechazan. Se añadieron pruebas para los tres casos y para la conversión de un intervalo positivo. La semántica del intervalo sigue siendo el span entre apertura y cierre al crear `TimePoint`; no se impone ninguna equivalencia adicional sobre intervalos nominales en otros caminos. La corrección queda pendiente de CI en el head actualizado.
+
+
+## Resolución — MD-001 fallback sintético implícito
+
+Se eliminó la generación de un histórico sintético de respaldo cuando falla `LoadCandles::execute`. El fallo ahora deja el `ChartState` vacío y devuelve `LoadState::Error`; no se publican velas mock como sustituto de una carga fallida. Se añadió una prueba con un proveedor que devuelve error para verificar que el estado permanece sin puntos y conserva el estado de error.
+
+Los proveedores mock siguen formando parte del arranque actual de demostración; esta corrección no los convierte en proveedores reales ni implementa todavía una separación completa entre modo simulación y modo de mercado. La procedencia y el modo de ejecución deben hacerse explícitos en una etapa posterior. La resolución queda pendiente de CI en el nuevo head.
