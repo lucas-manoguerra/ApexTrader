@@ -9,7 +9,6 @@ pub struct Symbol {
 }
 
 impl Symbol {
-
     pub fn base(&self) -> &str {
         &self.base
     }
