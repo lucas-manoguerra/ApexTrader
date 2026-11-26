@@ -8,7 +8,6 @@ pub struct PriceRange {
 }
 
 impl PriceRange {
-
     pub fn new(min: Price, max: Price) -> Result<Self, PriceError> {
         if min.value() > max.value() {
             return Err(PriceError::InvalidPriceRange {
