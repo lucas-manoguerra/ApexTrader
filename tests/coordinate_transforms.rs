@@ -3,17 +3,14 @@ use apex_trader::domain::price_range::PriceRange;
 use apex_trader::domain::viewport::Viewport;
 use rust_decimal::Decimal;
 
-
 #[test]
 fn data_x_to_screen_returns_pixel_x() {
     let viewport = Viewport::new();
     let screen_width = 1920.0;
 
-
     let x = viewport.data_x_to_screen(0, screen_width);
     assert!((x - screen_width / 2.0).abs() < f64::EPSILON);
 }
-
 
 #[test]
 fn data_x_to_screen_respects_zoom_and_offset() {
@@ -28,7 +25,6 @@ fn data_x_to_screen_respects_zoom_and_offset() {
     let expected_spacing = 20.0 * 2.0;
     assert!((x1 - x0 - expected_spacing).abs() < f64::EPSILON);
 }
-
 
 #[test]
 fn screen_x_to_data_is_inverse_of_data_x_to_screen() {
@@ -46,7 +42,6 @@ fn screen_x_to_data_is_inverse_of_data_x_to_screen() {
     }
 }
 
-
 #[test]
 fn price_to_screen_returns_pixel_y() {
     let viewport = Viewport::new();
@@ -61,7 +56,6 @@ fn price_to_screen_returns_pixel_y() {
 
     assert!((y - screen_height / 2.0).abs() < f64::EPSILON);
 }
-
 
 #[test]
 fn price_to_screen_inverts_y_axis() {
@@ -88,7 +82,6 @@ fn price_to_screen_inverts_y_axis() {
     assert!(y_low > y_high);
 }
 
-
 #[test]
 fn screen_y_to_price_is_inverse_of_price_to_screen() {
     let viewport = Viewport::new();
@@ -112,7 +105,6 @@ fn screen_y_to_price_is_inverse_of_price_to_screen() {
     }
 }
 
-
 #[test]
 fn screen_y_to_price_falls_back_to_center() {
     let viewport = Viewport::new();
@@ -126,12 +118,6 @@ fn screen_y_to_price_falls_back_to_center() {
     let recovered = viewport.screen_y_to_price(y_far_below, screen_height, range, center_price);
     assert_eq!(recovered, center_price);
 }
-
-
-
-
-
-
 
 #[test]
 fn zoom_at_y_preserves_cursor_price() {
@@ -150,7 +136,6 @@ fn zoom_at_y_preserves_cursor_price() {
 
     let before = viewport.screen_y_to_price(cursor_y, screen_height, range, center_price);
 
-
     viewport.zoom_at(0.0, 1.0, 0.5, center_y_frac, screen_width, screen_height);
 
     viewport.zoom_at(0.0, -1.0, 0.5, center_y_frac, screen_width, screen_height);
@@ -167,9 +152,6 @@ fn zoom_at_y_preserves_cursor_price() {
     );
 }
 
-
-
-
 #[test]
 fn pan_y_is_consistent_with_price_transforms() {
     let mut viewport = Viewport::new();
@@ -183,7 +165,6 @@ fn pan_y_is_consistent_with_price_transforms() {
 
     let y_center = screen_height / 2.0;
     let price_before = viewport.screen_y_to_price(y_center, screen_height, range, center_price);
-
 
     let dy = -100.0;
     viewport.pan(0.0, dy, screen_height);
