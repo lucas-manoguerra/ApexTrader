@@ -5,12 +5,7 @@ use crate::errors::RendererError;
 use crate::renderer::{ChartRenderer, ChartScene, RenderFrame, RenderLayer};
 use eframe::egui;
 
-
-
-
 pub struct GlowChartRenderer {
-
-
 
     cached_series_layer: RenderLayer,
     cached_series_shapes: Vec<egui::Shape>,
@@ -32,10 +27,6 @@ impl Default for GlowChartRenderer {
         Self::new()
     }
 }
-
-
-
-
 
 fn time_label_at_logical(
     data_points: &[crate::domain::chart::chart_data::ChartDataPoint],
@@ -332,9 +323,6 @@ fn time_axis_ticks(left: f64, right: f64, params: &TimeAxisParams<'_>) -> Vec<Ti
         return Vec::new();
     }
 
-
-
-
     let target_labels = ((width / 118.0).floor() as usize).clamp(2, 9);
     let logical_span = visible.last.saturating_sub(visible.first).max(1);
     let bar_step = nice_tick_step(logical_span as f64, target_labels.saturating_sub(1))
@@ -382,7 +370,6 @@ fn time_axis_ticks(left: f64, right: f64, params: &TimeAxisParams<'_>) -> Vec<Ti
 
         let label =
             TimeScale::format_time_axis_label(timestamp, tick_interval_ms, previous_tick_timestamp);
-
 
         let minimum_spacing = (label.chars().count() as f64 * 7.5 + 24.0).max(72.0);
         if last_screen_x.is_some_and(|last| screen_x - last < minimum_spacing) {
@@ -671,7 +658,6 @@ fn draw_current_price_marker(
     );
 }
 
-
 fn series_layer_shapes(layer: &RenderLayer, origin: ScreenPoint) -> Vec<egui::Shape> {
     let mut shapes = Vec::with_capacity(layer.candles.len().saturating_mul(3));
 
@@ -818,8 +804,6 @@ impl ChartRenderer for GlowChartRenderer {
         };
         let time_ticks = time_axis_ticks(left, right, &time_params);
 
-
-
         draw_chart_surfaces(painter, layout, frame.origin);
         draw_grid(painter, layout, frame.origin, &price_ticks, &time_ticks);
 
@@ -829,8 +813,6 @@ impl ChartRenderer for GlowChartRenderer {
                 series_layer_shapes(&self.cached_series_layer, frame.origin);
             self.series_cache_valid = true;
         }
-
-
 
         let series_clip = egui::Rect::from_min_max(
             egui::pos2(left as f32, top as f32),
