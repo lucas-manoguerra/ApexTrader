@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 pub mod application;
+pub mod bootstrap;
 pub mod chart;
 pub mod domain;
 pub mod errors;
