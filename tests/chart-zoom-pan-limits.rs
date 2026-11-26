@@ -1,6 +1,5 @@
 use apex_trader::domain::viewport::Viewport;
 
-
 #[test]
 fn pan_limited_to_candle_range_left() {
     let mut viewport = Viewport::new();
@@ -21,7 +20,6 @@ fn pan_limited_to_candle_range_left() {
         margin
     );
 }
-
 
 #[test]
 fn pan_limited_to_candle_range_right() {
@@ -44,7 +42,6 @@ fn pan_limited_to_candle_range_right() {
     );
 }
 
-
 #[test]
 fn zoom_max_limited() {
     let mut viewport = Viewport::new();
@@ -61,7 +58,6 @@ fn zoom_max_limited() {
         viewport.zoom_x()
     );
 }
-
 
 #[test]
 fn zoom_min_limited() {
@@ -80,7 +76,6 @@ fn zoom_min_limited() {
     );
 }
 
-
 #[test]
 fn zoom_min_limited_by_screen_width() {
     let mut viewport = Viewport::new();
@@ -98,7 +93,6 @@ fn zoom_min_limited_by_screen_width() {
     );
 }
 
-
 #[test]
 fn zoom_max_limited_by_candle_spacing() {
     let mut viewport = Viewport::new();
@@ -115,7 +109,6 @@ fn zoom_max_limited_by_candle_spacing() {
         viewport.zoom_x()
     );
 }
-
 
 #[test]
 fn pan_single_candle_keeps_visible() {
@@ -138,7 +131,6 @@ fn pan_single_candle_keeps_visible() {
         screen_width - margin
     );
 }
-
 
 #[test]
 fn set_zoom_level_respects_candle_limits() {
