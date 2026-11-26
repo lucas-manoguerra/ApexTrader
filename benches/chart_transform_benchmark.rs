@@ -7,19 +7,6 @@ use apex_trader::domain::viewport::Viewport;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 fn bench_viewport_transforms(iterations: usize) {
     let mut viewport = Viewport::new();
     viewport.set_zoom(2.0, 2.0);
