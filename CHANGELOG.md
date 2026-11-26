@@ -12,7 +12,7 @@ y este proyecto sigue [Semantic Versioning](https://semver.org/lang/es/).
 - Se reorganizó la documentación de ingeniería y se establecieron contratos para agentes, contribuciones y decisiones arquitectónicas.
 - Se amplió el README con arquitectura, requisitos, validación y enlaces a la documentación.
 - Se incorporó un control de CI para impedir comentarios en los archivos de código modificados.
-- Se eliminaron comentarios de los archivos de configuración, scripts y puntos de entrada revisados en esta etapa.
+- Se eliminaron comentarios y Rustdoc del código fuente, pruebas, benchmarks, scripts y configuración ejecutable mantenidos por el proyecto.
 
 
 ### Agregado
