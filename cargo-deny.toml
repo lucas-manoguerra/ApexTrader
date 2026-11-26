@@ -1,22 +1,9 @@
-# cargo-deny configuration for ApexTrader (schema v2)
-#
-# Run with: cargo deny --config cargo-deny.toml --locked check
-# Install: cargo install cargo-deny
-#
-# In cargo-deny >= 0.18, advisories are denied by default and licenses must
-# be explicitly allowed. This prevents an unknown or copyleft license from
-# silently passing because of a permissive default.
-
 [advisories]
-# Block unmaintained direct dependencies and any yanked crate version.
-# Vulnerability, unsoundness and notice advisories are denied by default.
 unmaintained = "workspace"
 yanked = "deny"
 ignore = []
 
 [licenses]
-# Explicitly approved license expressions. All others (including AGPL-family
-# licenses) are denied by default and must be reviewed before being added.
 allow = [
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
@@ -31,8 +18,5 @@ allow = [
 ]
 confidence-threshold = 0.8
 
-# The workspace contains a private desktop application without a selected
-# redistribution license. Do not invent a license for it; external crates
-# are still checked against the explicit allowlist above.
 [licenses.private]
 ignore = true
