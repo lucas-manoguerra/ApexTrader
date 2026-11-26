@@ -271,3 +271,10 @@ Cada etapa debe ser un PR/commit coherente, con tests, CI y revisión del impact
 - Identificar los mercados y proveedores iniciales para fijar ownership de instrumentos/series.
 - Definir qué backend es objetivo de producto y cuál permanece experimental.
 - Definir objetivos cuantitativos de memoria, latencia y frame time según el hardware y tamaño de series soportados.
+
+
+## Actualización de dirección gráfica
+
+ADR-0003 fija eframe con WGPU como integración nativa y egui-wgpu callbacks para el chart. La propuesta anterior de una surface propia bajo `winit` deja de ser la dirección objetivo porque duplicaría el ciclo de vida que ya gestiona eframe.
+
+La implementación actual continúa en estado previo a la decisión: Glow sigue seleccionado, el renderer WGPU es incompleto y la tubería usa geometría de prueba. El siguiente refactor debe convertir el chart a callback WGPU y transferir el ownership de device/surface al runtime de eframe. No se declara WGPU operativo hasta que la escena real esté renderizada y el ciclo de recursos esté probado.

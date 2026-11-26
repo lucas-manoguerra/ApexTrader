@@ -18,5 +18,6 @@ Cada decisión nueva usa un archivo numerado `NNNN-titulo.md` con:
 - [Plantilla ADR](0000-template.md)
 - [ADR-0001: Prohibir comentarios en el código](0001-zero-code-comments.md)
 - [ADR-0002: Arquitectura modular](0002-modular-architecture.md)
+- [ADR-0003: WGPU como backend gráfico principal](0003-wgpu-rendering-backend.md)
 
 Las reglas operativas actuales están en los estándares de ingeniería y arquitectura.

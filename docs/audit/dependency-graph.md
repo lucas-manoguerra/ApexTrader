@@ -157,3 +157,18 @@ This is a conceptual direction, not a request to create every listed folder imme
 Se movió el adaptador de entrada basado en egui desde `src/application/events/mod.rs` a `src/presentation/input/egui.rs`. La capa `application` ya no declara ni posee ese módulo; el adaptador queda bajo `presentation`, y el servicio de escritorio lo consume desde esa frontera. Sus tipos de eventos neutrales y el controlador permanecen en `chart::interaction`.
 
 Esta es una corrección parcial deliberadamente pequeña: `application::run()` todavía expone `eframe::Result` y delega en `application::services`, por lo que el bootstrap desktop y la composición siguen pendientes de extraerse. DG-003 no debe marcarse como resuelto hasta que el límite público de application sea independiente de eframe y las pruebas de interacción sigan pasando.
+
+
+## Remediación arquitectónica — DG-004 y backend gráfico
+
+ADR-0003 establece eframe con `Renderer::Wgpu` como integración nativa y egui-wgpu callbacks para el chart. Esta decisión reemplaza la propuesta anterior de crear una surface WGPU independiente y evita duplicar el ciclo de vida de ventana/GPU.
+
+El estado del código en el head auditado todavía no implementa la decisión: `ChartRenderer::draw` depende de `egui::Painter`, `create_renderer` selecciona Glow y `WgpuChartRenderer` mantiene una instancia/device propios sin surface funcional. La remediación debe reemplazar el contrato y la implementación; no basta con cambiar el feature de Cargo ni seleccionar el enum del renderer.
+
+Ownership objetivo:
+- eframe posee ventana, ciclo de eventos, surface, adapter, device y queue.
+- rendering posee pipelines, buffers, shaders, geometría derivada y cachés del chart.
+- presentation convierte el layout y clipping de UI a datos neutrales de escena/callback.
+- domain/chart conserva modelos, escalas e interacción sin tipos de GPU/UI.
+
+La revisión de dependencias encontró que `wgpu-types`, `winit` y `raw-window-handle` no aparecen en los módulos Rust inspeccionados fuera del antiguo `renderer/wgpu.rs`; `pollster` solo se utiliza allí para crear un device propio. No se eliminan todavía porque ese módulo debe migrarse y la compilación final debe confirmar la ausencia de consumidores. `wgpu` sí se utiliza en los pipelines propios.
