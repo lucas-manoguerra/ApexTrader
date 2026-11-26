@@ -1,22 +1,6 @@
 use crate::errors::candle::CandleDump;
 use crate::errors::candle::CandleError;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #[derive(Debug, Clone, Copy)]
 pub struct Candle {
     open: f64,
@@ -27,14 +11,6 @@ pub struct Candle {
 }
 
 impl Candle {
-
-
-
-
-
-
-
-
 
     pub fn new(
         open: f64,
@@ -78,26 +54,21 @@ impl Candle {
         })
     }
 
-
     pub fn open(&self) -> f64 {
         self.open
     }
-
 
     pub fn high(&self) -> f64 {
         self.high
     }
 
-
     pub fn low(&self) -> f64 {
         self.low
     }
 
-
     pub fn close(&self) -> f64 {
         self.close
     }
-
 
     pub fn volume(&self) -> f64 {
         self.volume
