@@ -1,7 +1,7 @@
-/// Errores del dominio de velas (Candle).
-///
-/// Definidos con `thiserror` para tener tipos propios de error en lugar de
-/// devolver `String`.
+
+
+
+
 #[derive(Debug, PartialEq, thiserror::Error)]
 pub enum CandleError {
     #[error("La vela tiene precios no finitos: {0:?}")]
@@ -26,7 +26,7 @@ pub enum CandleError {
     InvalidVolume { volume: f64 },
 }
 
-/// Volcado de una vela para mensajes de error (sin campos privados).
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CandleDump {
     pub open: f64,
