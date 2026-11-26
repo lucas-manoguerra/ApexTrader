@@ -1,13 +1,6 @@
-
-
-
-
-
-
 use crate::chart::layout::ChartLayout;
 use crate::domain::transforms::{self, ScreenPoint};
 use crate::domain::viewport::Viewport;
-
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum HitKind {
@@ -27,22 +20,17 @@ pub enum HitKind {
     Overlay { overlay_id: HitOverlayId },
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct HitSeriesId(pub u64);
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct HitDrawingId(pub u64);
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct HitMarkerId(pub u64);
 
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct HitOverlayId(pub u64);
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HitAxis {
@@ -51,7 +39,6 @@ pub enum HitAxis {
 
     Time,
 }
-
 
 #[derive(Debug, Clone)]
 pub struct HitResult {
@@ -62,11 +49,8 @@ pub struct HitResult {
 
     pub data_point: transforms::DataPoint,
 
-
     pub distance: f64,
 }
-
-
 
 #[derive(Debug, Clone, Copy)]
 pub struct HitTestContext<'a> {
@@ -108,7 +92,6 @@ impl<'a> HitTestContext<'a> {
         }
     }
 
-
     pub fn is_inside_plot(&self) -> bool {
         if !self.layout.is_valid() || !self.layout.plot.is_valid() {
             return false;
@@ -119,8 +102,6 @@ impl<'a> HitTestContext<'a> {
             && self.screen_y >= plot.top
             && self.screen_y <= plot.bottom
     }
-
-
 
     pub fn cursor_to_data(&self) -> Option<transforms::DataPoint> {
         if !self.is_inside_plot() {
