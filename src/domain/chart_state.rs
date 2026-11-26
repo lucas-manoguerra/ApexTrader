@@ -6,9 +6,7 @@ use crate::errors::ChartError;
 pub struct ChartState {
     data_points: Vec<ChartDataPoint>,
     viewport: Viewport,
-
     time_scale: TimeScale,
-
     data_revision: u64,
 }
 
@@ -39,13 +37,11 @@ impl ChartState {
             .binary_search_by_key(&timestamp_ms, |point| point.time_point.open_time_ms)
         {
             Ok(index) => {
-
                 let mut updated_point = data_point;
                 updated_point.logical_index = Some(index);
                 self.data_points[index] = updated_point;
             }
             Err(index) if index == self.data_points.len() => {
-
                 if self.time_scale.push(timestamp_ms) {
                     let mut appended_point = data_point;
                     appended_point.logical_index = Some(self.data_points.len());
@@ -56,7 +52,6 @@ impl ChartState {
                 }
             }
             Err(index) => {
-
                 self.data_points.insert(index, data_point);
                 self.rebuild_time_scale();
             }
