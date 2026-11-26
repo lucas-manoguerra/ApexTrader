@@ -1,7 +1,3 @@
-
-
-
-
 #[derive(Debug, PartialEq, thiserror::Error)]
 pub enum CandleError {
     #[error("La vela tiene precios no finitos: {0:?}")]
@@ -25,7 +21,6 @@ pub enum CandleError {
     #[error("El volumen es inválido: volume={volume} (debe ser finito y >= 0.0)")]
     InvalidVolume { volume: f64 },
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CandleDump {
