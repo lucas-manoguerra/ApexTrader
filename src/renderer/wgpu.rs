@@ -17,7 +17,6 @@ pub struct WgpuChartRenderer {
 }
 
 impl WgpuChartRenderer {
-
     pub fn new() -> Result<Self, RendererError> {
         info!("Intentando inicializar wgpu...");
 
@@ -77,7 +76,6 @@ impl WgpuChartRenderer {
         self.surface.is_some() && self.pipeline.is_some()
     }
     pub fn resize(&mut self, width: u32, height: u32) {
-
         if let (Some(ref mut config), Some(surface)) = (self.config.as_mut(), self.surface.as_ref())
             && width > 0
             && height > 0
@@ -101,7 +99,6 @@ impl ChartRenderer for WgpuChartRenderer {
         _rect: egui::Rect,
         _scene: &ChartScene<'_>,
     ) -> Result<(), RendererError> {
-
         if self.surface.is_none() || self.pipeline.is_none() {
             return Err(RendererError::BackendInitFailed(
                 "wgpu surface no inicializada".to_string(),
