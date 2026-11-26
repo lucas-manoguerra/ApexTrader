@@ -1,11 +1,11 @@
-//! Cálculo único y autoritativo del layout del chart.
-//!
-//! El plot reserva un gutter mínimo a la izquierda y una escala de precios
-//! visible a la derecha, siguiendo la distribución habitual de plataformas
-//! de gráficos. El panel de volumen y el eje temporal tienen áreas separadas.
-//! El módulo no depende de egui ni de wgpu.
 
-/// Rectángulo con bordes en píxeles de pantalla.
+
+
+
+
+
+
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Rect {
     pub left: f64,
@@ -42,39 +42,39 @@ impl Rect {
     }
 }
 
-/// Un panel con su rectángulo y un índice ordenado.
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PaneRect {
     pub index: usize,
     pub rect: Rect,
 }
 
-/// Layout completo del chart: una sola fuente de verdad para dimensiones,
-/// márgenes, escalas y paneles.
+
+
 #[derive(Debug, Clone)]
 pub struct ChartLayout {
-    /// Rectángulo completo disponible (incluye todos los márgenes).
+
     pub full: Rect,
-    /// Área útil de dibujo principal (dentro de los márgenes de ejes).
+
     pub plot: Rect,
-    /// Gutter izquierdo sin escala visible.
+
     pub price_axis_left: Rect,
-    /// Escala de precios visible a la derecha.
+
     pub price_axis_right: Rect,
-    /// Eje temporal inferior, separado del panel de volumen.
+
     pub time_axis: Rect,
-    /// Panel de volumen (debajo del plot principal).
+
     pub volume_panel: Rect,
-    /// Paneles adicionales (indicadores, etc.).
+
     pub additional_panes: Vec<PaneRect>,
 }
 
 impl ChartLayout {
-    /// Calcula el layout a partir del ancho y alto disponibles.
-    ///
-    /// La escala de precios conserva un ancho legible, el eje temporal dispone
-    /// de una franja propia y el volumen utiliza una porción visible del chart.
-    /// Dimensiones demasiado pequeñas o inválidas producen un layout vacío.
+
+
+
+
+
     pub fn compute(full_width: f64, full_height: f64) -> Self {
         if !full_width.is_finite()
             || !full_height.is_finite()
@@ -92,7 +92,7 @@ impl ChartLayout {
         let mut time_axis_height = (full_height * 0.075).clamp(12.0, 40.0);
         let mut volume_panel_height = (full_height * 0.14).clamp(18.0, 72.0);
 
-        // Mantener al menos 24 px para el plot incluso en ventanas pequeñas.
+
         let available_for_bottom = (full_height - title_height - 24.0).max(0.0);
         let reserved_bottom = time_axis_height + volume_panel_height;
         if reserved_bottom > available_for_bottom && reserved_bottom > 0.0 {
@@ -132,7 +132,7 @@ impl ChartLayout {
         }
     }
 
-    /// Devuelve un layout vacío (dimensiones cero).
+
     pub fn empty() -> Self {
         let zero = Rect::new(0.0, 0.0, 0.0, 0.0);
         Self {
@@ -146,17 +146,17 @@ impl ChartLayout {
         }
     }
 
-    /// Devuelve `true` si el layout tiene dimensiones válidas y no vacías.
+
     pub fn is_valid(&self) -> bool {
         self.full.is_valid() && self.plot.is_valid()
     }
 
-    /// Devuelve el ancho del área de plot.
+
     pub fn plot_width(&self) -> f64 {
         self.plot.width()
     }
 
-    /// Devuelve el alto del área de plot.
+
     pub fn plot_height(&self) -> f64 {
         self.plot.height()
     }
