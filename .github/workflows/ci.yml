@@ -241,6 +241,5 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
-      - name: Audit all maintained code for comments
-        continue-on-error: true
+      - name: Enforce comment-free code across the repository
         run: python scripts/verify_no_code_comments.py
