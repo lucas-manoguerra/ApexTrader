@@ -1,5 +1,4 @@
 use crate::application::commands::load_candles::LoadCandles;
-use crate::presentation::input::egui::{self as input_egui, InputHandler};
 use crate::chart::layout::ChartLayout;
 use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::domain::chart_state::ChartState;
@@ -13,6 +12,7 @@ use crate::market::mock::MockMarketDataProvider;
 use crate::market::mock_realtime::MockRealtimeMarketDataProvider;
 use crate::market::provider::{MarketDataProvider, RealtimeMarketDataProvider};
 use crate::market::symbol::Symbol;
+use crate::presentation::input::egui::{self as input_egui, InputHandler};
 use crate::renderer::{
     ChartRenderer, ChartScene, InvalidationMask, InvalidationReason, create_renderer,
 };
@@ -659,7 +659,9 @@ fn load_symbol_into_chart(
             tracing::error!("No se pudieron cargar datos de mercado: {e}");
             chart.clear();
 
-            tracing::warn!("ChartState vaciado: no se publicarán datos sintéticos tras un fallo de carga");
+            tracing::warn!(
+                "ChartState vaciado: no se publicarán datos sintéticos tras un fallo de carga"
+            );
             LoadState::Error(e.to_string())
         }
     }
