@@ -5,12 +5,6 @@ use tracing::{info, warn};
 
 pub use crate::renderer::wgpu_pipeline::WgpuPipeline;
 
-
-
-
-
-
-
 pub struct WgpuChartRenderer {
     instance: wgpu::Instance,
     adapter: wgpu::Adapter,
@@ -23,10 +17,6 @@ pub struct WgpuChartRenderer {
 }
 
 impl WgpuChartRenderer {
-
-
-
-
 
     pub fn new() -> Result<Self, RendererError> {
         info!("Intentando inicializar wgpu...");
@@ -73,11 +63,6 @@ impl WgpuChartRenderer {
         })
     }
 
-
-
-
-
-
     pub fn init_surface(
         &mut self,
         _raw_handle: raw_window_handle::RawWindowHandle,
@@ -87,10 +72,6 @@ impl WgpuChartRenderer {
         warn!("init_surface stub: surface no creada todavía. Se usará glow como fallback.");
         Ok(())
     }
-
-
-
-
 
     pub fn has_surface(&self) -> bool {
         self.surface.is_some() && self.pipeline.is_some()
@@ -108,10 +89,6 @@ impl WgpuChartRenderer {
         }
     }
 
-
-
-
-
     pub fn present(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }
@@ -124,7 +101,6 @@ impl ChartRenderer for WgpuChartRenderer {
         _rect: egui::Rect,
         _scene: &ChartScene<'_>,
     ) -> Result<(), RendererError> {
-
 
         if self.surface.is_none() || self.pipeline.is_none() {
             return Err(RendererError::BackendInitFailed(
