@@ -1,15 +1,3 @@
-
-
-
-
-
-
-
-
-
-
-
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TimePoint {
     pub open_time_ms: i64,
@@ -18,7 +6,6 @@ pub struct TimePoint {
 }
 
 impl TimePoint {
-
 
     pub fn new(open_time_ms: i64, close_time_ms: i64, interval_ms: i64) -> Option<Self> {
         if close_time_ms < open_time_ms || interval_ms <= 0 {
@@ -30,7 +17,6 @@ impl TimePoint {
             interval_ms,
         })
     }
-
 
     pub fn midpoint_ms(self) -> f64 {
         (self.open_time_ms as f64 + self.close_time_ms as f64) / 2.0
