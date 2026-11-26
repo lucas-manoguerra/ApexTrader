@@ -3,7 +3,6 @@ use apex_trader::domain::viewport::Viewport;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 
-
 #[test]
 fn nice_tick_step_returns_nice_values() {
     let min = Price::new(Decimal::new(10000, 2)).expect("100.00 válido");
@@ -12,7 +11,6 @@ fn nice_tick_step_returns_nice_values() {
     let diff = max.value() - min.value();
     assert_eq!(diff, Decimal::new(10000, 2));
 }
-
 
 #[test]
 fn price_ticks_adjust_to_zoom() {
@@ -25,7 +23,6 @@ fn price_ticks_adjust_to_zoom() {
     assert!(half_range_at_zoom_2 < half_range_at_zoom_1);
 }
 
-
 #[test]
 fn price_format_has_two_decimals() {
     let price = Price::new(Decimal::new(52345, 2)).expect("523.45 válido");
@@ -36,7 +33,6 @@ fn price_format_has_two_decimals() {
     let label2 = format!("{:.2}", price2.value());
     assert_eq!(label2, "1.00");
 }
-
 
 #[test]
 fn x_axis_index_labels_are_integers() {
@@ -53,7 +49,6 @@ fn x_axis_index_labels_are_integers() {
     let x1 = viewport.data_x_to_screen(1, screen_width);
     assert!(x1 > x0, "el índice 1 debe estar a la derecha del índice 0");
 }
-
 
 #[test]
 fn tick_count_is_reasonable() {
