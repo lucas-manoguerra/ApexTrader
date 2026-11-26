@@ -150,3 +150,10 @@ This is a conceptual direction, not a request to create every listed folder imme
 - No bulk file moves or crate extraction for cosmetic reasons.
 - Each behavior-preserving refactor must include tests for its public invariants.
 - CI must pass on the final PR head; no merge until reviewed.
+
+
+## Remediación incremental — DG-003
+
+Se movió el adaptador de entrada basado en egui desde `src/application/events/mod.rs` a `src/presentation/input/egui.rs`. La capa `application` ya no declara ni posee ese módulo; el adaptador queda bajo `presentation`, y el servicio de escritorio lo consume desde esa frontera. Sus tipos de eventos neutrales y el controlador permanecen en `chart::interaction`.
+
+Esta es una corrección parcial deliberadamente pequeña: `application::run()` todavía expone `eframe::Result` y delega en `application::services`, por lo que el bootstrap desktop y la composición siguen pendientes de extraerse. DG-003 no debe marcarse como resuelto hasta que el límite público de application sea independiente de eframe y las pruebas de interacción sigan pasando.
