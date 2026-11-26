@@ -297,8 +297,7 @@ impl eframe::App for ApexTraderApp {
                     ui,
                     &response,
                     interaction_rect,
-                    chart,                );
-                self.input_handler.crosshair_pos()
+                    chart,                );                self.input_handler.crosshair_pos()
             };
 
             let data_revision = self.chart.data_revision();
@@ -504,12 +503,8 @@ impl ApexTraderApp {
 
         let load_state =
             load_symbol_into_chart(&mut chart, &provider, symbol.clone(), from_ms, to_ms);
-        let realtime_provider = create_realtime_provider(
-            &chart,
-            symbol,
-            MOCK_REALTIME_VOLUME,
-            MOCK_TICKS_PER_CANDLE,
-        );
+        let realtime_provider =
+            create_realtime_provider(&chart, symbol, MOCK_REALTIME_VOLUME, MOCK_TICKS_PER_CANDLE);
 
         let renderer = create_renderer();
         let data_revision = chart.data_revision();
@@ -597,8 +592,7 @@ fn create_realtime_provider(
         }
     }
 }
-fn load_symbol_into_chart(
-    chart: &mut ChartState,
+fn load_symbol_into_chart(    chart: &mut ChartState,
     provider: &dyn MarketDataProvider,
     symbol: Symbol,
     from_ms: i64,
@@ -864,3 +858,4 @@ mod load_failure_tests {
         assert!(chart.is_empty());
     }
 }
+
