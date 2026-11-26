@@ -1,28 +1,10 @@
-
-
-
-
-
-
-
 use crate::market::candle::MarketCandle;
 use crate::market::errors::MarketError;
 use crate::market::symbol::Symbol;
 
-
-
-
-
 pub trait MarketDataProvider: Send + Sync {
 
     fn name(&self) -> &str;
-
-
-
-
-
-
-
 
     fn fetch_candles(
         &self,
@@ -32,7 +14,6 @@ pub trait MarketDataProvider: Send + Sync {
     ) -> Result<Vec<MarketCandle>, MarketError>;
 }
 
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct RealtimeMarketUpdate {
 
@@ -41,15 +22,9 @@ pub struct RealtimeMarketUpdate {
     pub is_closed: bool,
 }
 
-
-
-
-
-
 pub trait RealtimeMarketDataProvider: Send {
 
     fn name(&self) -> &str;
-
 
     fn next_update(&mut self) -> Result<RealtimeMarketUpdate, MarketError>;
 }
