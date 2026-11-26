@@ -12,10 +12,8 @@ fn push_rectangle(
         return;
     }
 
-    let left = left.min(right);
-    let right = left.max(right);
-    let top = top.min(bottom);
-    let bottom = top.max(bottom);
+    let (left, right) = (left.min(right), left.max(right));
+    let (top, bottom) = (top.min(bottom), top.max(bottom));
 
     if right <= left || bottom <= top {
         return;
@@ -106,11 +104,11 @@ pub fn build_geometry(layer: &RenderLayer) -> RenderGeometry {
         push_body(&mut geometry.vertices, candle);
     }
 
-    for bar in &layer.volume_bars {
+    for (index, bar) in layer.volume_bars.iter().enumerate() {
         let width = layer
             .candles
-            .iter()
-            .find(|candle| candle.index == bar.index)
+            .get(index)
+            .filter(|candle| candle.index == bar.index)
             .map(|candle| candle.body_width)
             .unwrap_or(1.0);
         push_volume(&mut geometry.vertices, bar, width);
