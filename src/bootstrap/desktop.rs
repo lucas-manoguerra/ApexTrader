@@ -8,9 +8,14 @@ pub fn run() -> eframe::Result {
 
     tracing::info!("Iniciando ApexTrader");
 
+    let native_options = eframe::NativeOptions {
+        renderer: eframe::Renderer::Wgpu,
+        ..Default::default()
+    };
+
     eframe::run_native(
         "ApexTrader",
-        eframe::NativeOptions::default(),
+        native_options,
         Box::new(|creation_context| Ok(Box::new(ApexTraderApp::new(creation_context)))),
     )
 }

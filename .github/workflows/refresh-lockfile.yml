@@ -1,0 +1,30 @@
+name: Refresh dependency lockfile
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  refresh-lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: dtolnay/rust-toolchain@df2a88e9fe4098bad09cb42c3dec7187f15861fc
+        with:
+          toolchain: stable
+
+      - name: Resolve dependencies and generate lockfile
+        run: cargo check --workspace --all-targets
+
+      - uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+        with:
+          name: apex-trader-cargo-lock
+          path: Cargo.lock
+          if-no-files-found: error
+          retention-days: 1
