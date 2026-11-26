@@ -1,64 +1,64 @@
-/// Viewport del gráfico: estado de zoom y pan.
-///
-/// `Viewport` **posee** el estado de la cámara del chart.
-/// Es responsable de calcular cómo se transforman las coordenadas de datos
-/// (precio, tiempo) a coordenadas de pantalla y viceversa.
-///
-/// Tres espacios de coordenadas están definidos:
-///
-/// - **DataSpace**: coordenadas del mercado (índice de vela, precio).
-///   `offset_x` y `offset_y` se expresan en unidades de datos.
-/// - **ViewportSpace**: estado de la cámara (zoom_x, zoom_y, min_zoom, max_zoom).
-/// - **ScreenSpace**: píxeles de pantalla (0..=screen_width, 0..=screen_height).
-///
-/// Las transformaciones entre espacios son explícitas y unidireccionales.
-///
-/// Los ejes X e Y escalan de forma independiente (S4): el zoom vertical no
-/// distorsiona el horizontal y viceversa. Cada eje tiene su propio nivel de
-/// zoom, pero ambos comparten los mismos `min_zoom` y `max_zoom` del usuario.
-///
-/// Todos los campos son privados. Se modifican únicamente a través de
-/// métodos públicos que validan las invariantes del dominio:
-///
-/// - `zoom_x` y `zoom_y` deben estar siempre en `[min_zoom, max_zoom]`.
-/// - `min_zoom` debe ser siempre `<= max_zoom`.
-/// - `zoom_x`, `zoom_y`, `offset_x`, `offset_y` deben ser siempre finitos.
-/// - `delta_x == 0.0 && delta_y == 0.0` en `zoom_at` no modifica el estado.
-///
-/// ## Ownership
-///
-/// `Viewport` es el único dueño del estado de escala del chart:
-/// `zoom_x`, `zoom_y`, `offset_x`, `offset_y`, `min_zoom` y `max_zoom`.
-/// Ningún otro tipo debe duplicar este estado. Antes de esta consolidación,
-/// `ChartScales`/`TimeScale`/`PriceScale` en `chart::scale` duplicaban el
-/// mismo estado; fueron eliminados (ver T11).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 use crate::domain::price::Price;
 use crate::domain::price_range::PriceRange;
 use crate::domain::transforms;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 
-/// Margen utilizado para limitar el desplazamiento horizontal de las velas.
+
 const HORIZONTAL_PAN_MARGIN_RATIO: f64 = 0.05;
 
-/// Margen predeterminado de cada extremo de la escala vertical (5%).
+
 const DEFAULT_PRICE_SCALE_MARGIN: f64 = 0.05;
 
-/// Margen máximo permitido por extremo, dejando al menos un 10% de plot útil.
+
 const MAX_PRICE_SCALE_MARGIN: f64 = 0.45;
 
-/// Criterio usado para calcular el rango de la autoescala vertical.
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum PriceScaleMode {
-    /// Incluye los extremos de las mechas de todas las velas visibles.
+
     #[default]
     HighLow,
-    /// Calcula el rango usando únicamente el cierre de cada vela visible.
+
     Close,
 }
 
 impl PriceScaleMode {
-    /// Etiqueta breve para los controles de la interfaz.
+
     pub const fn label(self) -> &'static str {
         match self {
             Self::HighLow => "Máximo/Mínimo (OHLC)",
@@ -67,20 +67,20 @@ impl PriceScaleMode {
     }
 }
 
-/// Transformación utilizada por el eje vertical de precios.
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum PriceScaleType {
-    /// Distancias lineales en unidades de precio.
+
     #[default]
     Linear,
-    /// Distancias lineales en el logaritmo natural del precio.
+
     Logarithmic,
-    /// Variación porcentual respecto al precio base configurado.
+
     Percentage,
 }
 
 impl PriceScaleType {
-    /// Etiqueta breve para los controles de la interfaz.
+
     pub const fn label(self) -> &'static str {
         match self {
             Self::Linear => "Lineal",
@@ -89,7 +89,7 @@ impl PriceScaleType {
         }
     }
 
-    /// Convierte un precio de mercado al espacio numérico del eje.
+
     pub fn to_scale_value(self, price: f64, percentage_base: Option<f64>) -> Option<f64> {
         if !price.is_finite() {
             return None;
@@ -107,7 +107,7 @@ impl PriceScaleType {
         value.is_finite().then_some(value)
     }
 
-    /// Convierte un valor del eje vertical al precio de mercado correspondiente.
+
     pub fn from_scale_value(self, value: f64, percentage_base: Option<f64>) -> Option<f64> {
         if !value.is_finite() {
             return None;
@@ -127,54 +127,54 @@ impl PriceScaleType {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Viewport {
-    /// Nivel de zoom del eje X (tiempo / índice de vela).
-    /// 1.0 = sin zoom (1 unidad de precio = 1 píxel base).
-    /// Valores mayores = más cerca (más detalle).
-    /// Valores menores = más alejado (más velas visibles).
+
+
+
+
     zoom_x: f64,
 
-    /// Nivel de zoom del eje Y (precio).
-    /// 1.0 = escala base. Valores mayores = precios más ampliados verticalmente.
+
+
     zoom_y: f64,
 
-    /// Desplazamiento horizontal en coordenadas de datos (índices de vela).
-    /// Positivo = se mueve a la derecha (velas más recientes a la izquierda).
+
+
     offset_x: f64,
 
-    /// Desplazamiento vertical en coordenadas de datos (precio).
-    /// Positivo = se mueve hacia arriba (precios más altos en el centro).
+
+
     offset_y: f64,
 
-    /// Factor de zoom por cada "tick" de scroll del mouse.
+
     zoom_step: f64,
 
-    /// Nivel mínimo de zoom permitido (ambos ejes).
+
     min_zoom: f64,
 
-    /// Nivel máximo de zoom permitido (ambos ejes).
+
     max_zoom: f64,
 
-    /// Rango y centro persistentes expresados en las unidades del tipo de escala.
-    /// En modo manual no cambian cuando llegan nuevas velas.
+
+
     price_scale_range: f64,
     price_scale_center: f64,
-    /// Autoajuste vertical según los extremos de las velas visibles.
+
     price_scale_auto: bool,
-    /// Criterio de precios que determina el rango de la autoescala.
+
     price_scale_mode: PriceScaleMode,
-    /// Transformación numérica aplicada al eje de precios.
+
     price_scale_type: PriceScaleType,
-    /// Precio de referencia para el modo porcentual.
+
     price_scale_percentage_base: Option<f64>,
-    /// Márgenes verticales relativos al alto del plot (0.05 = 5%).
+
     price_scale_top_margin: f64,
     price_scale_bottom_margin: f64,
-    /// Bloquea interacciones que alteran el eje de precios.
+
     price_scale_locked: bool,
 }
 
 impl Viewport {
-    /// Crea un viewport con valores por defecto.
+
     pub fn new() -> Self {
         Self {
             zoom_x: 1.0,
@@ -196,48 +196,48 @@ impl Viewport {
         }
     }
 
-    /// Devuelve el nivel de zoom actual del eje X (tiempo / índice de vela).
+
     pub fn zoom_x(&self) -> f64 {
         self.zoom_x
     }
 
-    /// Devuelve el nivel de zoom actual del eje Y (precio).
+
     pub fn zoom_y(&self) -> f64 {
         self.zoom_y
     }
 
-    /// Indica si el eje de precios sigue automáticamente los extremos visibles.
+
     pub fn price_scale_auto(&self) -> bool {
         self.price_scale_auto
     }
 
-    /// Devuelve el criterio usado por la autoescala vertical.
+
     pub fn price_scale_mode(&self) -> PriceScaleMode {
         self.price_scale_mode
     }
 
-    /// Cambia el criterio de precios que determina el rango de autoescala.
-    ///
-    /// El siguiente cálculo de autoescala aplicará el nuevo criterio. En modo
-    /// manual se conserva la referencia actual hasta volver a activar Auto.
+
+
+
+
     pub fn set_price_scale_mode(&mut self, mode: PriceScaleMode) {
         self.price_scale_mode = mode;
     }
 
-    /// Devuelve la transformación usada por el eje vertical.
+
     pub fn price_scale_type(&self) -> PriceScaleType {
         self.price_scale_type
     }
 
-    /// Devuelve el precio base utilizado por la escala porcentual.
+
     pub fn price_scale_percentage_base(&self) -> Option<f64> {
         self.price_scale_percentage_base
     }
 
-    /// Actualiza el precio base porcentual. Los valores deben ser positivos y finitos.
-    ///
-    /// Si el modo porcentual está activo, la referencia se recalculará con los
-    /// datos visibles en el siguiente frame.
+
+
+
+
     pub fn set_price_scale_percentage_base(&mut self, base: f64) -> bool {
         if !base.is_finite() || base <= 0.0 {
             return false;
@@ -255,10 +255,10 @@ impl Viewport {
         true
     }
 
-    /// Cambia la transformación del eje vertical.
-    ///
-    /// El cambio vuelve a Auto para recalcular el rango en las nuevas unidades.
-    /// El modo porcentual requiere que exista un precio base válido.
+
+
+
+
     pub fn set_price_scale_type(&mut self, scale_type: PriceScaleType) -> bool {
         if scale_type == self.price_scale_type {
             return true;
@@ -274,19 +274,19 @@ impl Viewport {
         true
     }
 
-    /// Convierte un precio de mercado al espacio numérico del eje.
+
     pub fn price_to_scale_value(&self, price: f64) -> Option<f64> {
         self.price_scale_type
             .to_scale_value(price, self.price_scale_percentage_base)
     }
 
-    /// Convierte un valor del eje al precio de mercado correspondiente.
+
     pub fn scale_value_to_price(&self, value: f64) -> Option<f64> {
         self.price_scale_type
             .from_scale_value(value, self.price_scale_percentage_base)
     }
 
-    /// Convierte una coordenada vertical a precio usando la referencia de escala actual.
+
     pub fn screen_y_to_price_value(
         &self,
         screen_y: f64,
@@ -314,21 +314,21 @@ impl Viewport {
         self.scale_value_to_price(scale_value)
     }
 
-    /// Márgenes superior e inferior de autoescala como fracción del alto del plot.
-    ///
-    /// Por ejemplo, (0.05, 0.10) reserva un 5% arriba y un 10% abajo.
+
+
+
     pub fn price_scale_margins(&self) -> (f64, f64) {
         (self.price_scale_top_margin, self.price_scale_bottom_margin)
     }
 
-    /// Configura los márgenes verticales de autoescala.
-    ///
-    /// Cada margen debe estar entre 0% y 45%, y su suma no puede superar 90%.
-    /// En modo Auto actualiza el zoom previsto; la referencia del precio se
-    /// recalcula con los datos visibles en el siguiente frame. En modo Manual
-    /// solo guarda la configuración para la próxima activación de Auto.
-    ///
-    /// Devuelve false y conserva el estado si los valores no son válidos.
+
+
+
+
+
+
+
+
     pub fn set_price_scale_margins(&mut self, top: f64, bottom: f64) -> bool {
         if !top.is_finite()
             || !bottom.is_finite()
@@ -348,28 +348,28 @@ impl Viewport {
         true
     }
 
-    /// Restablece los márgenes verticales predeterminados (5% arriba y abajo).
+
     pub fn reset_price_scale_margins(&mut self) {
         let _ =
             self.set_price_scale_margins(DEFAULT_PRICE_SCALE_MARGIN, DEFAULT_PRICE_SCALE_MARGIN);
     }
 
-    /// Zoom vertical disponible después de reservar los márgenes configurados.
+
     fn auto_price_scale_zoom(&self) -> f64 {
         (1.0 - self.price_scale_top_margin - self.price_scale_bottom_margin)
             .clamp(self.min_zoom, self.max_zoom)
     }
 
-    /// Desplaza el centro de referencia para respetar márgenes asimétricos.
+
     fn auto_price_scale_center(&self, midpoint: f64, range: f64, zoom: f64) -> f64 {
         midpoint
             + (self.price_scale_top_margin - self.price_scale_bottom_margin) * range / (2.0 * zoom)
     }
 
-    /// Activa o desactiva la autoescala vertical.
-    ///
-    /// Al activarla se restablecen zoom y desplazamiento vertical; el rango
-    /// de referencia se actualiza con los datos visibles en el siguiente frame.
+
+
+
+
     pub fn set_price_scale_auto(&mut self, enabled: bool) {
         self.price_scale_auto = enabled;
         if enabled {
@@ -378,26 +378,26 @@ impl Viewport {
         }
     }
 
-    /// Indica si el usuario bloqueó las interacciones de la escala de precios.
+
     pub fn price_scale_locked(&self) -> bool {
         self.price_scale_locked
     }
 
-    /// Bloquea o desbloquea el desplazamiento y zoom vertical del chart.
+
     pub fn set_price_scale_locked(&mut self, locked: bool) {
         self.price_scale_locked = locked;
     }
 
-    /// Rango y centro de referencia en las unidades transformadas del eje vertical.
+
     pub fn price_scale_reference(&self) -> (f64, f64) {
         (self.price_scale_range, self.price_scale_center)
     }
 
-    /// Actualiza la referencia vertical a partir de los extremos visibles.
-    ///
-    /// Solo actúa en modo automático. En modo manual el rango queda congelado,
-    /// incluso cuando se agregan nuevas velas o cambia el historial realtime.
-    /// Devuelve true si la escala visual cambió.
+
+
+
+
+
     pub fn update_auto_price_scale(&mut self, min_price: f64, max_price: f64) -> bool {
         if !self.price_scale_auto
             || !min_price.is_finite()
@@ -419,7 +419,7 @@ impl Viewport {
             return false;
         }
 
-        // Una serie plana necesita un rango no degenerado en el espacio del eje.
+
         let range = if raw_range > f64::EPSILON {
             raw_range
         } else {
@@ -441,44 +441,44 @@ impl Viewport {
         changed
     }
 
-    /// Devuelve el desplazamiento horizontal actual (índices de vela).
+
     pub fn offset_x(&self) -> f64 {
         self.offset_x
     }
 
-    /// Devuelve el desplazamiento vertical actual (precio).
+
     pub fn offset_y(&self) -> f64 {
         self.offset_y
     }
 
-    /// Devuelve el factor de zoom por tick de scroll.
+
     pub fn zoom_step(&self) -> f64 {
         self.zoom_step
     }
 
-    /// Devuelve el nivel mínimo de zoom permitido.
+
     pub fn min_zoom(&self) -> f64 {
         self.min_zoom
     }
 
-    /// Devuelve el nivel máximo de zoom permitido.
+
     pub fn max_zoom(&self) -> f64 {
         self.max_zoom
     }
 
-    /// Devuelve el espaciamiento entre centros de velas en píxeles de pantalla (eje X).
-    ///
-    /// A mayor `zoom_x`, mayor espaciamiento (las velas están más separadas).
-    /// Consiste con el ancho de vela usado en el renderer.
+
+
+
+
     pub fn candle_spacing(&self) -> f64 {
         transforms::candle_spacing(self.zoom_x)
     }
 
-    /// Establece el nivel mínimo de zoom permitido (ambos ejes).
-    ///
-    /// Si el nuevo valor es mayor que `max_zoom`, se ajusta `max_zoom`
-    /// para mantener `min_zoom <= max_zoom`. Se clampean `zoom_x` y `zoom_y`
-    /// al nuevo rango.
+
+
+
+
+
     pub fn set_min_zoom(&mut self, value: f64) {
         if !value.is_finite() || value <= 0.0 {
             return;
@@ -487,16 +487,16 @@ impl Viewport {
         if self.min_zoom > self.max_zoom {
             self.max_zoom = self.min_zoom;
         }
-        // Asegurar que ambos niveles de zoom estén dentro del nuevo rango.
+
         self.zoom_x = self.zoom_x.clamp(self.min_zoom, self.max_zoom);
         self.zoom_y = self.zoom_y.clamp(self.min_zoom, self.max_zoom);
     }
 
-    /// Establece el nivel máximo de zoom permitido (ambos ejes).
-    ///
-    /// Si el nuevo valor es menor que `min_zoom`, se ajusta `min_zoom`
-    /// para mantener `min_zoom <= max_zoom`. Se clampean `zoom_x` y `zoom_y`
-    /// al nuevo rango.
+
+
+
+
+
     pub fn set_max_zoom(&mut self, value: f64) {
         if !value.is_finite() || value <= 0.0 {
             return;
@@ -505,22 +505,22 @@ impl Viewport {
         if self.max_zoom < self.min_zoom {
             self.min_zoom = self.max_zoom;
         }
-        // Asegurar que ambos niveles de zoom estén dentro del nuevo rango.
+
         self.zoom_x = self.zoom_x.clamp(self.min_zoom, self.max_zoom);
         self.zoom_y = self.zoom_y.clamp(self.min_zoom, self.max_zoom);
     }
 
-    /// Establece el nivel de zoom de ambos ejes directamente.
-    ///
-    /// Cada valor se clampea a `[min_zoom, max_zoom]`. Si no es finito, se ignora ese eje.
+
+
+
     pub fn set_zoom(&mut self, x: f64, y: f64) {
         self.set_zoom_x(x);
         self.set_zoom_y(y);
     }
 
-    /// Establece el nivel de zoom del eje X directamente.
-    ///
-    /// El valor se clampea a `[min_zoom, max_zoom]`. Si no es finito, se ignora.
+
+
+
     pub fn set_zoom_x(&mut self, value: f64) {
         if !value.is_finite() || value <= 0.0 {
             return;
@@ -528,9 +528,9 @@ impl Viewport {
         self.zoom_x = value.clamp(self.min_zoom, self.max_zoom);
     }
 
-    /// Establece el nivel de zoom del eje Y directamente.
-    ///
-    /// El valor se clampea a `[min_zoom, max_zoom]`. Si no es finito, se ignora.
+
+
+
     pub fn set_zoom_y(&mut self, value: f64) {
         if !value.is_finite() || value <= 0.0 {
             return;
@@ -538,31 +538,31 @@ impl Viewport {
         self.zoom_y = value.clamp(self.min_zoom, self.max_zoom);
     }
 
-    /// Establece el desplazamiento horizontal directamente.
-    ///
-    /// Si no es finito, se ignora.
+
+
+
     pub fn set_offset_x(&mut self, value: f64) {
         if value.is_finite() {
             self.offset_x = value;
         }
     }
 
-    /// Establece el desplazamiento vertical directamente.
-    ///
-    /// Si no es finito, se ignora.
+
+
+
     pub fn set_offset_y(&mut self, value: f64) {
         if value.is_finite() {
             self.offset_y = value;
         }
     }
 
-    /// Limita el pan horizontal para que la primera y última vela
-    /// permanezcan visibles dentro de la pantalla.
-    ///
-    /// `candle_count` es el número total de velas cargadas.
-    /// `screen_width` es el ancho del área de dibujo en píxeles.
-    ///
-    /// Se deja un margen del 5% en cada lado.
+
+
+
+
+
+
+
     pub fn clamp_pan_to_candles(&mut self, candle_count: usize, screen_width: f64) {
         if candle_count == 0 || !screen_width.is_finite() || screen_width <= 0.0 {
             return;
@@ -575,45 +575,45 @@ impl Viewport {
         let center_x = screen_width / 2.0;
         let margin = screen_width * HORIZONTAL_PAN_MARGIN_RATIO;
 
-        // Primera vela (index 0) no puede salir por la izquierda:
-        // data_x_to_screen(0) >= margin
-        // center_x + offset_x * candle_spacing >= margin
-        // offset_x >= (margin - center_x) / candle_spacing
+
+
+
+
         let min_offset_x = (margin - center_x) / candle_spacing;
 
-        // Última vela (index N-1) no puede salir por la derecha:
-        // data_x_to_screen(N-1) <= screen_width - margin
-        // center_x + (N-1) * candle_spacing + offset_x * candle_spacing <= screen_width - margin
-        // offset_x <= (screen_width - margin - center_x - (N-1) * candle_spacing) / candle_spacing
+
+
+
+
         let max_offset_x =
             (screen_width - margin - center_x - (candle_count as f64 - 1.0) * candle_spacing)
                 / candle_spacing;
 
-        // Si las velas no caben en pantalla (min_offset_x > max_offset_x),
-        // el pan horizontal no tiene límites significativos: el usuario debe
-        // poder hacer scroll libremente. No aplicar clamp para evitar panic
-        // cuando min > max.
+
+
+
+
         if min_offset_x <= max_offset_x {
             self.offset_x = self.offset_x.clamp(min_offset_x, max_offset_x);
         }
     }
 
-    /// Limita el zoom del eje X para que una sola vela no llene toda la pantalla
-    /// y para que al menos dos velas quepan simultáneamente.
-    ///
-    /// `candle_count` es el número total de velas cargadas.
-    /// `screen_width` es el ancho del área de dibujo en píxeles.
-    ///
-    /// Solo afecta al eje X (horizontal). El eje Y no tiene un equivalente de
-    /// "velas quepan", así que queda sujeto únicamente a `[min_zoom, max_zoom]`.
+
+
+
+
+
+
+
+
     pub fn clamp_zoom_to_candles(&mut self, candle_count: usize, screen_width: f64) {
         if candle_count == 0 || !screen_width.is_finite() || screen_width <= 0.0 {
             return;
         }
 
-        // candle_spacing = CANDLE_SPACING_BASE * zoom_x
-        // Máximo zoom X: candle_spacing >= 4.0 => zoom_x <= 5.0
-        // (una vela base de 20px no ocupa más de 100px de ancho).
+
+
+
         let max_zoom_by_candle = 5.0;
 
         let min_allowed = self.min_zoom;
@@ -624,15 +624,15 @@ impl Viewport {
         }
     }
 
-    /// Aplica un zoom alrededor de un punto dado (coordenadas de pantalla), por eje de forma independiente.
-    ///
-    /// `delta_x` y `delta_y` son el cambio de scroll: positivo = zoom in, negativo = zoom out.
-    /// `center_x` y `center_y` son el punto alrededor del cual hacer zoom
-    /// como fracciones 0..=1 del área de pantalla (0.0 = izquierda/arriba, 1.0 = derecha/abajo).
-    /// `screen_width` y `screen_height` son las dimensiones del área de dibujo en píxeles.
-    ///
-    /// Si `delta_x == 0.0`, el eje X no se modifica. Si `delta_y == 0.0`, el eje Y no se modifica.
-    /// Si alguno de los parámetros no es finito, no se modifica el estado.
+
+
+
+
+
+
+
+
+
     pub fn zoom_at(
         &mut self,
         delta_x: f64,
@@ -680,13 +680,13 @@ impl Viewport {
         );
     }
 
-    /// Establece ambos niveles de zoom preservando el punto bajo el cursor.
-    ///
-    /// center_x y center_y son fracciones normalizadas del área de plot.
-    /// Centraliza la transformación de offsets para que los distintos tipos
-    /// de gesto utilicen exactamente la misma fórmula.
-    ///
-    /// Devuelve true si el viewport cambió.
+
+
+
+
+
+
+
     pub fn zoom_to_at(
         &mut self,
         zoom_x: f64,
@@ -718,9 +718,9 @@ impl Viewport {
 
         let center_x_px = center_x.clamp(0.0, 1.0) * screen_width;
         let center_y_px = center_y.clamp(0.0, 1.0) * screen_height;
-        // Los offsets se expresan respecto del centro del plot. Para que
-        // el dato bajo el cursor no se mueva, hay que usar el desplazamiento
-        // del cursor respecto del centro, no la coordenada desde el borde.
+
+
+
         let cursor_from_center_x = center_x_px - screen_width / 2.0;
         let cursor_from_center_y = center_y_px - screen_height / 2.0;
 
@@ -741,13 +741,13 @@ impl Viewport {
         true
     }
 
-    /// Aplica un desplazamiento (pan) al viewport.
-    ///
-    /// `dx` y `dy` son el cambio en píxeles de pantalla.
-    /// `screen_height` es la altura real del área de dibujo en píxeles.
-    ///
-    /// Si alguno de los parámetros no es finito, o la altura no es positiva,
-    /// no se modifica el estado.
+
+
+
+
+
+
+
     pub fn pan(&mut self, dx: f64, dy: f64, screen_height: f64) {
         if !dx.is_finite() || !dy.is_finite() || !screen_height.is_finite() || screen_height <= 0.0
         {
@@ -766,18 +766,18 @@ impl Viewport {
         );
     }
 
-    /// Ajusta automáticamente el zoom y el offset vertical para que el rango
-    /// de precios quepa en el área de dibujo con los márgenes configurados.
-    ///
-    /// `price_range` es el rango de precios (mínimo y máximo) de las velas a mostrar.
-    /// `candle_count` es la cantidad total de velas (solo se usa para validar
-    /// que haya algo que mostrar).
-    /// `screen_width` y `screen_height` son las dimensiones del área de dibujo en píxeles.
-    ///
-    /// `auto_scale` ajusta solo el eje Y (precio): `zoom_y` se rige por la
-    /// escala de precio y `offset_y` se centra en el punto medio del rango.
-    /// El eje X (tiempo y velas) se deja intacto: el llamante puede seguir
-    /// ajustando `zoom_x`, `offset_x` con `zoom_at` o `pan`.
+
+
+
+
+
+
+
+
+
+
+
+
     pub fn auto_scale(
         &mut self,
         price_range: PriceRange,
@@ -842,7 +842,7 @@ impl Viewport {
         );
     }
 
-    /// Restablece el viewport a valores por defecto.
+
     pub fn reset(&mut self) {
         self.zoom_x = 1.0;
         self.price_scale_top_margin = DEFAULT_PRICE_SCALE_MARGIN;
@@ -860,17 +860,17 @@ impl Viewport {
         tracing::debug!("Viewport restablecido a valores por defecto");
     }
 
-    /// Convierte un índice de vela (coordenada de datos X) a coordenada de pantalla.
-    ///
-    /// `index` es el índice de la vela en el array (basado en 0).
-    /// `screen_width` es el ancho del área de dibujo en píxeles.
-    ///
-    /// Devuelve la coordenada X en píxeles de pantalla. Usa `zoom_x` (eje X).
+
+
+
+
+
+
     pub fn data_x_to_screen(&self, index: usize, screen_width: f64) -> f64 {
         self.logical_to_screen(index as f64, screen_width)
     }
 
-    /// Convierte una coordenada lógica (posiblemente fraccionaria) a píxeles.
+
     pub fn logical_to_screen(&self, logical_index: f64, screen_width: f64) -> f64 {
         if !logical_index.is_finite() || !screen_width.is_finite() || screen_width <= 0.0 {
             return screen_width / 2.0;
@@ -878,7 +878,7 @@ impl Viewport {
         screen_width / 2.0 + (logical_index + self.offset_x) * self.candle_spacing()
     }
 
-    /// Convierte una coordenada de pantalla a una coordenada lógica fraccionaria.
+
     pub fn screen_to_logical(&self, screen_x: f64, screen_width: f64) -> f64 {
         if !screen_x.is_finite() || !screen_width.is_finite() || screen_width <= 0.0 {
             return 0.0;
@@ -886,8 +886,8 @@ impl Viewport {
         (screen_x - screen_width / 2.0) / self.candle_spacing() - self.offset_x
     }
 
-    /// Ajusta el eje temporal para mostrar todo el historial con un margen
-    /// horizontal del 5%. El eje de precios no se modifica.
+
+
     pub fn fit_content(&mut self, logical_count: usize, screen_width: f64) -> bool {
         if logical_count == 0 {
             return false;
@@ -896,9 +896,9 @@ impl Viewport {
         self.fit_logical_range(0.0, (logical_count - 1) as f64, screen_width)
     }
 
-    /// Centra una posición lógica (también fraccionaria) en el área visible.
-    ///
-    /// Devuelve `true` si el offset horizontal cambió.
+
+
+
     pub fn center_on_logical(&mut self, logical_index: f64) -> bool {
         if !logical_index.is_finite() {
             return false;
@@ -912,12 +912,12 @@ impl Viewport {
         true
     }
 
-    /// Ajusta el zoom horizontal para mostrar un intervalo lógico completo
-    /// con un margen del 5% a cada lado.
-    ///
-    /// Los extremos pueden ser fraccionarios, por ejemplo al navegar a un
-    /// intervalo temporal cuyos límites caen entre dos velas.
-    /// El eje vertical no se modifica.
+
+
+
+
+
+
     pub fn fit_logical_range(
         &mut self,
         first_logical: f64,
@@ -950,13 +950,13 @@ impl Viewport {
         previous != (self.zoom_x, self.offset_x)
     }
 
-    /// Convierte una coordenada de pantalla X a un índice de vela (coordenada de datos X).
-    ///
-    /// `screen_x` es la posición en píxeles de pantalla.
-    /// `screen_width` es el ancho del área de dibujo en píxeles.
-    ///
-    /// Devuelve el índice de vela más cercano (basado en 0), clampado a
-    /// `[0, candle_count - 1]`. Usa `zoom_x` (eje X).
+
+
+
+
+
+
+
     pub fn screen_x_to_data(&self, screen_x: f64, screen_width: f64, candle_count: usize) -> usize {
         if candle_count == 0 {
             return 0;
@@ -966,15 +966,15 @@ impl Viewport {
             .clamp(0.0, candle_count.saturating_sub(1) as f64) as usize
     }
 
-    /// Convierte un precio (coordenada de datos Y) a coordenada de pantalla.
-    ///
-    /// `price` es el precio a convertir.
-    /// `screen_height` es el alto del área de dibujo en píxeles.
-    /// `price_range` es el rango de precios visible (mínimo y máximo).
-    /// `center_price` es el precio central alrededor del cual se hace zoom.
-    ///
-    /// Devuelve la coordenada Y en píxeles de pantalla (eje Y invertido: 0 es arriba).
-    /// Usa `zoom_y` (eje Y).
+
+
+
+
+
+
+
+
+
     pub fn price_to_screen(
         &self,
         price: Price,
@@ -1024,16 +1024,16 @@ impl Viewport {
         center_y - relative_price * pixels_per_unit
     }
 
-    /// Convierte una coordenada de pantalla Y a un precio (coordenada de datos Y).
-    ///
-    /// `screen_y` es la posición en píxeles de pantalla.
-    /// `screen_height` es el alto del área de dibujo en píxeles.
-    /// `price_range` es el rango de precios visible (mínimo y máximo).
-    /// `center_price` es el precio central alrededor del cual se hace zoom.
-    ///
-    /// Devuelve el `Price` calculado. Si el resultado no es un precio válido
-    /// (negativo o no convertible), devuelve `center_price` como fallback.
-    /// Usa `zoom_y` (eje Y).
+
+
+
+
+
+
+
+
+
+
     pub fn screen_y_to_price(
         &self,
         screen_y: f64,
@@ -1082,12 +1082,12 @@ impl Viewport {
         }
     }
 
-    /// Calcula el rango de velas visibles en el área de dibujo.
-    ///
-    /// Una vela se considera visible si su centro cae dentro de
-    /// `[0, screen_width]` según `data_x_to_screen`. El renderer debe
-    /// iterar solo `first..=last` para lograr O(N_visible) por frame.
-    /// Usa `zoom_x` (eje X).
+
+
+
+
+
+
     pub fn visible_range(
         &self,
         candle_count: usize,
@@ -1100,8 +1100,8 @@ impl Viewport {
         let spacing = self.candle_spacing();
         let center_x = screen_width / 2.0;
 
-        // data_x_to_screen(i) = center_x + i * spacing + offset_x * spacing
-        // Visible si 0 <= data_x_to_screen(i) <= screen_width.
+
+
         let first = ((-center_x - self.offset_x * spacing) / spacing)
             .ceil()
             .max(0.0) as usize;
