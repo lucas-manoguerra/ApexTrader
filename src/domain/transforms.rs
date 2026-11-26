@@ -143,7 +143,6 @@ pub struct VisibleRange {
 }
 
 impl VisibleRange {
-
     pub fn empty() -> Self {
         Self { first: 1, last: 0 }
     }
