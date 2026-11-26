@@ -19,7 +19,6 @@ pub struct MockRealtimeMarketDataProvider {
 }
 
 impl MockRealtimeMarketDataProvider {
-
     pub fn from_last_candle(
         last_candle: MarketCandle,
         ticks_per_candle: u32,
