@@ -1,15 +1,15 @@
-//! Punto temporal del chart.
-//!
-//! `TimePoint` relaciona un timestamp con su intervalo, separando el concepto
-//! de momento en el tiempo del dato OHLCV. Permite al chart representar
-//! fechas, sesiones, intervalos irregulares y huecos temporales sin fabricar
-//! velas de mercado.
 
-/// Punto temporal del chart.
-///
-/// `open_time_ms` es el momento de apertura de la vela (Unix ms, UTC).
-/// `close_time_ms` es el momento de cierre. `interval_ms` es la duración
-/// del período (ej. 60_000 para velas de 1 minuto).
+
+
+
+
+
+
+
+
+
+
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TimePoint {
     pub open_time_ms: i64,
@@ -18,8 +18,8 @@ pub struct TimePoint {
 }
 
 impl TimePoint {
-    /// Crea un `TimePoint` validando que `close_time_ms >= open_time_ms`
-    /// y `interval_ms > 0`.
+
+
     pub fn new(open_time_ms: i64, close_time_ms: i64, interval_ms: i64) -> Option<Self> {
         if close_time_ms < open_time_ms || interval_ms <= 0 {
             return None;
@@ -31,7 +31,7 @@ impl TimePoint {
         })
     }
 
-    /// Devuelve el punto medio del intervalo en milisegundos.
+
     pub fn midpoint_ms(self) -> f64 {
         (self.open_time_ms as f64 + self.close_time_ms as f64) / 2.0
     }
