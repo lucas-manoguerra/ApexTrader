@@ -1,8 +1,8 @@
-//! Controlador de interacción del chart.
-//!
-//! El controlador conserva únicamente el estado transitorio de los gestos.
-//! El Viewport es prestado por ChartState en cada evento y sigue siendo la
-//! única fuente de verdad para zoom y pan.
+
+
+
+
+
 
 use crate::chart::interaction::events::{
     AxisDoubleClickEvent, AxisPointerDownEvent, InteractionEvent, InteractionResult, PointerButton,
@@ -11,8 +11,8 @@ use crate::chart::interaction::events::{
 use crate::chart::interaction::options::InteractionOptions;
 use crate::domain::viewport::Viewport;
 
-/// Estado de un gesto en curso. Las posiciones del puntero son absolutas
-/// en coordenadas relativas al plot, incluso cuando el inicio está sobre un eje.
+
+
 #[derive(Debug, Clone, Copy)]
 enum GestureState {
     Idle,
@@ -45,10 +45,10 @@ enum GestureState {
     },
 }
 
-/// Controlador de interacción sin propiedad del estado del gráfico.
-///
-/// Conserva el estado de los gestos y las dimensiones del plot. Cada evento
-/// modifica el Viewport recibido por referencia, que pertenece a ChartState.
+
+
+
+
 pub struct InteractionController {
     state: GestureState,
     screen_width: f64,
@@ -57,12 +57,12 @@ pub struct InteractionController {
 }
 
 impl InteractionController {
-    /// Crea un controlador para las dimensiones iniciales del área de plot.
+
     pub fn new(screen_width: f64, screen_height: f64) -> Self {
         Self::with_options(screen_width, screen_height, InteractionOptions::default())
     }
 
-    /// Crea un controlador con una política explícita de interacción.
+
     pub fn with_options(
         screen_width: f64,
         screen_height: f64,
@@ -76,15 +76,15 @@ impl InteractionController {
         }
     }
 
-    /// Devuelve una copia de las opciones activas.
+
     pub fn options(&self) -> InteractionOptions {
         self.options
     }
 
-    /// Reemplaza las opciones activas y cancela cualquier gesto en curso.
-    ///
-    /// Cancelar el gesto evita que un ancla creada con una política anterior
-    /// siga modificando el viewport después de cambiar la configuración.
+
+
+
+
     pub fn set_options(&mut self, options: InteractionOptions) {
         if self.options != options {
             self.options = options;
@@ -92,10 +92,10 @@ impl InteractionController {
         }
     }
 
-    /// Actualiza las dimensiones del plot.
-    ///
-    /// Un resize cancela cualquier gesto activo porque sus anclas se
-    /// expresaron en el sistema de coordenadas anterior.
+
+
+
+
     pub fn set_screen_size(&mut self, width: f64, height: f64) {
         let width = valid_dimension(width);
         let height = valid_dimension(height);
@@ -106,12 +106,12 @@ impl InteractionController {
         self.screen_height = height;
     }
 
-    /// Indica si hay un gesto de pan o zoom activo, incluido el arrastre de ejes.
+
     pub fn is_gesture_active(&self) -> bool {
         !matches!(self.state, GestureState::Idle)
     }
 
-    /// Procesa un evento sobre el Viewport propietario del ChartState.
+
     pub fn on_event(
         &mut self,
         viewport: &mut Viewport,
@@ -343,8 +343,8 @@ impl InteractionController {
                     return InteractionResult::default();
                 }
 
-                // 40 px de arrastre vertical equivalen a un paso de zoom.
-                // La magnitud es continua y se calcula siempre desde el ancla.
+
+
                 let delta_y = ev.y - anchor_pointer_y;
                 let factor = base.powf(-delta_y / 40.0);
                 if !factor.is_finite() || factor <= 0.0 {
@@ -377,8 +377,8 @@ impl InteractionController {
                     self.screen_height,
                 );
 
-                // Aunque el nivel calculado vuelva al zoom inicial, next puede
-                // diferir del viewport actual por un frame anterior del gesto.
+
+
                 next.clamp_zoom_to_candles(candle_count, self.screen_width);
                 next.clamp_pan_to_candles(candle_count, self.screen_width);
                 let changed = next != *viewport;
@@ -417,8 +417,8 @@ impl InteractionController {
                         0.5,
                     ),
                     ScaleAxis::Price => {
-                        // Arrastrar hacia el interior del gráfico acerca la escala
-                        // tanto desde el eje izquierdo como desde el derecho.
+
+
                         let direction = if anchor_pointer_x < 0.0 { -1.0 } else { 1.0 };
                         (
                             (ev.x - anchor_pointer_x) * direction,
@@ -492,8 +492,8 @@ impl InteractionController {
             return InteractionResult::default();
         }
 
-        // Cada eje de la rueda se filtra de forma independiente para que
-        // scroll y scale puedan configurarse sin acoplar sus comportamientos.
+
+
         let horizontal_delta = if self.options.scroll.horizontal_mouse_wheel {
             ev.delta_x
         } else {
@@ -510,13 +510,13 @@ impl InteractionController {
 
         let mut next = *viewport;
 
-        // La rueda vertical modifica el zoom temporal y mantiene anclada
-        // la coordenada lógica situada bajo el cursor.
+
+
         if vertical_delta != 0.0 {
             let base = 1.0 + viewport.zoom_step();
             if base.is_finite() && base > 0.0 {
-                // El delta de egui se expresa en píxeles; 100 px equivalen
-                // aproximadamente a un paso completo de zoom.
+
+
                 let factor = base.powf(vertical_delta / 100.0);
                 if factor.is_finite() && factor > 0.0 {
                     next.zoom_to_at(
@@ -531,7 +531,7 @@ impl InteractionController {
             }
         }
 
-        // La rueda horizontal desplaza el historial sin alterar las escalas.
+
         if horizontal_delta != 0.0 {
             next.pan(-horizontal_delta, 0.0, self.screen_height);
         }
