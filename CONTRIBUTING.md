@@ -22,7 +22,7 @@ cargo check --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo doc --workspace --no-deps
-python3 scripts/verify_no_code_comments.py
+python scripts/verify_no_code_comments.py
 ```
 
 Los scripts de arquitectura y dependencias deben ejecutarse en PowerShell 7:
