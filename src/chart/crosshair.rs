@@ -3,7 +3,6 @@ use crate::domain::viewport::Viewport;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CrosshairMode {
-
     #[default]
     Full,
 
@@ -14,34 +13,23 @@ pub enum CrosshairMode {
 
 #[derive(Debug, Clone, Copy)]
 pub struct CrosshairUpdateParams<'a> {
-
     pub layout: &'a ChartLayout,
-
     pub price_range: f64,
-
     pub center_price: f64,
-
     pub candle_count: usize,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct Crosshair {
-
     pub mode: CrosshairMode,
-
     pub x: f64,
-
     pub y: f64,
-
     pub index: usize,
-
     pub price: f64,
-
     pub visible: bool,
 }
 
 impl Crosshair {
-
     pub fn hidden() -> Self {
         Self {
             mode: CrosshairMode::Hidden,
