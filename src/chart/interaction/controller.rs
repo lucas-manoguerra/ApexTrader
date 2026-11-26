@@ -1,17 +1,9 @@
-
-
-
-
-
-
 use crate::chart::interaction::events::{
     AxisDoubleClickEvent, AxisPointerDownEvent, InteractionEvent, InteractionResult, PointerButton,
     PointerDownEvent, PointerDragEvent, PointerMoveEvent, PointerUpEvent, ScaleAxis, ScrollEvent,
 };
 use crate::chart::interaction::options::InteractionOptions;
 use crate::domain::viewport::Viewport;
-
-
 
 #[derive(Debug, Clone, Copy)]
 enum GestureState {
@@ -45,10 +37,6 @@ enum GestureState {
     },
 }
 
-
-
-
-
 pub struct InteractionController {
     state: GestureState,
     screen_width: f64,
@@ -61,7 +49,6 @@ impl InteractionController {
     pub fn new(screen_width: f64, screen_height: f64) -> Self {
         Self::with_options(screen_width, screen_height, InteractionOptions::default())
     }
-
 
     pub fn with_options(
         screen_width: f64,
@@ -76,14 +63,9 @@ impl InteractionController {
         }
     }
 
-
     pub fn options(&self) -> InteractionOptions {
         self.options
     }
-
-
-
-
 
     pub fn set_options(&mut self, options: InteractionOptions) {
         if self.options != options {
@@ -91,10 +73,6 @@ impl InteractionController {
             self.state = GestureState::Idle;
         }
     }
-
-
-
-
 
     pub fn set_screen_size(&mut self, width: f64, height: f64) {
         let width = valid_dimension(width);
@@ -106,11 +84,9 @@ impl InteractionController {
         self.screen_height = height;
     }
 
-
     pub fn is_gesture_active(&self) -> bool {
         !matches!(self.state, GestureState::Idle)
     }
-
 
     pub fn on_event(
         &mut self,
@@ -343,8 +319,6 @@ impl InteractionController {
                     return InteractionResult::default();
                 }
 
-
-
                 let delta_y = ev.y - anchor_pointer_y;
                 let factor = base.powf(-delta_y / 40.0);
                 if !factor.is_finite() || factor <= 0.0 {
@@ -376,8 +350,6 @@ impl InteractionController {
                     self.screen_width,
                     self.screen_height,
                 );
-
-
 
                 next.clamp_zoom_to_candles(candle_count, self.screen_width);
                 next.clamp_pan_to_candles(candle_count, self.screen_width);
@@ -417,7 +389,6 @@ impl InteractionController {
                         0.5,
                     ),
                     ScaleAxis::Price => {
-
 
                         let direction = if anchor_pointer_x < 0.0 { -1.0 } else { 1.0 };
                         (
@@ -492,8 +463,6 @@ impl InteractionController {
             return InteractionResult::default();
         }
 
-
-
         let horizontal_delta = if self.options.scroll.horizontal_mouse_wheel {
             ev.delta_x
         } else {
@@ -510,12 +479,9 @@ impl InteractionController {
 
         let mut next = *viewport;
 
-
-
         if vertical_delta != 0.0 {
             let base = 1.0 + viewport.zoom_step();
             if base.is_finite() && base > 0.0 {
-
 
                 let factor = base.powf(vertical_delta / 100.0);
                 if factor.is_finite() && factor > 0.0 {
@@ -530,7 +496,6 @@ impl InteractionController {
                 }
             }
         }
-
 
         if horizontal_delta != 0.0 {
             next.pan(-horizontal_delta, 0.0, self.screen_height);
