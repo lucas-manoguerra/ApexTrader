@@ -10,7 +10,6 @@ pub use price::PriceError;
 pub use quantity::QuantityError;
 pub use renderer::RendererError;
 
-
 #[derive(Debug, thiserror::Error)]
 pub enum ApexTraderError {
     #[error("Chart error: {0}")]
