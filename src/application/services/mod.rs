@@ -1,5 +1,5 @@
 use crate::application::commands::load_candles::LoadCandles;
-use crate::application::events::{self, InputHandler};
+use crate::presentation::input::egui::{self, InputHandler};
 use crate::chart::layout::ChartLayout;
 use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::domain::chart_state::ChartState;
