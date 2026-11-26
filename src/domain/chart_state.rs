@@ -3,20 +3,20 @@ use crate::domain::chart::time_scale::TimeScale;
 use crate::domain::viewport::Viewport;
 use crate::errors::ChartError;
 
-/// Estado del gráfico.
-///
-/// `ChartState` **posee** los puntos de datos (`ownership`) y el `Viewport` (zoom/pan).
-/// Es el único responsable de crear, almacenar y modificar la colección de `ChartDataPoint`.
-/// Ningún otro módulo puede tomar posesión de estos datos ni del viewport.
-///
-/// Como `Candle` valida sus propias invariantes al construirse, `ChartState`
-/// confía en que cualquier `ChartDataPoint` recibido ya es válido.
+
+
+
+
+
+
+
+
 pub struct ChartState {
     data_points: Vec<ChartDataPoint>,
     viewport: Viewport,
-    /// Mapeo compartido entre timestamps e índices lógicos.
+
     time_scale: TimeScale,
-    /// Versión monótona de los datos para invalidar cachés incluso si la longitud no cambia.
+
     data_revision: u64,
 }
 
@@ -31,11 +31,11 @@ impl ChartState {
         }
     }
 
-    /// Agrega o actualiza una vela identificada por su timestamp de apertura.
-    ///
-    /// Si ya existe una vela con el mismo timestamp, el nuevo punto la reemplaza.
-    /// Esto permite incorporar correcciones o actualizaciones de la vela actual
-    /// sin crear índices lógicos duplicados.
+
+
+
+
+
     pub fn add_data_point(&mut self, data_point: ChartDataPoint) -> Result<(), ChartError> {
         tracing::debug!(
             "Agregando punto de datos: open={:.2}, high={:.2}, low={:.2}, close={:.2}, tiempo={}",
@@ -52,16 +52,16 @@ impl ChartState {
             .binary_search_by_key(&timestamp_ms, |point| point.time_point.open_time_ms)
         {
             Ok(index) => {
-                // Los ticks realtime reescriben repetidamente la última vela.
-                // Su índice temporal ya existe, así que no es necesario ordenar
-                // ni reconstruir TimeScale en cada actualización.
+
+
+
                 let mut updated_point = data_point;
                 updated_point.logical_index = Some(index);
                 self.data_points[index] = updated_point;
             }
             Err(index) if index == self.data_points.len() => {
-                // Las velas nuevas llegan cronológicamente: se agregan al final
-                // y la escala temporal crece en O(1) amortizado.
+
+
                 if self.time_scale.push(timestamp_ms) {
                     let mut appended_point = data_point;
                     appended_point.logical_index = Some(self.data_points.len());
@@ -72,7 +72,7 @@ impl ChartState {
                 }
             }
             Err(index) => {
-                // La inserción histórica fuera de orden conserva la ruta general.
+
                 self.data_points.insert(index, data_point);
                 self.rebuild_time_scale();
             }
@@ -81,11 +81,11 @@ impl ChartState {
         Ok(())
     }
 
-    /// Agrega varios puntos de datos al estado del gráfico.
-    ///
-    /// Los puntos pueden llegar desordenados o contener timestamps repetidos.
-    /// Se ordenan por tiempo y, ante duplicados, prevalece el último punto
-    /// recibido en este lote o en el historial existente.
+
+
+
+
+
     pub fn add_data_points(&mut self, data_points: &[ChartDataPoint]) -> Result<(), ChartError> {
         if data_points.is_empty() {
             return Ok(());
@@ -96,10 +96,10 @@ impl ChartState {
         Ok(())
     }
 
-    /// Elimina todos los puntos de datos del estado del gráfico.
-    ///
-    /// Útil para recargar datos de un nuevo símbolo sin acumular datos
-    /// anteriores.
+
+
+
+
     pub fn clear(&mut self) {
         if !self.data_points.is_empty() {
             self.data_points.clear();
@@ -108,8 +108,8 @@ impl ChartState {
         }
     }
 
-    /// Devuelve un préstamo inmutable de los puntos de datos (`borrowing`).
-    /// El llamante puede leerlos pero no modificarlos ni apropiarse de ellos.
+
+
     pub fn data_points(&self) -> &[ChartDataPoint] {
         tracing::trace!(
             "Prestando {} puntos de datos al llamante",
@@ -118,16 +118,16 @@ impl ChartState {
         &self.data_points
     }
 
-    /// Devuelve la escala temporal compartida del chart.
+
     pub fn time_scale(&self) -> &TimeScale {
         &self.time_scale
     }
 
-    /// Centra el viewport en un timestamp del historial.
-    ///
-    /// Acepta timestamps situados entre dos velas y utiliza la interpolación
-    /// de `TimeScale`. Devuelve `false` cuando el timestamp está fuera del
-    /// historial o no hay datos.
+
+
+
+
+
     pub fn center_on_time(&mut self, timestamp_ms: i64) -> bool {
         let Some(logical_index) = self.time_scale.time_to_logical(timestamp_ms) else {
             return false;
@@ -136,12 +136,12 @@ impl ChartState {
         self.viewport.center_on_logical(logical_index)
     }
 
-    /// Ajusta el viewport para mostrar un intervalo temporal inclusivo.
-    ///
-    /// Los extremos se recortan a los límites del historial disponible.
-    /// `screen_width` debe ser el ancho del área de plot, no el ancho total
-    /// del widget. Devuelve `false` si el intervalo no intersecta el historial
-    /// o las dimensiones no son válidas.
+
+
+
+
+
+
     pub fn fit_time_range(
         &mut self,
         start_time_ms: i64,
@@ -158,10 +158,10 @@ impl ChartState {
         self.viewport.fit_logical_range(first, last, screen_width)
     }
 
-    /// Devuelve los timestamps de la primera y última vela visibles.
-    ///
-    /// El rango se calcula con el mismo `Viewport::visible_range` que utiliza
-    /// el renderer, evitando una segunda fórmula para la navegación temporal.
+
+
+
+
     pub fn visible_time_range(&self, screen_width: f64) -> Option<(i64, i64)> {
         if !screen_width.is_finite() || screen_width <= 0.0 {
             return None;
@@ -178,14 +178,14 @@ impl ChartState {
             .logical_range_to_time_range(visible.first as f64, visible.last as f64)
     }
 
-    /// Reconstruye los índices lógicos después de cambiar los datos.
+
     fn rebuild_time_scale(&mut self) {
         self.data_points
             .sort_by_key(|point| point.time_point.open_time_ms);
 
-        // Una serie OHLCV solo puede tener una vela por timestamp de apertura.
-        // sort_by_key es estable: al colapsar duplicados conservamos el último
-        // punto recibido, que normalmente contiene la actualización más reciente.
+
+
+
         let mut unique_points: Vec<ChartDataPoint> = Vec::with_capacity(self.data_points.len());
         for point in self.data_points.drain(..) {
             if let Some(previous) = unique_points.last_mut()
@@ -208,20 +208,20 @@ impl ChartState {
         }
     }
 
-    /// Devuelve un préstamo inmutable del viewport (`borrowing`).
-    /// El renderer lee esto para aplicar zoom y pan al dibujar.
+
+
     pub fn viewport(&self) -> &Viewport {
         tracing::trace!("Prestando viewport al renderer");
         &self.viewport
     }
 
-    /// Devuelve un préstamo mutable del viewport para manejar input de usuario.
+
     pub fn viewport_mut(&mut self) -> &mut Viewport {
         tracing::trace!("Prestando viewport mutable para input de usuario");
         &mut self.viewport
     }
 
-    /// Revisión monótona que cambia cada vez que se modifica la colección de datos.
+
     pub fn data_revision(&self) -> u64 {
         self.data_revision
     }
