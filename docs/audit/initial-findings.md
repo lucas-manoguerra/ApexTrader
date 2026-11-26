@@ -122,3 +122,8 @@ La auditoría se amplía con el borrador normativo `docs/audit/market-data-contr
 ## Evaluación del modelo numérico financiero
 
 La inspección confirmó que `Price` y `Quantity` usan `Decimal`, pero OHLCV en `MarketCandle` y `domain::Candle` permanece en `f64`. La conversión posterior desde punto flotante no recupera el decimal original. Se documentó la evaluación de Decimal, unidades enteras escaladas y un modelo híbrido en [financial-numeric-model.md](financial-numeric-model.md), con criterios de decisión, arquitectura objetivo, matriz de pruebas y puertas de aceptación. La elección queda abierta hasta conocer mercados, instrumentos y proveedores soportados.
+
+
+## Estructura, modularidad y rendimiento
+
+La auditoría de estructura se documenta en [structural-modularity-performance.md](structural-modularity-performance.md). Registra ocho hallazgos (ST-001 a ST-008), inventario del árbol, candidatos de separación por ownership, estructura objetivo, política de abstracciones, observaciones de rendimiento y una secuencia incremental de refactor. No se movieron archivos ni se alteró comportamiento: la reorganización queda condicionada al mapa de dependencias, pruebas y contratos.
