@@ -12,7 +12,6 @@ const MAX_PRICE_SCALE_MARGIN: f64 = 0.45;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum PriceScaleMode {
-
     #[default]
     HighLow,
 
@@ -20,7 +19,6 @@ pub enum PriceScaleMode {
 }
 
 impl PriceScaleMode {
-
     pub const fn label(self) -> &'static str {
         match self {
             Self::HighLow => "Máximo/Mínimo (OHLC)",
@@ -31,7 +29,6 @@ impl PriceScaleMode {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum PriceScaleType {
-
     #[default]
     Linear,
 
@@ -41,7 +38,6 @@ pub enum PriceScaleType {
 }
 
 impl PriceScaleType {
-
     pub const fn label(self) -> &'static str {
         match self {
             Self::Linear => "Lineal",
@@ -86,40 +82,25 @@ impl PriceScaleType {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Viewport {
-
     zoom_x: f64,
-
     zoom_y: f64,
-
     offset_x: f64,
-
     offset_y: f64,
-
     zoom_step: f64,
-
     min_zoom: f64,
-
     max_zoom: f64,
-
     price_scale_range: f64,
     price_scale_center: f64,
-
     price_scale_auto: bool,
-
     price_scale_mode: PriceScaleMode,
-
     price_scale_type: PriceScaleType,
-
     price_scale_percentage_base: Option<f64>,
-
     price_scale_top_margin: f64,
     price_scale_bottom_margin: f64,
-
     price_scale_locked: bool,
 }
 
 impl Viewport {
-
     pub fn new() -> Self {
         Self {
             zoom_x: 1.0,
