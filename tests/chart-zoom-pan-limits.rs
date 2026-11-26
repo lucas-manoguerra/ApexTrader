@@ -1,6 +1,6 @@
 use apex_trader::domain::viewport::Viewport;
 
-/// S7.1: Pan horizontal limitado al rango de velas.
+
 #[test]
 fn pan_limited_to_candle_range_left() {
     let mut viewport = Viewport::new();
@@ -22,7 +22,7 @@ fn pan_limited_to_candle_range_left() {
     );
 }
 
-/// S7.1: Pan horizontal limitado al rango de velas (derecha).
+
 #[test]
 fn pan_limited_to_candle_range_right() {
     let mut viewport = Viewport::new();
@@ -44,7 +44,7 @@ fn pan_limited_to_candle_range_right() {
     );
 }
 
-/// S7.2: Zoom máximo limitado (una vela no puede llenar toda la pantalla).
+
 #[test]
 fn zoom_max_limited() {
     let mut viewport = Viewport::new();
@@ -62,7 +62,7 @@ fn zoom_max_limited() {
     );
 }
 
-/// S7.3: Zoom mínimo limitado (al menos 2 velas deben caber).
+
 #[test]
 fn zoom_min_limited() {
     let mut viewport = Viewport::new();
@@ -80,7 +80,7 @@ fn zoom_min_limited() {
     );
 }
 
-/// S7.3: Con pantalla pequeña, el zoom mínimo aumenta para que 2 velas quepan.
+
 #[test]
 fn zoom_min_limited_by_screen_width() {
     let mut viewport = Viewport::new();
@@ -98,7 +98,7 @@ fn zoom_min_limited_by_screen_width() {
     );
 }
 
-/// S7.2: Con pantalla ancha, el zoom máximo sigue siendo 5.0.
+
 #[test]
 fn zoom_max_limited_by_candle_spacing() {
     let mut viewport = Viewport::new();
@@ -116,7 +116,7 @@ fn zoom_max_limited_by_candle_spacing() {
     );
 }
 
-/// S7.1: Con una sola vela, el pan debe mantenerla centrada en pantalla.
+
 #[test]
 fn pan_single_candle_keeps_visible() {
     let mut viewport = Viewport::new();
@@ -139,7 +139,7 @@ fn pan_single_candle_keeps_visible() {
     );
 }
 
-/// S7.2 y S7.3: set_zoom_level respeta los límites de velas.
+
 #[test]
 fn set_zoom_level_respects_candle_limits() {
     let mut viewport = Viewport::new();
