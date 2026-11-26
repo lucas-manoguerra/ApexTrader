@@ -659,32 +659,7 @@ fn load_symbol_into_chart(
             tracing::error!("No se pudieron cargar datos de mercado: {e}");
             chart.clear();
 
-            let fallback_provider = MockMarketDataProvider::new(100.0)
-                .with_interval_ms(MOCK_INTERVAL_MS)
-                .with_base_volume(MOCK_REALTIME_VOLUME);
-            match LoadCandles::execute(&fallback_provider, symbol.clone(), from_ms, to_ms) {
-                Ok(fallback) => {
-                    if let Err(error) = chart.add_data_points(&fallback.data_points) {
-                        tracing::error!("No se pudo cargar el histórico de fallback: {error}");
-                    }
-                    refresh_price_scale_type_for_data(chart);
-                    if let Some(range) = price_range_from_data_points(chart) {
-                        let point_count = chart.len();
-                        chart
-                            .viewport_mut()
-                            .auto_scale(range, point_count, 1920.0, 1080.0);
-                    }
-                }
-                Err(fallback_error) => {
-                    tracing::error!(
-                        "También falló el histórico sintético de fallback: {fallback_error}"
-                    );
-                }
-            }
-            tracing::info!(
-                "ChartState inicializado con {} puntos de datos (fallback)",
-                chart.len()
-            );
+            tracing::warn!("ChartState vaciado: no se publicarán datos sintéticos tras un fallo de carga");
             LoadState::Error(e.to_string())
         }
     }
@@ -860,5 +835,46 @@ mod price_scale_mode_tests {
     #[test]
     fn auto_scale_range_is_empty_without_valid_points() {
         assert_eq!(visible_price_range(&[], PriceScaleMode::HighLow), None);
+    }
+}
+
+
+#[cfg(test)]
+mod load_failure_tests {
+    use super::*;
+    use crate::market::errors::MarketError;
+
+    struct FailingMarketDataProvider;
+
+    impl MarketDataProvider for FailingMarketDataProvider {
+        fn name(&self) -> &str {
+            "failing-provider"
+        }
+
+        fn fetch_candles(
+            &self,
+            _symbol: Symbol,
+            _from_ms: i64,
+            _to_ms: i64,
+        ) -> Result<Vec<MarketCandle>, MarketError> {
+            Err(MarketError::Network("provider unavailable".to_string()))
+        }
+    }
+
+    #[test]
+    fn failed_market_load_does_not_publish_synthetic_data() {
+        let mut chart = ChartState::new();
+        let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
+
+        let state = load_symbol_into_chart(
+            &mut chart,
+            &FailingMarketDataProvider,
+            symbol,
+            0,
+            MOCK_INTERVAL_MS,
+        );
+
+        assert!(matches!(state, LoadState::Error(_)));
+        assert!(chart.is_empty());
     }
 }
