@@ -45,6 +45,37 @@ Se adopta **eframe con Renderer::Wgpu como backend gráfico principal** para la 
 7. Las APIs directas de `winit`, `raw-window-handle` y `pollster` no se conservan por inercia. Se eliminan cuando la migración haya quitado todos sus consumidores reales. La dependencia directa de wgpu y bytemuck se mantiene si los pipelines propios la requieren.
 8. El backend nativo debe habilitar las implementaciones apropiadas de cada plataforma. La matriz de CI verificará compilación en los tres sistemas; la ejecución real del renderer requiere validación adicional en hardware o runners gráficos adecuados.
 
+## Plan de migración incremental
+
+La migración se ejecuta en fases para preservar la UI y evitar que un cambio de backend se confunda con la implementación completa del renderer del chart.
+
+### Fase 1: activar WGPU en eframe
+
+- Habilitar el feature WGPU de eframe y los backends de ventana requeridos por Windows, macOS y Linux.
+- Seleccionar `eframe::Renderer::Wgpu` explícitamente desde bootstrap.
+- Mantener temporalmente el renderer actual basado en `egui::Painter`, renombrándolo para reflejar su responsabilidad real y no atribuirle Glow.
+- En esta fase, egui dibuja las primitivas del chart y eframe las presenta mediante WGPU. Esto activa WGPU como backend gráfico de la aplicación, pero todavía no constituye un renderer de chart con pipelines propios.
+- No habilitar Glow como fallback.
+
+### Fase 2: renderer WGPU propio del chart
+
+- Implementar un callback `egui-wgpu` que consuma una escena neutral y convierta geometría visible en buffers GPU.
+- Inicializar y mantener pipelines y buffers en los recursos persistentes del callback, usando el device y queue proporcionados por eframe.
+- Implementar velas, mechas, volumen y overlays con clipping y coordenadas físicas/lógicas correctas.
+- Definir invalidación y actualización incremental de buffers sin reconstruir geometría completa en cada frame.
+- Probar resize, cambios de DPI, clipping, pérdida/recreación del estado de dispositivo y escenas vacías.
+
+### Fase 3: retirar infraestructura paralela
+
+- Eliminar el renderer WGPU manual que crea su propia instancia, adapter y device, así como su surface stub y pipeline de geometría de prueba.
+- Retirar dependencias directas de `winit`, `raw-window-handle`, `pollster` y tipos WGPU que ya no tengan consumidores reales.
+- Mantener una dependencia directa de `wgpu` solo si el backend del chart la necesita para implementar callbacks y pipelines.
+- Actualizar Cargo.lock mediante Cargo y verificar que una compilación con lockfile estricto sea reproducible.
+
+### Evidencia por fase
+
+La compilación multiplataforma valida integración y compatibilidad de tipos, no ejecución gráfica. Cada fase debe tener CI verde sobre su head. La Fase 2 requiere pruebas de geometría y callback; el soporte gráfico completo requiere ejecución real en Windows, macOS y Linux con validación de drivers y ciclo de vida.
+
 ## Consecuencias
 
 ### Positivas
