@@ -95,3 +95,9 @@ La separación física en crates se decidirá únicamente si existen límites de
 ## Validación de CI
 
 La ejecución CI #259 se creó para el commit `b6dfc4b44f6fb8670f51a750edfbf187b4a6fcea` con evento `pull_request`. En la última consulta su estado era `queued` y aún no exponía jobs; no hay resultado de formato, compilación, lint ni tests confirmado.
+
+## Precisión financiera y encapsulación temporal
+
+La ruta de visualización utiliza `f64` para OHLCV en `domain::Candle` y `MarketCandle`, mientras que los tipos `Price` y `Quantity` usan `rust_decimal::Decimal`. Esto no demuestra por sí solo un error en la representación gráfica, pero sí exige definir con claridad qué modelo será autoritativo para cálculos financieros, órdenes, límites y persistencia. La conversión entre decimal y binario debe quedar en fronteras explícitas y acompañarse de reglas de redondeo y precisión por instrumento.
+
+`TimePoint::new` valida rangos e intervalos, pero sus tres campos son públicos; la construcción directa o la mutación posterior puede eludir esas validaciones. Además, `ChartState` acepta puntos sin volver a comprobar la validez temporal. El campo `interval_ms` debe tratarse como intervalo nominal hasta que su semántica se defina: las pruebas existentes no lo equiparan siempre al span entre apertura y cierre.
