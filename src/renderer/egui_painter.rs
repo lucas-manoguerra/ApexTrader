@@ -2,12 +2,17 @@ use crate::domain::chart::time_scale::TimeScale;
 use crate::domain::transforms::{self, ScreenPoint, screen_to_chart_point};
 use crate::domain::viewport::{PriceScaleType, Viewport};
 use crate::errors::RendererError;
-use crate::renderer::{ChartRenderer, ChartScene, RenderFrame, RenderLayer};
+use crate::renderer::{
+    ChartGpuCallback, ChartRenderer, ChartScene, GpuVertex, RenderFrame, RenderLayer, build_geometry,
+};
 use eframe::egui;
+use std::sync::Arc;
 
 pub struct EguiPainterChartRenderer {
     cached_series_layer: RenderLayer,
     cached_series_shapes: Vec<egui::Shape>,
+    cached_gpu_vertices: Arc<[GpuVertex]>,
+    target_format: Option<eframe::wgpu::TextureFormat>,
     series_cache_valid: bool,
 }
 
@@ -16,7 +21,16 @@ impl EguiPainterChartRenderer {
         Self {
             cached_series_layer: RenderLayer::default(),
             cached_series_shapes: Vec::new(),
+            cached_gpu_vertices: Arc::from([]),
+            target_format: None,
             series_cache_valid: false,
+        }
+    }
+
+    pub fn with_target_format(target_format: Option<eframe::wgpu::TextureFormat>) -> Self {
+        Self {
+            target_format,
+            ..Self::new()
         }
     }
 }
@@ -734,7 +748,7 @@ impl ChartRenderer for EguiPainterChartRenderer {
         }
 
         tracing::debug!(
-            "Renderizando {} puntos con glow en rect {:?} (zoom_x={:.2}, zoom_y={:.2})",
+            "Renderizando {} puntos con backend WGPU en rect {:?} (zoom_x={:.2}, zoom_y={:.2})",
             scene.data_points.len(),
             rect,
             scene.viewport.zoom_x(),
@@ -744,6 +758,7 @@ impl ChartRenderer for EguiPainterChartRenderer {
         if scene.data_points.is_empty() {
             self.cached_series_layer = RenderLayer::default();
             self.cached_series_shapes.clear();
+            self.cached_gpu_vertices = Arc::from([]);
             self.series_cache_valid = true;
             return Ok(());
         }
@@ -806,8 +821,18 @@ impl ChartRenderer for EguiPainterChartRenderer {
 
         if rebuild_series {
             self.cached_series_layer = frame.layers.first().cloned().unwrap_or_default();
-            self.cached_series_shapes =
-                series_layer_shapes(&self.cached_series_layer, frame.origin);
+            if self.target_format.is_some() {
+                let geometry = build_geometry(&self.cached_series_layer);
+                self.cached_gpu_vertices = ChartGpuCallback::vertices_from_geometry(
+                    &geometry,
+                    [rect.width(), rect.height()],
+                );
+                self.cached_series_shapes.clear();
+            } else {
+                self.cached_series_shapes =
+                    series_layer_shapes(&self.cached_series_layer, frame.origin);
+                self.cached_gpu_vertices = Arc::from([]);
+            }
             self.series_cache_valid = true;
         }
 
@@ -815,9 +840,18 @@ impl ChartRenderer for EguiPainterChartRenderer {
             egui::pos2(left as f32, top as f32),
             egui::pos2(right as f32, volume_bottom as f32),
         );
-        painter
-            .with_clip_rect(series_clip)
-            .extend(self.cached_series_shapes.iter().cloned());
+        let series_painter = painter.with_clip_rect(series_clip);
+        if let Some(target_format) = self.target_format {
+            if !self.cached_gpu_vertices.is_empty() {
+                series_painter.add(ChartGpuCallback::shape(
+                    rect,
+                    self.cached_gpu_vertices.clone(),
+                    target_format,
+                ));
+            }
+        } else {
+            series_painter.extend(self.cached_series_shapes.iter().cloned());
+        }
 
         let font_id = egui::FontId::proportional(11.0);
         let last_point = scene.data_points.last();
@@ -1292,6 +1326,8 @@ mod tests {
         let mut renderer = EguiPainterChartRenderer {
             cached_series_layer: RenderLayer::default(),
             cached_series_shapes: vec![egui::Shape::Noop],
+            cached_gpu_vertices: Arc::from([]),
+            target_format: None,
             series_cache_valid: true,
         };
         let context = egui::Context::default();
