@@ -1,14 +1,3 @@
-
-
-
-
-
-
-
-
-
-
-
 use crate::domain::chart::time_point::TimePoint;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -21,8 +10,6 @@ impl TimeScale {
         Self::default()
     }
 
-
-
     pub fn rebuild<I>(&mut self, timestamps: I)
     where
         I: IntoIterator<Item = i64>,
@@ -31,10 +18,6 @@ impl TimeScale {
         self.timestamps_ms.sort_unstable();
         self.timestamps_ms.dedup();
     }
-
-
-
-
 
     pub fn push(&mut self, timestamp_ms: i64) -> bool {
         if self
@@ -48,7 +31,6 @@ impl TimeScale {
         true
     }
 
-
     pub fn len(&self) -> usize {
         self.timestamps_ms.len()
     }
@@ -61,15 +43,9 @@ impl TimeScale {
         &self.timestamps_ms
     }
 
-
     pub fn logical_index(&self, timestamp_ms: i64) -> Option<usize> {
         self.timestamps_ms.binary_search(&timestamp_ms).ok()
     }
-
-
-
-
-
 
     pub fn rebuild_from_series<I, S>(&mut self, series: I)
     where
@@ -78,11 +54,6 @@ impl TimeScale {
     {
         self.rebuild(series.into_iter().flatten());
     }
-
-
-
-
-
 
     pub fn time_range_to_logical_range(
         &self,
@@ -102,8 +73,6 @@ impl TimeScale {
             self.time_to_logical(clipped_end)?,
         ))
     }
-
-
 
     pub fn indices_in_time_range(
         &self,
@@ -128,7 +97,6 @@ impl TimeScale {
         }
     }
 
-
     pub fn logical_range_to_time_range(
         &self,
         first_logical: f64,
@@ -143,11 +111,6 @@ impl TimeScale {
             self.logical_to_time(last_logical)?,
         ))
     }
-
-
-
-
-
 
     pub fn time_to_logical(&self, timestamp_ms: i64) -> Option<f64> {
         if self.timestamps_ms.is_empty() {
@@ -172,7 +135,6 @@ impl TimeScale {
             }
         }
     }
-
 
     pub fn logical_to_time(&self, logical_index: f64) -> Option<i64> {
         if self.timestamps_ms.is_empty()
@@ -202,7 +164,6 @@ impl TimeScale {
         Some(interpolated.round() as i64)
     }
 
-
     pub fn format_time_label(timestamp_ms: i64) -> String {
         let seconds = timestamp_ms.div_euclid(1_000);
         let days = seconds.div_euclid(86_400);
@@ -212,11 +173,6 @@ impl TimeScale {
         let minute = (day_seconds % 3_600) / 60;
         format!("{day:02}/{month:02} {hour:02}:{minute:02} UTC")
     }
-
-
-
-
-
 
     pub fn format_time_axis_label(
         timestamp_ms: i64,
@@ -260,12 +216,10 @@ impl TimeScale {
         format!("{hour:02}:{minute:02}")
     }
 
-
     pub fn format_time_point(time_point: TimePoint) -> String {
         Self::format_time_label(time_point.open_time_ms)
     }
 }
-
 
 fn civil_from_days(days_since_epoch: i64) -> (i64, u32, u32) {
     let z = days_since_epoch + 719_468;
