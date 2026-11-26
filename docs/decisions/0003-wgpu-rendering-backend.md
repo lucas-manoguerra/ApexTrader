@@ -111,3 +111,40 @@ La compilación multiplataforma valida integración y compatibilidad de tipos, n
 ## Condiciones de revisión
 
 Revisar esta decisión si eframe deja de ofrecer control suficiente sobre el ciclo de renderizado, si la aplicación necesita un event loop nativo independiente, o si los requisitos de múltiples ventanas/superficies exigen ownership propio. La revisión debe comparar el coste total de ciclo de vida, mantenimiento, rendimiento y portabilidad; no basta con preferir una API de menor nivel.
+
+
+## Fase 2 — preparación del renderer de chart mediante callbacks
+
+La implementación comienza con la eliminación de la ruta WGPU manual e incompleta. El renderer de chart no debe crear una segunda instancia, adapter, device, queue, surface ni ciclo de vida de ventana.
+
+### Ownership y ciclo de vida
+
+- eframe/winit posee ventana, eventos, surface y ciclo de vida de la presentación.
+- eframe/egui-wgpu posee instancia, adapter, device, queue, surface y render pass de egui.
+- ApexTrader posee únicamente recursos específicos del chart: pipeline(s), buffers, layouts y datos de geometría.
+- Los recursos GPU persistentes se registran en RenderState.renderer.callback_resources durante la creación de la aplicación, usando el device y el formato de destino suministrados por eframe.
+- Cada callback recibe una instantánea inmutable y acotada de la geometría visible. No retiene referencias a estado mutable del dominio ni a datos de mercado.
+- prepare actualiza buffers y recursos antes del render pass; paint solo enlaza recursos y emite draw calls en el render pass compartido de egui.
+- El rectángulo del callback delimita el viewport lógico del chart; el clip rect de egui limita la región efectiva. Las conversiones entre puntos lógicos y píxeles físicos deben usar pixels_per_point.
+- Resize y DPI no recrean device ni surface. Solo invalidan geometría dependiente del tamaño y actualizan uniformes/viewport.
+- La pérdida o recreación del device invalida todos los recursos GPU del chart y requiere reconstrucción desde la escena neutral.
+
+### Contrato de geometría
+
+La geometría de chart debe ser independiente de wgpu y egui. Se construye desde la escena neutral y contiene primitivas trianguladas para mechas, cuerpos y volumen, con colores explícitos y coordenadas locales al rectángulo del chart. El backend convierte esa geometría a buffers GPU; no recalcula precios, escalas financieras ni identidad de velas.
+
+La conversión a coordenadas NDC debe rechazar dimensiones no finitas o no positivas y evitar castings que produzcan NaN/Infinity. Los valores financieros conservan su representación canónica fuera del renderer; los floats se limitan a la presentación.
+
+### Invalidación y rendimiento
+
+- Cambios de cursor/crosshair no regeneran la geometría de serie.
+- Cambios de datos regeneran únicamente la geometría de serie.
+- Cambios de viewport, escala, layout, tamaño o DPI invalidan la geometría que depende de esas dimensiones.
+- Los buffers mantienen capacidad y se amplían solo cuando sea necesario.
+- Una geometría sin cambios no se vuelve a transferir a GPU.
+- No se agregan draw calls por vela: cuerpos, mechas y volumen se agrupan por pipeline y estado compatible.
+- Las optimizaciones se aceptan con mediciones; primero se preserva la equivalencia visual y determinismo.
+
+### Evidencia y alcance
+
+La eliminación de la ruta manual solo elimina código inoperante; no representa por sí misma un renderer WGPU de chart. La fase 2 se considera implementada cuando callbacks reales dibujen cuerpos, mechas y volumen usando recursos persistentes y existan tests de geometría/invalidación más CI multiplataforma verde. La ejecución con GPU/driver real sigue requiriendo validación de runtime.

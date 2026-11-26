@@ -21,8 +21,6 @@ pub fn create_renderer() -> Box<dyn ChartRenderer> {
 
 mod egui_painter;
 mod ir;
-mod wgpu;
-mod wgpu_pipeline;
 
 pub use egui_painter::EguiPainterChartRenderer;
 pub use ir::{
@@ -30,4 +28,3 @@ pub use ir::{
     PriceAxisLabel, RenderColor, RenderFrame, RenderGeometry, RenderLayer, TimeAxisLabel,
     VolumeBarRender,
 };
-pub use wgpu::WgpuChartRenderer;
