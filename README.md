@@ -50,7 +50,7 @@ cargo check --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo doc --workspace --no-deps
-python3 scripts/verify_no_code_comments.py
+python scripts/verify_no_code_comments.py
 pwsh -File scripts/verify_architecture.ps1
 pwsh -File scripts/audit_dependencies.ps1
 ```
