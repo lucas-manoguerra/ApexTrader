@@ -1,9 +1,3 @@
-
-
-
-
-
-
 use crate::application::commands::load_candles::LoadCandles;
 use crate::application::events::{self, InputHandler};
 use crate::chart::layout::ChartLayout;
@@ -35,7 +29,6 @@ const MOCK_TICKS_PER_CANDLE: u32 = 20;
 const MOCK_REALTIME_VOLUME: f64 = 35.0;
 const MOCK_REALTIME_TICK_INTERVAL: Duration = Duration::from_millis(250);
 
-
 #[derive(Debug, Clone, PartialEq)]
 enum LoadState {
 
@@ -47,13 +40,6 @@ enum LoadState {
 
     Error(String),
 }
-
-
-
-
-
-
-
 
 struct ApexTraderApp {
     chart: ChartState,
@@ -205,7 +191,6 @@ impl eframe::App for ApexTraderApp {
 
             ui.separator();
 
-
             ui.horizontal(|ui| {
                 ui.label("Símbolo:");
                 let response = ui.text_edit_singleline(&mut self.symbol_input);
@@ -261,9 +246,6 @@ impl eframe::App for ApexTraderApp {
             let chart_layout =
                 ChartLayout::compute(chart_rect.width() as f64, chart_rect.height() as f64);
 
-
-
-
             if self.fit_content_pending {
                 let logical_count = self.chart.time_scale().len();
                 if logical_count > 0 {
@@ -287,7 +269,6 @@ impl eframe::App for ApexTraderApp {
                         )
                     };
                     if was_at_right_edge {
-
 
                         self.chart
                             .viewport_mut()
@@ -344,9 +325,6 @@ impl eframe::App for ApexTraderApp {
                 .viewport()
                 .visible_range(logical_count, drawing_width);
 
-
-
-
             let auto_scale_range = if self.chart.viewport().price_scale_auto()
                 && !visible_before_scale_update.is_empty()
             {
@@ -369,7 +347,6 @@ impl eframe::App for ApexTraderApp {
             let viewport = self.chart.viewport();
             let points = self.chart.data_points();
             let visible = viewport.visible_range(logical_count, drawing_width);
-
 
             let mask =
                 self.calculate_invalidation_mask(viewport, crosshair_pos, data_revision, chart_rect);
@@ -409,7 +386,6 @@ impl eframe::App for ApexTraderApp {
                 ui.colored_label(egui::Color32::RED, format!("Error: {}", e));
             }
 
-
             self.prev_viewport = Some(*viewport);
             self.prev_crosshair_pos = crosshair_pos;
             self.prev_data_revision = data_revision;
@@ -437,10 +413,6 @@ impl eframe::App for ApexTraderApp {
         });
     }
 }
-
-
-
-
 
 impl ApexTraderApp {
     fn advance_realtime(&mut self, ctx: &egui::Context) {
@@ -501,7 +473,6 @@ impl ApexTraderApp {
 
         let mut mask = InvalidationMask::none();
 
-
         if let Some(prev_rect) = self.prev_rect
             && prev_rect != rect
         {
@@ -509,7 +480,6 @@ impl ApexTraderApp {
                 level: InvalidationReason::ScaleLayout,
             });
         }
-
 
         if let Some(prev_vp) = self.prev_viewport
             && *viewport != prev_vp
@@ -519,13 +489,11 @@ impl ApexTraderApp {
             });
         }
 
-
         if data_revision != self.prev_data_revision {
             mask = mask.merge(InvalidationMask {
                 level: InvalidationReason::SeriesData,
             });
         }
-
 
         if crosshair_pos != self.prev_crosshair_pos && mask.level == InvalidationReason::None {
             mask = InvalidationMask {
@@ -536,11 +504,6 @@ impl ApexTraderApp {
         mask
     }
 }
-
-
-
-
-
 
 pub fn run() -> eframe::Result {
     if let Err(e) = init_logging() {
@@ -576,7 +539,6 @@ pub fn run() -> eframe::Result {
                 MOCK_TICKS_PER_CANDLE,
             );
 
-
             let renderer = create_renderer();
             let data_revision = chart.data_revision();
 
@@ -601,11 +563,6 @@ pub fn run() -> eframe::Result {
     )
 }
 
-
-
-
-
-
 fn price_tick_size_for_symbol(symbol: &Symbol) -> f64 {
     let base = symbol.base().to_ascii_uppercase();
     let quote = symbol.quote().to_ascii_uppercase();
@@ -622,7 +579,6 @@ fn price_tick_size_for_symbol(symbol: &Symbol) -> f64 {
     0.01
 }
 
-
 fn latest_closed_candle_open_time(interval_ms: i64) -> i64 {
     let now_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -632,7 +588,6 @@ fn latest_closed_candle_open_time(interval_ms: i64) -> i64 {
     let current_open = now_ms.div_euclid(interval_ms) * interval_ms;
     current_open.saturating_sub(interval_ms)
 }
-
 
 fn create_realtime_provider(
     chart: &ChartState,
@@ -671,12 +626,6 @@ fn create_realtime_provider(
         }
     }
 }
-
-
-
-
-
-
 
 fn load_symbol_into_chart(
     chart: &mut ChartState,
@@ -725,8 +674,6 @@ fn load_symbol_into_chart(
             tracing::error!("No se pudieron cargar datos de mercado: {e}");
             chart.clear();
 
-
-
             let fallback_provider = MockMarketDataProvider::new(100.0)
                 .with_interval_ms(MOCK_INTERVAL_MS)
                 .with_base_volume(MOCK_REALTIME_VOLUME);
@@ -757,8 +704,6 @@ fn load_symbol_into_chart(
         }
     }
 }
-
-
 
 fn configure_fonts(ctx: &egui::Context) {
     let mut font_defs = egui::FontDefinitions::default();
@@ -797,7 +742,6 @@ fn configure_fonts(ctx: &egui::Context) {
     ctx.set_fonts(font_defs);
 }
 
-
 fn refresh_price_scale_type_for_data(chart: &mut ChartState) {
     let points = chart.data_points();
     let first_close = points.first().map(|point| point.close());
@@ -819,7 +763,6 @@ fn refresh_price_scale_type_for_data(chart: &mut ChartState) {
     }
 }
 
-
 fn visible_price_range(points: &[ChartDataPoint], mode: PriceScaleMode) -> Option<(f64, f64)> {
     let mut range: Option<(f64, f64)> = None;
 
@@ -840,9 +783,6 @@ fn visible_price_range(points: &[ChartDataPoint], mode: PriceScaleMode) -> Optio
 
     range
 }
-
-
-
 
 fn price_range_from_data_points(chart: &ChartState) -> Option<PriceRange> {
     let points = chart.data_points();
