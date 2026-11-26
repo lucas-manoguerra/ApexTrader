@@ -3,18 +3,18 @@ use apex_trader::domain::price_range::PriceRange;
 use apex_trader::domain::viewport::Viewport;
 use rust_decimal::Decimal;
 
-/// S3.1: data_x_to_screen convierte índice de vela a píxel X de pantalla.
+
 #[test]
 fn data_x_to_screen_returns_pixel_x() {
     let viewport = Viewport::new();
     let screen_width = 1920.0;
 
-    // Índice 0 en el centro con zoom 1.0
+
     let x = viewport.data_x_to_screen(0, screen_width);
     assert!((x - screen_width / 2.0).abs() < f64::EPSILON);
 }
 
-/// S3.1: data_x_to_screen respeta el zoom y el offset.
+
 #[test]
 fn data_x_to_screen_respects_zoom_and_offset() {
     let mut viewport = Viewport::new();
@@ -29,7 +29,7 @@ fn data_x_to_screen_respects_zoom_and_offset() {
     assert!((x1 - x0 - expected_spacing).abs() < f64::EPSILON);
 }
 
-/// S3.2: screen_x_to_data es el inverso de data_x_to_screen.
+
 #[test]
 fn screen_x_to_data_is_inverse_of_data_x_to_screen() {
     let viewport = Viewport::new();
@@ -46,7 +46,7 @@ fn screen_x_to_data_is_inverse_of_data_x_to_screen() {
     }
 }
 
-/// S3.3: price_to_screen convierte Price a píxel Y de pantalla.
+
 #[test]
 fn price_to_screen_returns_pixel_y() {
     let viewport = Viewport::new();
@@ -62,7 +62,7 @@ fn price_to_screen_returns_pixel_y() {
     assert!((y - screen_height / 2.0).abs() < f64::EPSILON);
 }
 
-/// S3.3: price_to_screen respeta el eje Y invertido (precio mayor → Y menor).
+
 #[test]
 fn price_to_screen_inverts_y_axis() {
     let viewport = Viewport::new();
@@ -88,7 +88,7 @@ fn price_to_screen_inverts_y_axis() {
     assert!(y_low > y_high);
 }
 
-/// S3.4: screen_y_to_price es el inverso de price_to_screen.
+
 #[test]
 fn screen_y_to_price_is_inverse_of_price_to_screen() {
     let viewport = Viewport::new();
@@ -112,7 +112,7 @@ fn screen_y_to_price_is_inverse_of_price_to_screen() {
     }
 }
 
-/// S3.4: screen_y_to_price devuelve center_price como fallback si el resultado es inválido.
+
 #[test]
 fn screen_y_to_price_falls_back_to_center() {
     let viewport = Viewport::new();
@@ -127,12 +127,12 @@ fn screen_y_to_price_falls_back_to_center() {
     assert_eq!(recovered, center_price);
 }
 
-/// S4.1: zoom vertical anclado al cursor — el precio bajo el cursor debe
-/// permanecer igual tras zoom in + zoom out en el mismo punto.
-///
-/// Reproduce AT-001: antes de la corrección, `screen_y_to_price` devolvía un
-/// precio distinto tras el zoom porque `zoom_at` usaba `screen_height / zoom_y`
-/// en lugar de `screen_height * zoom_y` para convertir el offset vertical.
+
+
+
+
+
+
 #[test]
 fn zoom_at_y_preserves_cursor_price() {
     let mut viewport = Viewport::new();
@@ -150,9 +150,9 @@ fn zoom_at_y_preserves_cursor_price() {
 
     let before = viewport.screen_y_to_price(cursor_y, screen_height, range, center_price);
 
-    // Zoom in alrededor del cursor (eje Y).
+
     viewport.zoom_at(0.0, 1.0, 0.5, center_y_frac, screen_width, screen_height);
-    // Zoom out en el mismo punto.
+
     viewport.zoom_at(0.0, -1.0, 0.5, center_y_frac, screen_width, screen_height);
 
     let after = viewport.screen_y_to_price(cursor_y, screen_height, range, center_price);
@@ -167,9 +167,9 @@ fn zoom_at_y_preserves_cursor_price() {
     );
 }
 
-/// S4.2: pan vertical es consistente con price_to_screen / screen_y_to_price.
-/// Un pan de `dy` píxeles seguido de screen_y_to_price debe devolver el precio
-/// desplazado exactamente en la cantidad esperada por la transformación Y.
+
+
+
 #[test]
 fn pan_y_is_consistent_with_price_transforms() {
     let mut viewport = Viewport::new();
@@ -184,7 +184,7 @@ fn pan_y_is_consistent_with_price_transforms() {
     let y_center = screen_height / 2.0;
     let price_before = viewport.screen_y_to_price(y_center, screen_height, range, center_price);
 
-    // Pan hacia arriba (dy negativo): el precio bajo el centro debe aumentar.
+
     let dy = -100.0;
     viewport.pan(0.0, dy, screen_height);
 
