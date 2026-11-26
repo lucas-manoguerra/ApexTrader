@@ -1,17 +1,7 @@
 use crate::errors::RendererError;
 use eframe::egui;
 
-
-
-
-
-
-
 pub trait ChartRenderer {
-
-
-
-
 
     fn draw(
         &mut self,
@@ -20,16 +10,8 @@ pub trait ChartRenderer {
         scene: &ChartScene<'_>,
     ) -> Result<(), RendererError>;
 
-
     fn name(&self) -> &str;
 }
-
-
-
-
-
-
-
 
 pub fn create_renderer() -> Box<dyn ChartRenderer> {
     tracing::info!(
