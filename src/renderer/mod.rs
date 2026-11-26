@@ -26,8 +26,8 @@ mod ir;
 pub use egui_painter::EguiPainterChartRenderer;
 pub use ir::{
     CandleRender, ChartScene, CrosshairRender, InvalidationMask, InvalidationReason,
-    PriceAxisLabel, RenderColor, RenderFrame, RenderGeometry, RenderLayer, RenderVertex, TimeAxisLabel,
-    VolumeBarRender,
+    PriceAxisLabel, RenderColor, RenderFrame, RenderGeometry, RenderLayer, RenderVertex,
+    TimeAxisLabel, VolumeBarRender,
 };
 
 pub use geometry::build_geometry;

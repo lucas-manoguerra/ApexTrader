@@ -1,4 +1,6 @@
-use crate::renderer::{CandleRender, RenderColor, RenderGeometry, RenderLayer, RenderVertex, VolumeBarRender};
+use crate::renderer::{
+    CandleRender, RenderColor, RenderGeometry, RenderLayer, RenderVertex, VolumeBarRender,
+};
 
 fn push_rectangle(
     vertices: &mut Vec<RenderVertex>,
@@ -8,7 +10,10 @@ fn push_rectangle(
     bottom: f32,
     color: RenderColor,
 ) {
-    if ![left, top, right, bottom].iter().all(|value| value.is_finite()) {
+    if ![left, top, right, bottom]
+        .iter()
+        .all(|value| value.is_finite())
+    {
         return;
     }
 
@@ -95,7 +100,11 @@ fn push_volume(vertices: &mut Vec<RenderVertex>, bar: &VolumeBarRender, width: f
 pub fn build_geometry(layer: &RenderLayer) -> RenderGeometry {
     let mut geometry = RenderGeometry {
         vertices: Vec::with_capacity(
-            layer.candles.len().saturating_add(layer.volume_bars.len()).saturating_mul(18),
+            layer
+                .candles
+                .len()
+                .saturating_add(layer.volume_bars.len())
+                .saturating_mul(18),
         ),
     };
 
@@ -152,9 +161,17 @@ mod tests {
 
         assert_eq!(geometry.vertices.len(), 18);
         assert!(geometry.vertices.iter().all(|vertex| {
-            vertex.position.iter().all(|coordinate| coordinate.is_finite())
+            vertex
+                .position
+                .iter()
+                .all(|coordinate| coordinate.is_finite())
         }));
-        assert!(geometry.vertices.iter().all(|vertex| vertex.color == RenderColor::GREEN));
+        assert!(
+            geometry
+                .vertices
+                .iter()
+                .all(|vertex| vertex.color == RenderColor::GREEN)
+        );
     }
 
     #[test]
@@ -184,8 +201,14 @@ mod tests {
 
         assert_eq!(geometry.vertices.len(), 18);
         let body = &geometry.vertices[6..12];
-        let min_y = body.iter().map(|vertex| vertex.position[1]).fold(f32::INFINITY, f32::min);
-        let max_y = body.iter().map(|vertex| vertex.position[1]).fold(f32::NEG_INFINITY, f32::max);
+        let min_y = body
+            .iter()
+            .map(|vertex| vertex.position[1])
+            .fold(f32::INFINITY, f32::min);
+        let max_y = body
+            .iter()
+            .map(|vertex| vertex.position[1])
+            .fold(f32::NEG_INFINITY, f32::max);
         assert_eq!(max_y - min_y, 1.0);
     }
 }
