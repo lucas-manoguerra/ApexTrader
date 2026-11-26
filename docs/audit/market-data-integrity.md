@@ -129,3 +129,17 @@ La carga histórica rechaza timestamps duplicados y fuera de orden. La inserció
 ## Restricción de implementación
 
 Esta fase registra riesgos y contratos pendientes. No se modifican todavía tipos ni comportamiento de mercado hasta acordar semánticas y agregar pruebas que hagan verificables las reglas. Todo código nuevo o modificado debe mantener la política de cero comentarios.
+
+
+### MD-008 — Un símbolo inválido deja visible la serie del símbolo anterior
+
+**Severidad:** media-alta.
+
+**Evidencia:** `src/application/services/mod.rs`, flujo de recarga del símbolo.
+
+Cuando el texto ingresado no puede convertirse a `Symbol`, la aplicación detiene el proveedor realtime y cambia el estado a error, pero no limpia ni marca como anterior el contenido existente de `ChartState`. La pantalla conserva la serie previa mientras el campo de símbolo contiene el texto inválido.
+
+**Riesgo:** la identidad del dato visible deja de estar sincronizada con el instrumento solicitado. Aunque el error de validación se registra en el estado de carga, la serie anterior continúa ocupando el gráfico y no existe una identidad de instrumento adjunta a cada conjunto de puntos que permita verificar la correspondencia desde la presentación.
+
+**Dirección requerida:** separar el texto de búsqueda del instrumento activo. Mostrar siempre el instrumento/procedencia asociado a la serie actualmente renderizada. Ante una solicitud inválida, conservar la serie previa solo si queda claramente identificada como último instrumento válido; no presentar el texto inválido como identidad de la serie. Añadir pruebas de transición entre símbolo válido, inválido y válido distinto.
+
