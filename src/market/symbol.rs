@@ -1,15 +1,6 @@
-
-
-
-
-
 use crate::market::errors::MarketError;
 use std::fmt;
 use std::str::FromStr;
-
-
-
-
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Symbol {
@@ -23,11 +14,9 @@ impl Symbol {
         &self.base
     }
 
-
     pub fn quote(&self) -> &str {
         &self.quote
     }
-
 
     pub fn as_string(&self) -> String {
         format!("{}/{}", self.base, self.quote)
