@@ -4,7 +4,7 @@
 
 Este documento registra el mapa estático inicial del repositorio sobre la rama `chore/engineering-governance-foundation`. Es una fotografía del código inspeccionado, no una arquitectura objetivo ni una certificación de calidad. La auditoría continúa por flujos y módulos; las responsabilidades inferidas deben contrastarse con comportamiento y pruebas antes de refactorizar.
 
-Inventario obtenido del árbol Git: 165 archivos versionados, de los cuales 37 pertenecen a `src/`, 10 a `tests/` y 1 a `benches/`. El repositorio también contiene documentación, automatización, configuración de agentes, tareas y assets.
+Inventario obtenido del árbol Git: 165 archivos versionados, de los cuales 51 pertenecen a `src/`, 10 a `tests/` y 1 a `benches/`. El repositorio también contiene documentación, automatización, configuración de agentes, tareas y assets.
 
 ## Mapa de módulos actuales
 
