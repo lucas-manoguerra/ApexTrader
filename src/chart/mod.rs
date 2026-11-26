@@ -1,16 +1,3 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
 pub mod coordinate;
 pub mod crosshair;
 pub mod hit_testing;
