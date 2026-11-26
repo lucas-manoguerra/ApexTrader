@@ -45,7 +45,6 @@ pub struct InteractionController {
 }
 
 impl InteractionController {
-
     pub fn new(screen_width: f64, screen_height: f64) -> Self {
         Self::with_options(screen_width, screen_height, InteractionOptions::default())
     }
@@ -389,7 +388,6 @@ impl InteractionController {
                         0.5,
                     ),
                     ScaleAxis::Price => {
-
                         let direction = if anchor_pointer_x < 0.0 { -1.0 } else { 1.0 };
                         (
                             (ev.x - anchor_pointer_x) * direction,
@@ -482,7 +480,6 @@ impl InteractionController {
         if vertical_delta != 0.0 {
             let base = 1.0 + viewport.zoom_step();
             if base.is_finite() && base > 0.0 {
-
                 let factor = base.powf(vertical_delta / 100.0);
                 if factor.is_finite() && factor > 0.0 {
                     next.zoom_to_at(
