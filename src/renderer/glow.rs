@@ -5,13 +5,13 @@ use crate::errors::RendererError;
 use crate::renderer::{ChartRenderer, ChartScene, RenderFrame, RenderLayer};
 use eframe::egui;
 
-/// Renderizador de chart usando el Painter de egui (backend glow/OpenGL).
-///
-/// Este es el renderer que funciona actualmente en tu GPU Intel UHD 630.
+
+
+
 pub struct GlowChartRenderer {
-    /// Shapes de velas y volumen calculadas en el último frame estructural.
-    /// egui exige volver a emitirlas en cada frame; por eso se reproducen
-    /// desde esta caché cuando solo cambia el crosshair.
+
+
+
     cached_series_layer: RenderLayer,
     cached_series_shapes: Vec<egui::Shape>,
     series_cache_valid: bool,
@@ -33,10 +33,10 @@ impl Default for GlowChartRenderer {
     }
 }
 
-/// Obtiene la etiqueta temporal en una coordenada lógica fraccionaria.
-///
-/// Las posiciones entre velas se interpolan en tiempo real, incluso cuando
-/// los intervalos entre timestamps son irregulares.
+
+
+
+
 fn time_label_at_logical(
     data_points: &[crate::domain::chart::chart_data::ChartDataPoint],
     logical_index: f64,
@@ -172,9 +172,9 @@ struct TimeAxisParams<'a> {
 
 #[derive(Debug, Clone, Copy)]
 struct PriceTick {
-    /// Valor que se muestra en la etiqueta (precio o variación porcentual).
+
     value: f64,
-    /// Valor transformado utilizado para calcular la posición vertical.
+
     scale_value: f64,
     y: f64,
     label_step: f64,
@@ -332,9 +332,9 @@ fn time_axis_ticks(left: f64, right: f64, params: &TimeAxisParams<'_>) -> Vec<Ti
         return Vec::new();
     }
 
-    // Elegir un intervalo "nice" en barras y traducirlo a tiempo real. Al
-    // agrupar por buckets UTC, las marcas caen en límites de reloj (5m, 15m,
-    // 1h, etc.) en lugar de depender del primer índice visible.
+
+
+
     let target_labels = ((width / 118.0).floor() as usize).clamp(2, 9);
     let logical_span = visible.last.saturating_sub(visible.first).max(1);
     let bar_step = nice_tick_step(logical_span as f64, target_labels.saturating_sub(1))
@@ -382,8 +382,8 @@ fn time_axis_ticks(left: f64, right: f64, params: &TimeAxisParams<'_>) -> Vec<Ti
 
         let label =
             TimeScale::format_time_axis_label(timestamp, tick_interval_ms, previous_tick_timestamp);
-        // Reservar espacio según la etiqueta visible evita colisiones sin
-        // imponer una separación excesiva a los ticks compactos HH:mm.
+
+
         let minimum_spacing = (label.chars().count() as f64 * 7.5 + 24.0).max(72.0);
         if last_screen_x.is_some_and(|last| screen_x - last < minimum_spacing) {
             continue;
@@ -671,7 +671,7 @@ fn draw_current_price_marker(
     );
 }
 
-/// Convierte la geometría compartida de la serie en primitivas específicas de egui.
+
 fn series_layer_shapes(layer: &RenderLayer, origin: ScreenPoint) -> Vec<egui::Shape> {
     let mut shapes = Vec::with_capacity(layer.candles.len().saturating_mul(3));
 
@@ -818,8 +818,8 @@ impl ChartRenderer for GlowChartRenderer {
         };
         let time_ticks = time_axis_ticks(left, right, &time_params);
 
-        // Fondo, escalas y rejilla se calculan con el mismo layout que usa
-        // el hit-testing, evitando que las marcas se desalineen del plot.
+
+
         draw_chart_surfaces(painter, layout, frame.origin);
         draw_grid(painter, layout, frame.origin, &price_ticks, &time_ticks);
 
@@ -830,8 +830,8 @@ impl ChartRenderer for GlowChartRenderer {
             self.series_cache_valid = true;
         }
 
-        // Las velas y el volumen quedan recortados al área de datos; nunca
-        // invaden las bandas de escalas.
+
+
         let series_clip = egui::Rect::from_min_max(
             egui::pos2(left as f32, top as f32),
             egui::pos2(right as f32, volume_bottom as f32),
