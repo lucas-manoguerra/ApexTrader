@@ -100,3 +100,6 @@ La crate principal declara eframe/egui junto con wgpu, winit, raw-window-handle,
 ## Política de cambios
 
 No se reorganizarán directorios ni se extraerán crates hasta tener el mapa de dependencias y las responsabilidades actuales documentadas. Cada refactor deberá incluir pruebas adecuadas y mantener la política global de cero comentarios en código.
+
+
+6. **A-006 alto**: El límite público de `application` está acoplado a `eframe`. `src/application/mod.rs` expone `run() -> eframe::Result`, y `src/application/events/mod.rs` importa egui para convertir input en eventos. Impacto: el núcleo de aplicación no puede ejecutarse o probarse sin el framework de presentación y los adaptadores de UI no están claramente delimitados. Dirección: mover el arranque nativo a un adaptador de presentación/binario y mantener los casos de uso con contratos neutrales; conservar el traductor egui en la capa de presentación.
