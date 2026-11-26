@@ -4,7 +4,6 @@ use crate::domain::viewport::Viewport;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum HitKind {
-
     Candle { index: usize },
 
     Series { series_id: HitSeriesId },
@@ -34,7 +33,6 @@ pub struct HitOverlayId(pub u64);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HitAxis {
-
     Price,
 
     Time,
@@ -42,36 +40,24 @@ pub enum HitAxis {
 
 #[derive(Debug, Clone)]
 pub struct HitResult {
-
     pub kind: HitKind,
-
     pub screen_point: ScreenPoint,
-
     pub data_point: transforms::DataPoint,
-
     pub distance: f64,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct HitTestContext<'a> {
-
     pub viewport: &'a Viewport,
-
     pub layout: &'a ChartLayout,
-
     pub screen_x: f64,
-
     pub screen_y: f64,
-
     pub price_range: f64,
-
     pub center_price: f64,
-
     pub candle_count: usize,
 }
 
 impl<'a> HitTestContext<'a> {
-
     pub fn new(
         viewport: &'a Viewport,
         layout: &'a ChartLayout,
