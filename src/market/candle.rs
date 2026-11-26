@@ -24,12 +24,16 @@ impl MarketCandle {
 
     pub fn to_chart_data_point(&self) -> Result<ChartDataPoint, MarketError> {
         let candle = self.to_domain_candle()?;
-        let interval_ms = self.close_time_ms.checked_sub(self.open_time_ms).filter(|value| *value > 0).ok_or_else(|| {
-            MarketError::InvalidResponse(format!(
-                "intervalo temporal inválido: open={}, close={}",
-                self.open_time_ms, self.close_time_ms
-            ))
-        })?;
+        let interval_ms = self
+            .close_time_ms
+            .checked_sub(self.open_time_ms)
+            .filter(|value| *value > 0)
+            .ok_or_else(|| {
+                MarketError::InvalidResponse(format!(
+                    "intervalo temporal inválido: open={}, close={}",
+                    self.open_time_ms, self.close_time_ms
+                ))
+            })?;
         let time_point = TimePoint::new(self.open_time_ms, self.close_time_ms, interval_ms)
             .ok_or_else(|| {
                 MarketError::InvalidResponse(format!(
@@ -52,7 +56,10 @@ impl MarketCandle {
             && self.open <= self.high
             && self.low <= self.close
             && self.close <= self.high
-            && self.close_time_ms.checked_sub(self.open_time_ms).is_some_and(|value| value > 0)
+            && self
+                .close_time_ms
+                .checked_sub(self.open_time_ms)
+                .is_some_and(|value| value > 0)
     }
 }
 
