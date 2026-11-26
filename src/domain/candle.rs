@@ -11,7 +11,6 @@ pub struct Candle {
 }
 
 impl Candle {
-
     pub fn new(
         open: f64,
         high: f64,
