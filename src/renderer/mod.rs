@@ -2,7 +2,6 @@ use crate::errors::RendererError;
 use eframe::egui;
 
 pub trait ChartRenderer {
-
     fn draw(
         &mut self,
         painter: &egui::Painter,
