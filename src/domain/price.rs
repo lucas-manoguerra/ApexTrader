@@ -6,7 +6,6 @@ pub struct Price {
 }
 
 impl Price {
-
     pub fn new(value: rust_decimal::Decimal) -> Result<Self, PriceError> {
         if value.is_sign_negative() {
             return Err(PriceError::NegativePrice {
