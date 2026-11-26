@@ -5,13 +5,13 @@ use crate::errors::RendererError;
 use crate::renderer::{ChartRenderer, ChartScene, RenderFrame, RenderLayer};
 use eframe::egui;
 
-pub struct GlowChartRenderer {
+pub struct EguiPainterChartRenderer {
     cached_series_layer: RenderLayer,
     cached_series_shapes: Vec<egui::Shape>,
     series_cache_valid: bool,
 }
 
-impl GlowChartRenderer {
+impl EguiPainterChartRenderer {
     pub fn new() -> Self {
         Self {
             cached_series_layer: RenderLayer::default(),
@@ -21,7 +21,7 @@ impl GlowChartRenderer {
     }
 }
 
-impl Default for GlowChartRenderer {
+impl Default for EguiPainterChartRenderer {
     fn default() -> Self {
         Self::new()
     }
@@ -721,7 +721,7 @@ fn should_rebuild_series(cache_valid: bool, reason: crate::renderer::Invalidatio
         )
 }
 
-impl ChartRenderer for GlowChartRenderer {
+impl ChartRenderer for EguiPainterChartRenderer {
     fn draw(
         &mut self,
         painter: &egui::Painter,
@@ -1263,14 +1263,14 @@ mod tests {
                 level: InvalidationReason::Full,
             },
         };
-        let mut renderer = GlowChartRenderer::new();
+        let mut renderer = EguiPainterChartRenderer::new();
         let context = egui::Context::default();
         let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 500.0));
 
         let mut output = context.run_ui(egui::RawInput::default(), |ctx| {
             let painter = ctx.layer_painter(egui::LayerId::new(
                 egui::Order::Middle,
-                egui::Id::unique("glow-renderer-candle-cache"),
+                egui::Id::unique("egui-painter-renderer-candle-cache"),
             ));
             renderer
                 .draw(&painter, rect, &scene)
@@ -1289,7 +1289,7 @@ mod tests {
 
     #[test]
     fn empty_scene_clears_previously_cached_shapes() {
-        let mut renderer = GlowChartRenderer {
+        let mut renderer = EguiPainterChartRenderer {
             cached_series_layer: RenderLayer::default(),
             cached_series_shapes: vec![egui::Shape::Noop],
             series_cache_valid: true,
@@ -1301,7 +1301,7 @@ mod tests {
         let mut output = context.run_ui(egui::RawInput::default(), |ctx| {
             let painter = ctx.layer_painter(egui::LayerId::new(
                 egui::Order::Middle,
-                egui::Id::unique("glow-renderer-empty-cache"),
+                egui::Id::unique("egui-painter-renderer-empty-cache"),
             ));
             renderer
                 .draw(&painter, rect, &scene)

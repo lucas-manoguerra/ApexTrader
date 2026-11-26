@@ -14,12 +14,12 @@ pub trait ChartRenderer {
 
 pub fn create_renderer() -> Box<dyn ChartRenderer> {
     tracing::info!(
-        "Usando renderer: glow (egui Painter). wgpu requiere integración real de surface con la ventana antes de poder renderizar."
+        "Usando renderer basado en egui::Painter; la presentación GPU corresponde al backend seleccionado por eframe."
     );
-    Box::new(GlowChartRenderer::new())
+    Box::new(EguiPainterChartRenderer::new())
 }
 
-mod glow;
+mod egui_painter;
 mod ir;
 mod wgpu;
 mod wgpu_pipeline;
