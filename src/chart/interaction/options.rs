@@ -1,18 +1,13 @@
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct InteractionOptions {
-
     pub scroll: ScrollOptions,
-
     pub scale: ScaleOptions,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ScrollOptions {
-
     pub horizontal_mouse_wheel: bool,
-
     pub primary_mouse_drag: bool,
-
     pub invert_vertical_pan: bool,
 }
 
@@ -28,13 +23,9 @@ impl Default for ScrollOptions {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ScaleOptions {
-
     pub secondary_mouse_drag: bool,
-
     pub vertical_mouse_wheel: bool,
-
     pub axis_pressed_mouse_move: AxisPressedMouseMoveOptions,
-
     pub axis_double_click_reset: AxisDoubleClickResetOptions,
 }
 
@@ -51,9 +42,7 @@ impl Default for ScaleOptions {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AxisPressedMouseMoveOptions {
-
     pub time: bool,
-
     pub price: bool,
 }
 
@@ -68,9 +57,7 @@ impl Default for AxisPressedMouseMoveOptions {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AxisDoubleClickResetOptions {
-
     pub time: bool,
-
     pub price: bool,
 }
 
