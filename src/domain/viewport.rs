@@ -1,52 +1,14 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 use crate::domain::price::Price;
 use crate::domain::price_range::PriceRange;
 use crate::domain::transforms;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
 
-
 const HORIZONTAL_PAN_MARGIN_RATIO: f64 = 0.05;
-
 
 const DEFAULT_PRICE_SCALE_MARGIN: f64 = 0.05;
 
-
 const MAX_PRICE_SCALE_MARGIN: f64 = 0.45;
-
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum PriceScaleMode {
@@ -66,7 +28,6 @@ impl PriceScaleMode {
         }
     }
 }
-
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum PriceScaleType {
@@ -89,7 +50,6 @@ impl PriceScaleType {
         }
     }
 
-
     pub fn to_scale_value(self, price: f64, percentage_base: Option<f64>) -> Option<f64> {
         if !price.is_finite() {
             return None;
@@ -106,7 +66,6 @@ impl PriceScaleType {
         };
         value.is_finite().then_some(value)
     }
-
 
     pub fn from_scale_value(self, value: f64, percentage_base: Option<f64>) -> Option<f64> {
         if !value.is_finite() {
@@ -128,33 +87,19 @@ impl PriceScaleType {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Viewport {
 
-
-
-
     zoom_x: f64,
-
-
 
     zoom_y: f64,
 
-
-
     offset_x: f64,
-
-
 
     offset_y: f64,
 
-
     zoom_step: f64,
-
 
     min_zoom: f64,
 
-
     max_zoom: f64,
-
-
 
     price_scale_range: f64,
     price_scale_center: f64,
@@ -196,47 +141,33 @@ impl Viewport {
         }
     }
 
-
     pub fn zoom_x(&self) -> f64 {
         self.zoom_x
     }
-
 
     pub fn zoom_y(&self) -> f64 {
         self.zoom_y
     }
 
-
     pub fn price_scale_auto(&self) -> bool {
         self.price_scale_auto
     }
-
 
     pub fn price_scale_mode(&self) -> PriceScaleMode {
         self.price_scale_mode
     }
 
-
-
-
-
     pub fn set_price_scale_mode(&mut self, mode: PriceScaleMode) {
         self.price_scale_mode = mode;
     }
-
 
     pub fn price_scale_type(&self) -> PriceScaleType {
         self.price_scale_type
     }
 
-
     pub fn price_scale_percentage_base(&self) -> Option<f64> {
         self.price_scale_percentage_base
     }
-
-
-
-
 
     pub fn set_price_scale_percentage_base(&mut self, base: f64) -> bool {
         if !base.is_finite() || base <= 0.0 {
@@ -255,10 +186,6 @@ impl Viewport {
         true
     }
 
-
-
-
-
     pub fn set_price_scale_type(&mut self, scale_type: PriceScaleType) -> bool {
         if scale_type == self.price_scale_type {
             return true;
@@ -274,18 +201,15 @@ impl Viewport {
         true
     }
 
-
     pub fn price_to_scale_value(&self, price: f64) -> Option<f64> {
         self.price_scale_type
             .to_scale_value(price, self.price_scale_percentage_base)
     }
 
-
     pub fn scale_value_to_price(&self, value: f64) -> Option<f64> {
         self.price_scale_type
             .from_scale_value(value, self.price_scale_percentage_base)
     }
-
 
     pub fn screen_y_to_price_value(
         &self,
@@ -314,20 +238,9 @@ impl Viewport {
         self.scale_value_to_price(scale_value)
     }
 
-
-
-
     pub fn price_scale_margins(&self) -> (f64, f64) {
         (self.price_scale_top_margin, self.price_scale_bottom_margin)
     }
-
-
-
-
-
-
-
-
 
     pub fn set_price_scale_margins(&mut self, top: f64, bottom: f64) -> bool {
         if !top.is_finite()
@@ -348,27 +261,20 @@ impl Viewport {
         true
     }
 
-
     pub fn reset_price_scale_margins(&mut self) {
         let _ =
             self.set_price_scale_margins(DEFAULT_PRICE_SCALE_MARGIN, DEFAULT_PRICE_SCALE_MARGIN);
     }
-
 
     fn auto_price_scale_zoom(&self) -> f64 {
         (1.0 - self.price_scale_top_margin - self.price_scale_bottom_margin)
             .clamp(self.min_zoom, self.max_zoom)
     }
 
-
     fn auto_price_scale_center(&self, midpoint: f64, range: f64, zoom: f64) -> f64 {
         midpoint
             + (self.price_scale_top_margin - self.price_scale_bottom_margin) * range / (2.0 * zoom)
     }
-
-
-
-
 
     pub fn set_price_scale_auto(&mut self, enabled: bool) {
         self.price_scale_auto = enabled;
@@ -378,25 +284,17 @@ impl Viewport {
         }
     }
 
-
     pub fn price_scale_locked(&self) -> bool {
         self.price_scale_locked
     }
-
 
     pub fn set_price_scale_locked(&mut self, locked: bool) {
         self.price_scale_locked = locked;
     }
 
-
     pub fn price_scale_reference(&self) -> (f64, f64) {
         (self.price_scale_range, self.price_scale_center)
     }
-
-
-
-
-
 
     pub fn update_auto_price_scale(&mut self, min_price: f64, max_price: f64) -> bool {
         if !self.price_scale_auto
@@ -419,7 +317,6 @@ impl Viewport {
             return false;
         }
 
-
         let range = if raw_range > f64::EPSILON {
             raw_range
         } else {
@@ -441,43 +338,29 @@ impl Viewport {
         changed
     }
 
-
     pub fn offset_x(&self) -> f64 {
         self.offset_x
     }
-
 
     pub fn offset_y(&self) -> f64 {
         self.offset_y
     }
 
-
     pub fn zoom_step(&self) -> f64 {
         self.zoom_step
     }
-
 
     pub fn min_zoom(&self) -> f64 {
         self.min_zoom
     }
 
-
     pub fn max_zoom(&self) -> f64 {
         self.max_zoom
     }
 
-
-
-
-
     pub fn candle_spacing(&self) -> f64 {
         transforms::candle_spacing(self.zoom_x)
     }
-
-
-
-
-
 
     pub fn set_min_zoom(&mut self, value: f64) {
         if !value.is_finite() || value <= 0.0 {
@@ -492,11 +375,6 @@ impl Viewport {
         self.zoom_y = self.zoom_y.clamp(self.min_zoom, self.max_zoom);
     }
 
-
-
-
-
-
     pub fn set_max_zoom(&mut self, value: f64) {
         if !value.is_finite() || value <= 0.0 {
             return;
@@ -510,16 +388,10 @@ impl Viewport {
         self.zoom_y = self.zoom_y.clamp(self.min_zoom, self.max_zoom);
     }
 
-
-
-
     pub fn set_zoom(&mut self, x: f64, y: f64) {
         self.set_zoom_x(x);
         self.set_zoom_y(y);
     }
-
-
-
 
     pub fn set_zoom_x(&mut self, value: f64) {
         if !value.is_finite() || value <= 0.0 {
@@ -528,9 +400,6 @@ impl Viewport {
         self.zoom_x = value.clamp(self.min_zoom, self.max_zoom);
     }
 
-
-
-
     pub fn set_zoom_y(&mut self, value: f64) {
         if !value.is_finite() || value <= 0.0 {
             return;
@@ -538,30 +407,17 @@ impl Viewport {
         self.zoom_y = value.clamp(self.min_zoom, self.max_zoom);
     }
 
-
-
-
     pub fn set_offset_x(&mut self, value: f64) {
         if value.is_finite() {
             self.offset_x = value;
         }
     }
 
-
-
-
     pub fn set_offset_y(&mut self, value: f64) {
         if value.is_finite() {
             self.offset_y = value;
         }
     }
-
-
-
-
-
-
-
 
     pub fn clamp_pan_to_candles(&mut self, candle_count: usize, screen_width: f64) {
         if candle_count == 0 || !screen_width.is_finite() || screen_width <= 0.0 {
@@ -575,44 +431,21 @@ impl Viewport {
         let center_x = screen_width / 2.0;
         let margin = screen_width * HORIZONTAL_PAN_MARGIN_RATIO;
 
-
-
-
-
         let min_offset_x = (margin - center_x) / candle_spacing;
-
-
-
-
 
         let max_offset_x =
             (screen_width - margin - center_x - (candle_count as f64 - 1.0) * candle_spacing)
                 / candle_spacing;
-
-
-
-
 
         if min_offset_x <= max_offset_x {
             self.offset_x = self.offset_x.clamp(min_offset_x, max_offset_x);
         }
     }
 
-
-
-
-
-
-
-
-
     pub fn clamp_zoom_to_candles(&mut self, candle_count: usize, screen_width: f64) {
         if candle_count == 0 || !screen_width.is_finite() || screen_width <= 0.0 {
             return;
         }
-
-
-
 
         let max_zoom_by_candle = 5.0;
 
@@ -623,15 +456,6 @@ impl Viewport {
             self.zoom_x = self.zoom_x.clamp(min_allowed, max_allowed);
         }
     }
-
-
-
-
-
-
-
-
-
 
     pub fn zoom_at(
         &mut self,
@@ -680,13 +504,6 @@ impl Viewport {
         );
     }
 
-
-
-
-
-
-
-
     pub fn zoom_to_at(
         &mut self,
         zoom_x: f64,
@@ -719,8 +536,6 @@ impl Viewport {
         let center_x_px = center_x.clamp(0.0, 1.0) * screen_width;
         let center_y_px = center_y.clamp(0.0, 1.0) * screen_height;
 
-
-
         let cursor_from_center_x = center_x_px - screen_width / 2.0;
         let cursor_from_center_y = center_y_px - screen_height / 2.0;
 
@@ -741,13 +556,6 @@ impl Viewport {
         true
     }
 
-
-
-
-
-
-
-
     pub fn pan(&mut self, dx: f64, dy: f64, screen_height: f64) {
         if !dx.is_finite() || !dy.is_finite() || !screen_height.is_finite() || screen_height <= 0.0
         {
@@ -765,18 +573,6 @@ impl Viewport {
             self.zoom_y
         );
     }
-
-
-
-
-
-
-
-
-
-
-
-
 
     pub fn auto_scale(
         &mut self,
@@ -842,7 +638,6 @@ impl Viewport {
         );
     }
 
-
     pub fn reset(&mut self) {
         self.zoom_x = 1.0;
         self.price_scale_top_margin = DEFAULT_PRICE_SCALE_MARGIN;
@@ -860,16 +655,9 @@ impl Viewport {
         tracing::debug!("Viewport restablecido a valores por defecto");
     }
 
-
-
-
-
-
-
     pub fn data_x_to_screen(&self, index: usize, screen_width: f64) -> f64 {
         self.logical_to_screen(index as f64, screen_width)
     }
-
 
     pub fn logical_to_screen(&self, logical_index: f64, screen_width: f64) -> f64 {
         if !logical_index.is_finite() || !screen_width.is_finite() || screen_width <= 0.0 {
@@ -878,15 +666,12 @@ impl Viewport {
         screen_width / 2.0 + (logical_index + self.offset_x) * self.candle_spacing()
     }
 
-
     pub fn screen_to_logical(&self, screen_x: f64, screen_width: f64) -> f64 {
         if !screen_x.is_finite() || !screen_width.is_finite() || screen_width <= 0.0 {
             return 0.0;
         }
         (screen_x - screen_width / 2.0) / self.candle_spacing() - self.offset_x
     }
-
-
 
     pub fn fit_content(&mut self, logical_count: usize, screen_width: f64) -> bool {
         if logical_count == 0 {
@@ -895,9 +680,6 @@ impl Viewport {
 
         self.fit_logical_range(0.0, (logical_count - 1) as f64, screen_width)
     }
-
-
-
 
     pub fn center_on_logical(&mut self, logical_index: f64) -> bool {
         if !logical_index.is_finite() {
@@ -911,12 +693,6 @@ impl Viewport {
         self.offset_x = next_offset;
         true
     }
-
-
-
-
-
-
 
     pub fn fit_logical_range(
         &mut self,
@@ -950,13 +726,6 @@ impl Viewport {
         previous != (self.zoom_x, self.offset_x)
     }
 
-
-
-
-
-
-
-
     pub fn screen_x_to_data(&self, screen_x: f64, screen_width: f64, candle_count: usize) -> usize {
         if candle_count == 0 {
             return 0;
@@ -965,15 +734,6 @@ impl Viewport {
             .round()
             .clamp(0.0, candle_count.saturating_sub(1) as f64) as usize
     }
-
-
-
-
-
-
-
-
-
 
     pub fn price_to_screen(
         &self,
@@ -1024,16 +784,6 @@ impl Viewport {
         center_y - relative_price * pixels_per_unit
     }
 
-
-
-
-
-
-
-
-
-
-
     pub fn screen_y_to_price(
         &self,
         screen_y: f64,
@@ -1082,12 +832,6 @@ impl Viewport {
         }
     }
 
-
-
-
-
-
-
     pub fn visible_range(
         &self,
         candle_count: usize,
@@ -1099,8 +843,6 @@ impl Viewport {
 
         let spacing = self.candle_spacing();
         let center_x = screen_width / 2.0;
-
-
 
         let first = ((-center_x - self.offset_x * spacing) / spacing)
             .ceil()
