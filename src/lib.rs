@@ -6,5 +6,5 @@ pub mod domain;
 pub mod errors;
 pub mod logging;
 pub mod market;
-pub mod renderer;
 pub mod presentation;
+pub mod renderer;
