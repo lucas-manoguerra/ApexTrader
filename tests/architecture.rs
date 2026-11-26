@@ -52,21 +52,18 @@ fn chart_state_rejects_non_finite_prices() {
 
 #[test]
 fn candle_rejects_invalid_price_range() {
-
     let result = Candle::new(100.0, 90.0, 95.0, 95.0, 0.0);
     assert!(result.is_err());
 }
 
 #[test]
 fn candle_rejects_open_out_of_range() {
-
     let result = Candle::new(200.0, 100.0, 50.0, 75.0, 0.0);
     assert!(result.is_err());
 }
 
 #[test]
 fn candle_rejects_close_out_of_range() {
-
     let result = Candle::new(75.0, 100.0, 50.0, 200.0, 0.0);
     assert!(result.is_err());
 }
