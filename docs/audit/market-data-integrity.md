@@ -180,3 +180,8 @@ La propiedad `prop_market_candles_unique_timestamps` ordena timestamps, los dedu
 **Riesgo:** el nombre de las pruebas puede transmitir una cobertura mayor que la realmente existente. Los casos límite temporales y la reconciliación de datos siguen sin protección basada en propiedades.
 
 **Dirección requerida:** reemplazar las propiedades tautológicas por pruebas sobre comportamiento observable del sistema: inserción en `ChartState`, número de series/puntos, identidad de vela, conflicto y resultado determinista. Generar valores en límites de enteros, escalas decimales, rangos temporales y estados realtime; comprobar que toda vela declarada válida pueda convertirse a cada tipo derivado requerido.
+
+
+## Resolución parcial — MD-007 temporal
+
+La implementación de `MarketCandle` ahora requiere una duración estrictamente positiva y calcula la diferencia temporal mediante `checked_sub`. `is_valid` y `to_chart_data_point` comparten la misma condición efectiva: los timestamps iguales, invertidos o cuya resta desborda `i64` se rechazan. Se añadieron pruebas para los tres casos y para la conversión de un intervalo positivo. La semántica del intervalo sigue siendo el span entre apertura y cierre al crear `TimePoint`; no se impone ninguna equivalencia adicional sobre intervalos nominales en otros caminos. La corrección queda pendiente de CI en el head actualizado.
