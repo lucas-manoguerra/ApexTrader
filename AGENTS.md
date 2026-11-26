@@ -8,7 +8,7 @@ Deliver maintainable, secure, idiomatic Rust changes while preserving the projec
 
 1. Read this file and the relevant documents under `docs/` before changing project structure or cross-module contracts.
 2. Treat the domain as independent from UI frameworks, rendering backends, operating-system APIs and external market providers.
-3. Keep responsibilities cohesive and dependencies directed inward.
+3. Give every component one cohesive capability, one clear owner and explicit exclusions; enforce the ownership rules in `docs/architecture/component-ownership.md` and direct dependencies inward.
 4. Do not introduce comments in code. This includes Rustdoc, line comments, block comments, TODO/FIXME markers and commented-out code.
 5. Put explanatory material in Markdown documentation, architecture decision records or API design documents.
 6. Prefer explicit types, ownership, borrowing and typed errors.
