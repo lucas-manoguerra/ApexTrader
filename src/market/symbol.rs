@@ -1,16 +1,16 @@
-//! Símbolo de mercado (par de trading).
-//!
-//! Representa un instrumento negociable, por ejemplo `BTC/USDT` o
-//! `AAPL`. Es un tipo de valor inmutable y comparable.
+
+
+
+
 
 use crate::market::errors::MarketError;
 use std::fmt;
 use std::str::FromStr;
 
-/// Par de trading o instrumento de mercado.
-///
-/// Ejemplos: `BTC/USDT`, `ETH/EUR`, `AAPL`.
-/// El formato aceptado es `BASE/QUOTE` con ambos lados en mayúsculas.
+
+
+
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Symbol {
     base: String,
@@ -18,17 +18,17 @@ pub struct Symbol {
 }
 
 impl Symbol {
-    /// Devuelve el activo base (ej. `BTC`).
+
     pub fn base(&self) -> &str {
         &self.base
     }
 
-    /// Devuelve el activo cotizado (ej. `USDT`).
+
     pub fn quote(&self) -> &str {
         &self.quote
     }
 
-    /// Devuelve la representación canónica `BASE/QUOTE`.
+
     pub fn as_string(&self) -> String {
         format!("{}/{}", self.base, self.quote)
     }
@@ -100,7 +100,7 @@ mod tests {
         assert!("BTCUSDT".parse::<Symbol>().is_err());
         assert!("BTC/".parse::<Symbol>().is_err());
         assert!("/USDT".parse::<Symbol>().is_err());
-        // minúsculas son válidas al parsear (se aceptan, no se rechazan)
+
         assert!("btc/usdt".parse::<Symbol>().is_ok());
     }
 }
