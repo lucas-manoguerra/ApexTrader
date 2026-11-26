@@ -30,6 +30,8 @@ Convierte una representación visual estable en operaciones específicas del bac
 
 La UI, ventanas, GPU, logging y proveedores concretos son detalles reemplazables. Deben conectarse mediante interfaces explícitas y permanecer fuera del dominio.
 
+La matriz de ownership y las pruebas de responsabilidad por componente están definidas en [component-ownership.md](component-ownership.md). Ese documento es la referencia para asignar una única capacidad cohesiva a cada componente y delimitar lo que no debe hacer.
+
 ## Reglas de dependencia
 
 1. El dominio no depende de capas externas.
