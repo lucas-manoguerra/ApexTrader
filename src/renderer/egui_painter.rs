@@ -1001,7 +1001,11 @@ impl ChartRenderer for EguiPainterChartRenderer {
     }
 
     fn name(&self) -> &str {
-        "glow (egui Painter)"
+        if self.target_format.is_some() {
+            "WGPU chart pipeline + egui UI"
+        } else {
+            "egui Painter fallback"
+        }
     }
 }
 
