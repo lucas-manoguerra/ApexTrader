@@ -1,37 +1,20 @@
-
-
-
-
-
-
-
-
-
 use crate::domain::transforms;
-
 
 pub const CANDLE_SPACING_BASE: f64 = transforms::CANDLE_SPACING_BASE;
 
-
 pub const CANDLE_BODY_WIDTH_RATIO: f64 = transforms::CANDLE_BODY_WIDTH_RATIO;
-
 
 pub fn candle_spacing(zoom_level: f64) -> f64 {
     transforms::candle_spacing(zoom_level)
 }
 
-
 pub fn candle_body_width(zoom_level: f64) -> f64 {
     transforms::candle_body_width(zoom_level)
 }
 
-
 pub fn data_x_to_screen(index: usize, screen_width: f64, zoom_level: f64, offset_x: f64) -> f64 {
     transforms::data_x_to_screen(index, screen_width, zoom_level, offset_x)
 }
-
-
-
 
 pub fn screen_x_to_data(
     screen_x: f64,
@@ -42,9 +25,6 @@ pub fn screen_x_to_data(
 ) -> usize {
     transforms::screen_x_to_data(screen_x, screen_width, zoom_level, offset_x, candle_count)
 }
-
-
-
 
 pub fn price_to_screen(
     price: f64,
@@ -64,7 +44,6 @@ pub fn price_to_screen(
     )
 }
 
-
 pub fn screen_y_to_price(
     screen_y: f64,
     screen_height: f64,
@@ -83,13 +62,9 @@ pub fn screen_y_to_price(
     )
 }
 
-
 pub fn validate_price_range(min: f64, max: f64) -> Option<f64> {
     transforms::validate_price_range(min, max)
 }
-
-
-
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ScreenPoint {
@@ -97,14 +72,11 @@ pub struct ScreenPoint {
     pub y: f64,
 }
 
-
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ChartPoint {
     pub x: f64,
     pub y: f64,
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct DataPoint {
@@ -112,16 +84,12 @@ pub struct DataPoint {
     pub price: f64,
 }
 
-
-
 pub fn screen_to_chart_point(screen: ScreenPoint, left: f64, top: f64) -> ChartPoint {
     ChartPoint {
         x: screen.x - left,
         y: screen.y - top,
     }
 }
-
-
 
 #[allow(clippy::too_many_arguments)]
 pub fn chart_point_to_data_point(
@@ -146,8 +114,6 @@ pub fn chart_point_to_data_point(
     );
     DataPoint { index, price }
 }
-
-
 
 #[derive(Debug, Clone, Copy)]
 pub struct CoordinateConverter {
@@ -185,11 +151,9 @@ impl CoordinateConverter {
         }
     }
 
-
     pub fn data_x_to_screen(&self, index: usize) -> f64 {
         data_x_to_screen(index, self.screen_width, self.zoom_level, self.offset_x)
     }
-
 
     pub fn screen_x_to_data(&self, screen_x: f64) -> usize {
         screen_x_to_data(
@@ -200,7 +164,6 @@ impl CoordinateConverter {
             self.candle_count,
         )
     }
-
 
     pub fn price_to_screen(&self, price: f64) -> f64 {
         price_to_screen(
@@ -213,7 +176,6 @@ impl CoordinateConverter {
         )
     }
 
-
     pub fn screen_y_to_price(&self, screen_y: f64) -> f64 {
         screen_y_to_price(
             screen_y,
@@ -224,7 +186,6 @@ impl CoordinateConverter {
             self.center_price,
         )
     }
-
 
     pub fn screen_to_data_point(&self, screen: ScreenPoint) -> DataPoint {
         let chart = crate::chart::coordinate::screen_to_chart_point(screen, 0.0, 0.0);
