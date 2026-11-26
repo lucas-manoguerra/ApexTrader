@@ -9,7 +9,7 @@ use eframe::wgpu;
 use crate::renderer::RenderGeometry;
 
 #[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
+#[derive(Clone, Copy, PartialEq, Pod, Zeroable)]
 pub struct GpuVertex {
     position: [f32; 2],
     color: [u8; 4],
@@ -221,5 +221,68 @@ impl CallbackTrait for ChartGpuCallback {
         render_pass.set_pipeline(&resources.pipeline);
         render_pass.set_vertex_buffer(0, resources.vertex_buffer.slice(..));
         render_pass.draw(0..resources.vertex_count, 0..1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::renderer::{RenderColor, RenderVertex};
+
+    #[test]
+    fn converts_chart_coordinates_to_clip_space() {
+        let geometry = RenderGeometry {
+            vertices: vec![
+                RenderVertex {
+                    position: [0.0, 0.0],
+                    color: RenderColor::rgba(1, 2, 3, 255),
+                },
+                RenderVertex {
+                    position: [100.0, 50.0],
+                    color: RenderColor::rgba(4, 5, 6, 255),
+                },
+            ],
+        };
+
+        let vertices = ChartGpuCallback::vertices_from_geometry(&geometry, [100.0, 50.0]);
+
+        assert_eq!(vertices.len(), 2);
+        assert_eq!(vertices[0].position, [-1.0, 1.0]);
+        assert_eq!(vertices[1].position, [1.0, -1.0]);
+        assert_eq!(vertices[0].color, [1, 2, 3, 255]);
+    }
+
+    #[test]
+    fn invalid_viewport_dimensions_produce_no_vertices() {
+        let geometry = RenderGeometry {
+            vertices: vec![RenderVertex {
+                position: [1.0, 1.0],
+                color: RenderColor::GREEN,
+            }],
+        };
+
+        assert!(ChartGpuCallback::vertices_from_geometry(&geometry, [0.0, 50.0]).is_empty());
+        assert!(ChartGpuCallback::vertices_from_geometry(&geometry, [100.0, f32::NAN]).is_empty());
+    }
+
+    #[test]
+    fn non_finite_coordinates_are_not_uploaded() {
+        let geometry = RenderGeometry {
+            vertices: vec![
+                RenderVertex {
+                    position: [f32::NAN, 0.0],
+                    color: RenderColor::GREEN,
+                },
+                RenderVertex {
+                    position: [10.0, 10.0],
+                    color: RenderColor::RED,
+                },
+            ],
+        };
+
+        let vertices = ChartGpuCallback::vertices_from_geometry(&geometry, [100.0, 50.0]);
+
+        assert_eq!(vertices.len(), 1);
+        assert!(vertices[0].position.iter().all(|value| value.is_finite()));
     }
 }
