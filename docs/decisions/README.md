@@ -1,29 +1,20 @@
-# Decisiones de arquitectura (ADR)
+# Registro de decisiones de arquitectura
 
-Esta carpeta contiene Architecture Decision Records (ADR).
+Esta carpeta contiene decisiones técnicas permanentes o costosas de revertir.
 
-Un ADR registra una decisión importante:
+## Formato
 
-- Qué problema teníamos.
-- Qué alternativas evaluamos.
-- Qué decisión tomamos.
-- Por qué la tomamos.
-- Qué consecuencias tendrá.
+Cada decisión nueva usa un archivo numerado `NNNN-titulo.md` con:
 
-## Propósito
+1. Estado: propuesta, aceptada, reemplazada o descartada.
+2. Contexto y problema.
+3. Alternativas consideradas.
+4. Decisión y justificación.
+5. Consecuencias positivas, negativas y riesgos.
+6. Condiciones para revisar la decisión.
 
-Para no tener que discutir dentro de un año decisiones que ya analizamos.
+## Índice
 
-## Cómo agregar un ADR
+- [Plantilla ADR](0000-template.md)
 
-1. Creá un archivo `docs/decisions/NNNN-titulo-corto.md` (NNNN es un número secuencial).
-2. Incluí: contexto, alternativas, decisión, justificación, consecuencias.
-3. Referenciá el ADR desde el código o la documentación relacionada cuando sea útil.
-
-## Ejemplo de decisión futura
-
-Cuando decidamos usar `egui` para la interfaz general y `wgpu` para renderizado especializado, documentaremos los motivos y alternativas consideradas aquí.
-
-## ADRs actuales
-
-Ninguno todavía. Esta carpeta queda lista para la primera decisión.
+Las reglas operativas actuales están en los estándares de ingeniería y arquitectura.
