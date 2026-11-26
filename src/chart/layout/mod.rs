@@ -1,11 +1,3 @@
-
-
-
-
-
-
-
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Rect {
     pub left: f64,
@@ -42,14 +34,11 @@ impl Rect {
     }
 }
 
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PaneRect {
     pub index: usize,
     pub rect: Rect,
 }
-
-
 
 #[derive(Debug, Clone)]
 pub struct ChartLayout {
@@ -71,10 +60,6 @@ pub struct ChartLayout {
 
 impl ChartLayout {
 
-
-
-
-
     pub fn compute(full_width: f64, full_height: f64) -> Self {
         if !full_width.is_finite()
             || !full_height.is_finite()
@@ -91,7 +76,6 @@ impl ChartLayout {
         let title_height = (full_height * 0.02).clamp(4.0, 12.0);
         let mut time_axis_height = (full_height * 0.075).clamp(12.0, 40.0);
         let mut volume_panel_height = (full_height * 0.14).clamp(18.0, 72.0);
-
 
         let available_for_bottom = (full_height - title_height - 24.0).max(0.0);
         let reserved_bottom = time_axis_height + volume_panel_height;
@@ -132,7 +116,6 @@ impl ChartLayout {
         }
     }
 
-
     pub fn empty() -> Self {
         let zero = Rect::new(0.0, 0.0, 0.0, 0.0);
         Self {
@@ -146,16 +129,13 @@ impl ChartLayout {
         }
     }
 
-
     pub fn is_valid(&self) -> bool {
         self.full.is_valid() && self.plot.is_valid()
     }
 
-
     pub fn plot_width(&self) -> f64 {
         self.plot.width()
     }
-
 
     pub fn plot_height(&self) -> f64 {
         self.plot.height()
