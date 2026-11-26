@@ -39,7 +39,7 @@ enum LoadState {
     Error(String),
 }
 
-struct ApexTraderApp {
+pub(crate) struct ApexTraderApp {
     chart: ChartState,
     renderer: Box<dyn ChartRenderer>,
     input_handler: InputHandler,
@@ -297,8 +297,7 @@ impl eframe::App for ApexTraderApp {
                     ui,
                     &response,
                     interaction_rect,
-                    chart,
-                );
+                    chart,                );
                 self.input_handler.crosshair_pos()
             };
 
@@ -598,7 +597,6 @@ fn create_realtime_provider(
         }
     }
 }
-
 fn load_symbol_into_chart(
     chart: &mut ChartState,
     provider: &dyn MarketDataProvider,

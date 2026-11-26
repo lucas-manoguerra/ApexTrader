@@ -11,8 +11,6 @@ pub fn run() -> eframe::Result {
     eframe::run_native(
         "ApexTrader",
         eframe::NativeOptions::default(),
-        Box::new(|creation_context| {
-            Ok(Box::new(ApexTraderApp::new(creation_context)))
-        }),
+        Box::new(|creation_context| Ok(Box::new(ApexTraderApp::new(creation_context)))),
     )
 }
