@@ -5,30 +5,21 @@ use crate::market::symbol::Symbol;
 
 #[derive(Debug, Clone)]
 pub struct IngestionRejection {
-
     pub index: usize,
-
     pub open_time_ms: i64,
-
     pub reason: String,
 }
 
 #[derive(Debug)]
 pub struct LoadCandlesResult {
-
     pub data_points: Vec<ChartDataPoint>,
-
     pub rejected: Vec<IngestionRejection>,
-
     pub symbol: Symbol,
-
     pub from_ms: i64,
-
     pub to_ms: i64,
 }
 
 impl LoadCandlesResult {
-
     pub fn is_clean(&self) -> bool {
         self.rejected.is_empty()
     }
@@ -41,7 +32,6 @@ impl LoadCandlesResult {
 pub struct LoadCandles;
 
 impl LoadCandles {
-
     pub fn execute(
         provider: &dyn MarketDataProvider,
         symbol: Symbol,
