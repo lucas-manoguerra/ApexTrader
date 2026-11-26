@@ -19,7 +19,7 @@ Use egui_wgpu::Callback::new_paint_callback with CallbackTrait.
 - paint only binds the prepared pipeline/buffers and issues draw commands.
 - GPU resources live in eframe's RenderState.renderer.callback_resources type map, not in per-frame callback objects.
 - Callback values own an immutable, bounded geometry snapshot. They do not borrow application/domain state.
-- Callback rectangles use egui logical points. GPU viewport/scissor conversion must honor pixels_per_point.
+- Callback rectangles use egui logical points. The callback viewport maps clip-space vertices to the logical chart rectangle; egui's scissor limits drawing to the plot and volume panels.
 
 ## Geometry and upload policy
 
@@ -29,7 +29,7 @@ Persistent vertex buffers grow to the next required capacity and never shrink du
 
 ## Resource lifecycle
 
-The application initializes chart pipeline resources from the wgpu_render_state supplied by eframe. eframe remains the sole owner of device and surface. If a device is recreated, chart resources are dropped/recreated through the host renderer's callback resource lifecycle. The chart backend never creates an Instance, Adapter, Device, Queue, Surface, or native window.
+The callback lazily creates chart pipeline resources during its first prepare call, using the device and target format captured from eframe's wgpu_render_state. Buffers and the last immutable geometry snapshot live in CallbackResources. eframe remains the sole owner of device and surface. If a device/renderer is recreated, its callback resource map is recreated and the next prepare call rebuilds chart resources. The chart backend never creates an Instance, Adapter, Device, Queue, Surface, or native window.
 
 ## Validation
 
@@ -37,3 +37,15 @@ The application initializes chart pipeline resources from the wgpu_render_state 
 - Invalidation tests prove cursor-only changes preserve series geometry.
 - CI checks the WGPU feature graph on Windows, macOS and Linux.
 - Hardware-backed runtime validation is a separate acceptance level; compilation alone does not prove presentation on a real driver.
+
+## Current implementation
+
+- The visible candle series is emitted as one egui-wgpu paint callback when eframe provides a WGPU target format.
+- The callback draws candle wicks, bodies and volume bars from the neutral triangle-list geometry.
+- Vertex positions are converted from chart-local logical points to clip-space using the chart rectangle dimensions.
+- The pipeline uses a WGSL vertex/fragment shader and the eframe target format.
+- The vertex buffer is persistent, grows only when the required capacity exceeds its current capacity, and is written only when the immutable geometry snapshot changes.
+- The callback's prepare stage creates resources lazily and uploads changed vertices. The paint stage only binds the pipeline/buffer and issues one draw call.
+- Axes, labels, panel surfaces and crosshair overlays remain egui presentation responsibilities.
+- A Painter series path remains for test/headless construction where no WGPU target format is supplied; this path does not select Glow.
+- CI compilation and unit tests do not yet prove runtime behavior on physical GPU drivers.
