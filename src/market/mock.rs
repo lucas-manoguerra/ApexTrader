@@ -1,9 +1,3 @@
-
-
-
-
-
-
 use crate::market::candle::MarketCandle;
 use crate::market::errors::MarketError;
 use crate::market::provider::MarketDataProvider;
@@ -17,7 +11,6 @@ const WICK_HIGH_SALT: u64 = 0x94D0_49BB_1331_11EB;
 const WICK_LOW_SALT: u64 = 0xBF58_476D_1CE4_E5B9;
 const VOLUME_SALT: u64 = 0xDB4F_0B91_75AE_2165;
 const SPIKE_SALT: u64 = 0xBBE0_4E99_8E2A_4C31;
-
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MockMarketDataProvider {
@@ -42,24 +35,20 @@ impl MockMarketDataProvider {
         }
     }
 
-
     pub fn with_interval_ms(mut self, interval_ms: i64) -> Self {
         self.interval_ms = interval_ms;
         self
     }
-
 
     pub fn with_base_volume(mut self, base_volume: f64) -> Self {
         self.base_volume = base_volume;
         self
     }
 
-
     pub fn with_seed(mut self, seed: u64) -> Self {
         self.seed = seed;
         self
     }
-
 
     pub fn seed_for_symbol(&self, symbol: &Symbol) -> u64 {
         stable_symbol_seed(self.seed, symbol)
@@ -123,8 +112,6 @@ impl MockMarketDataProvider {
             - normal_noise(symbol_seed, index, WICK_LOW_SALT).abs() * typical_range)
             .max(f64::MIN_POSITIVE);
 
-
-
         let activity = 0.45 + unit_noise(symbol_seed, index, VOLUME_SALT) * 1.4;
         let volatility_factor = 1.0 + (absolute_return / 0.000_7).min(4.0) * 0.55;
         let spike = if unit_noise(symbol_seed, index, SPIKE_SALT) > 0.985 {
@@ -178,8 +165,6 @@ impl MarketDataProvider for MockMarketDataProvider {
         }
         self.validate()?;
 
-
-
         let mut first_index = from_ms.div_euclid(self.interval_ms);
         if from_ms.rem_euclid(self.interval_ms) != 0 {
             first_index = first_index.checked_add(1).ok_or_else(|| {
@@ -206,7 +191,6 @@ impl MarketDataProvider for MockMarketDataProvider {
         Ok(candles)
     }
 }
-
 
 pub(crate) fn mix64(mut value: u64) -> u64 {
     value = value.wrapping_add(0x9E37_79B9_7F4A_7C15);
