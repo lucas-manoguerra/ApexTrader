@@ -99,25 +99,20 @@ def hash_comment_lines(source, path):
     return found
 
 def changed_paths():
-    base_ref = "origin/" + __import__("os").environ.get("GITHUB_BASE_REF", "main")
-    try:
-        result = subprocess.run(
-            ["git", "diff", "--name-only", "--diff-filter=ACMRT", f"{base_ref}...HEAD"],
-            cwd=ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        return [ROOT / item for item in result.stdout.splitlines() if item]
-    except subprocess.CalledProcessError:
-        result = subprocess.run(
-            ["git", "diff", "--name-only", "--diff-filter=ACMRT", "HEAD^", "HEAD"],
-            cwd=ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        return [ROOT / item for item in result.stdout.splitlines() if item]
+    import os
+    if os.environ.get("GITHUB_EVENT_NAME") == "pull_request":
+        base_ref = "origin/" + os.environ.get("GITHUB_BASE_REF", "main")
+        command = ["git", "diff", "--name-only", "--diff-filter=ACMRT", f"{base_ref}...HEAD"]
+    else:
+        command = ["git", "diff", "--name-only", "--diff-filter=ACMRT", "HEAD^", "HEAD"]
+    result = subprocess.run(
+        command,
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return [ROOT / item for item in result.stdout.splitlines() if item]
 
 def scan(path):
     source = path.read_text(encoding="utf-8")
