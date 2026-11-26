@@ -3,14 +3,6 @@ use crate::domain::chart::time_scale::TimeScale;
 use crate::domain::viewport::Viewport;
 use crate::errors::ChartError;
 
-
-
-
-
-
-
-
-
 pub struct ChartState {
     data_points: Vec<ChartDataPoint>,
     viewport: Viewport,
@@ -31,11 +23,6 @@ impl ChartState {
         }
     }
 
-
-
-
-
-
     pub fn add_data_point(&mut self, data_point: ChartDataPoint) -> Result<(), ChartError> {
         tracing::debug!(
             "Agregando punto de datos: open={:.2}, high={:.2}, low={:.2}, close={:.2}, tiempo={}",
@@ -53,14 +40,11 @@ impl ChartState {
         {
             Ok(index) => {
 
-
-
                 let mut updated_point = data_point;
                 updated_point.logical_index = Some(index);
                 self.data_points[index] = updated_point;
             }
             Err(index) if index == self.data_points.len() => {
-
 
                 if self.time_scale.push(timestamp_ms) {
                     let mut appended_point = data_point;
@@ -81,11 +65,6 @@ impl ChartState {
         Ok(())
     }
 
-
-
-
-
-
     pub fn add_data_points(&mut self, data_points: &[ChartDataPoint]) -> Result<(), ChartError> {
         if data_points.is_empty() {
             return Ok(());
@@ -96,10 +75,6 @@ impl ChartState {
         Ok(())
     }
 
-
-
-
-
     pub fn clear(&mut self) {
         if !self.data_points.is_empty() {
             self.data_points.clear();
@@ -107,8 +82,6 @@ impl ChartState {
             self.data_revision = self.data_revision.wrapping_add(1);
         }
     }
-
-
 
     pub fn data_points(&self) -> &[ChartDataPoint] {
         tracing::trace!(
@@ -118,15 +91,9 @@ impl ChartState {
         &self.data_points
     }
 
-
     pub fn time_scale(&self) -> &TimeScale {
         &self.time_scale
     }
-
-
-
-
-
 
     pub fn center_on_time(&mut self, timestamp_ms: i64) -> bool {
         let Some(logical_index) = self.time_scale.time_to_logical(timestamp_ms) else {
@@ -135,12 +102,6 @@ impl ChartState {
 
         self.viewport.center_on_logical(logical_index)
     }
-
-
-
-
-
-
 
     pub fn fit_time_range(
         &mut self,
@@ -158,10 +119,6 @@ impl ChartState {
         self.viewport.fit_logical_range(first, last, screen_width)
     }
 
-
-
-
-
     pub fn visible_time_range(&self, screen_width: f64) -> Option<(i64, i64)> {
         if !screen_width.is_finite() || screen_width <= 0.0 {
             return None;
@@ -178,13 +135,9 @@ impl ChartState {
             .logical_range_to_time_range(visible.first as f64, visible.last as f64)
     }
 
-
     fn rebuild_time_scale(&mut self) {
         self.data_points
             .sort_by_key(|point| point.time_point.open_time_ms);
-
-
-
 
         let mut unique_points: Vec<ChartDataPoint> = Vec::with_capacity(self.data_points.len());
         for point in self.data_points.drain(..) {
@@ -208,19 +161,15 @@ impl ChartState {
         }
     }
 
-
-
     pub fn viewport(&self) -> &Viewport {
         tracing::trace!("Prestando viewport al renderer");
         &self.viewport
     }
 
-
     pub fn viewport_mut(&mut self) -> &mut Viewport {
         tracing::trace!("Prestando viewport mutable para input de usuario");
         &mut self.viewport
     }
-
 
     pub fn data_revision(&self) -> u64 {
         self.data_revision
