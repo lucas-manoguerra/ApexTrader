@@ -31,7 +31,6 @@ const MOCK_REALTIME_TICK_INTERVAL: Duration = Duration::from_millis(250);
 
 #[derive(Debug, Clone, PartialEq)]
 enum LoadState {
-
     Idle,
 
     Loading,
@@ -46,27 +45,16 @@ struct ApexTraderApp {
     renderer: Box<dyn ChartRenderer>,
     input_handler: InputHandler,
     load_state: LoadState,
-
     symbol_input: String,
-
     price_tick_size: f64,
-
     prev_viewport: Option<Viewport>,
-
     prev_crosshair_pos: Option<ScreenPoint>,
-
     prev_data_revision: u64,
-
     fit_content_pending: bool,
-
     realtime_provider: Option<Box<dyn RealtimeMarketDataProvider>>,
-
     follow_latest: bool,
-
     follow_latest_pending: bool,
-
     next_realtime_tick: Instant,
-
     prev_rect: Option<egui::Rect>,
 }
 
@@ -269,7 +257,6 @@ impl eframe::App for ApexTraderApp {
                         )
                     };
                     if was_at_right_edge {
-
                         self.chart
                             .viewport_mut()
                             .set_offset_x(current_offset - 1.0);
@@ -367,7 +354,6 @@ impl eframe::App for ApexTraderApp {
             };
 
             let scene = ChartScene {
-
                 data_points: points,
                 viewport: *viewport,
                 price_range,
@@ -464,7 +450,6 @@ impl ApexTraderApp {
         data_revision: u64,
         rect: egui::Rect,
     ) -> InvalidationMask {
-
         if self.prev_viewport.is_none() {
             return InvalidationMask {
                 level: InvalidationReason::Full,
