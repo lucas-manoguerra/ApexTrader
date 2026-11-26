@@ -592,7 +592,8 @@ fn create_realtime_provider(
         }
     }
 }
-fn load_symbol_into_chart(    chart: &mut ChartState,
+fn load_symbol_into_chart(
+    chart: &mut ChartState,
     provider: &dyn MarketDataProvider,
     symbol: Symbol,
     from_ms: i64,
@@ -858,4 +859,3 @@ mod load_failure_tests {
         assert!(chart.is_empty());
     }
 }
-
