@@ -1,12 +1,5 @@
-
-
-
-
-
-
 use crate::chart::layout::ChartLayout;
 use crate::domain::viewport::Viewport;
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CrosshairMode {
@@ -19,10 +12,6 @@ pub enum CrosshairMode {
     Hidden,
 }
 
-
-
-
-
 #[derive(Debug, Clone, Copy)]
 pub struct CrosshairUpdateParams<'a> {
 
@@ -34,7 +23,6 @@ pub struct CrosshairUpdateParams<'a> {
 
     pub candle_count: usize,
 }
-
 
 #[derive(Debug, Clone, Copy)]
 pub struct Crosshair {
@@ -64,12 +52,6 @@ impl Crosshair {
             visible: false,
         }
     }
-
-
-
-
-
-
 
     pub fn update(
         &mut self,
@@ -125,16 +107,13 @@ impl Crosshair {
             .unwrap_or_default();
     }
 
-
     pub fn is_visible(&self) -> bool {
         self.visible && self.mode != CrosshairMode::Hidden
     }
 
-
     pub fn draw_lines(&self) -> bool {
         self.is_visible() && self.mode == CrosshairMode::Full
     }
-
 
     pub fn draw_labels(&self) -> bool {
         self.is_visible() && self.mode != CrosshairMode::Hidden
@@ -215,7 +194,6 @@ mod tests {
         let layout = make_layout();
         let viewport = make_viewport();
 
-
         let cx = layout.plot.left + layout.plot.width() / 2.0;
         let cy = layout.plot.top + layout.plot.height() / 2.0;
         let params = CrosshairUpdateParams {
@@ -246,7 +224,6 @@ mod tests {
             candle_count: 100,
         };
         ch.update(cx, cy, params, &viewport);
-
 
         assert_eq!(ch.index, 0);
     }
