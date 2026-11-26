@@ -5,7 +5,6 @@ use apex_trader::errors::PriceError;
 use apex_trader::errors::QuantityError;
 use rust_decimal::Decimal;
 
-
 #[test]
 fn price_accepts_valid_positive_value() {
     let p = Price::new(Decimal::new(12345, 2)).expect("123.45 es un precio válido");
@@ -45,7 +44,6 @@ fn price_from_str_rejects_invalid_input() {
     assert!(result.is_err());
 }
 
-
 #[test]
 fn quantity_accepts_positive_value() {
     let q = Quantity::new(Decimal::new(12345, 2)).expect("123.45 es una cantidad válida");
@@ -74,7 +72,6 @@ fn quantity_from_str_parses_correctly() {
     let q: Quantity = "0.00123".parse().expect("0.00123 es parseable");
     assert_eq!(q.value(), Decimal::new(123, 5));
 }
-
 
 #[test]
 fn price_range_accepts_valid_range() {
