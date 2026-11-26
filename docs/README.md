@@ -9,6 +9,7 @@ Esta documentación define el diseño, los estándares y los procedimientos del 
 | [Arquitectura](architecture/README.md) | Capas, dependencias, límites y evolución |
 | [Ingeniería](engineering/standards.md) | Estándares Rust, diseño, errores y política de comentarios |
 | [Desarrollo](development/workflow.md) | Flujo de trabajo y contribución |
+| [Agentes](agents/README.md) | Roles, harness y protocolo de ejecución |
 | [Calidad](quality/README.md) | Gates, pruebas y CI |
 | [Seguridad](security/README.md) | Dependencias, unsafe y gestión de riesgos |
 | [Rendimiento](performance/README.md) | Benchmarks, profiling y presupuestos |
