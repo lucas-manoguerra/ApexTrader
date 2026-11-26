@@ -1,14 +1,8 @@
-
-
-
-
-
 use crate::domain::candle::Candle;
 use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::domain::chart::time_point::TimePoint;
 use crate::market::errors::MarketError;
 use crate::market::symbol::Symbol;
-
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MarketCandle {
@@ -37,9 +31,6 @@ impl MarketCandle {
             .map_err(|e| MarketError::InvalidResponse(format!("vela inválida: {e}")))
     }
 
-
-
-
     pub fn to_chart_data_point(&self) -> Result<ChartDataPoint, MarketError> {
         let candle = Candle::new(self.open, self.high, self.low, self.close, self.volume)
             .map_err(|e| MarketError::InvalidResponse(format!("vela inválida: {e}")))?;
@@ -53,7 +44,6 @@ impl MarketCandle {
             })?;
         Ok(ChartDataPoint::new(candle, time_point))
     }
-
 
     pub fn is_valid(&self) -> bool {
         self.open.is_finite()
