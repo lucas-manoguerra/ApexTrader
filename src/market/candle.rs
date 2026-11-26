@@ -6,26 +6,17 @@ use crate::market::symbol::Symbol;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MarketCandle {
-
     pub symbol: Symbol,
-
     pub open_time_ms: i64,
-
     pub open: f64,
-
     pub high: f64,
-
     pub low: f64,
-
     pub close: f64,
-
     pub volume: f64,
-
     pub close_time_ms: i64,
 }
 
 impl MarketCandle {
-
     pub fn to_domain_candle(&self) -> Result<Candle, MarketError> {
         Candle::new(self.open, self.high, self.low, self.close, self.volume)
             .map_err(|e| MarketError::InvalidResponse(format!("vela inválida: {e}")))
