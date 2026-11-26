@@ -7,19 +7,19 @@ use apex_trader::domain::viewport::Viewport;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 
-/// Benchmark de línea base para el motor de gráficos (chart engine).
-///
-/// Mide cuánto tarda en transformar coordenadas de datos (precio, tiempo)
-/// a coordenadas de pantalla para N velas, usando las funciones reales de
-/// `Viewport` (no fórmulas reimplementadas).
-///
-/// Esto nos da una línea base medible del rendimiento del chart engine.
-/// Cuando se agregue wgpu como backend principal, este benchmark se expande
-/// para incluir subida de buffers GPU y draw calls.
-///
-/// No optimicemos por intuición: este benchmark es la evidencia de referencia.
-/// Cualquier cambio en `domain/viewport.rs`, `domain/transforms.rs` o
-/// `renderer/` debe mantener o mejorar estos números.
+
+
+
+
+
+
+
+
+
+
+
+
+
 fn bench_viewport_transforms(iterations: usize) {
     let mut viewport = Viewport::new();
     viewport.set_zoom(2.0, 2.0);
