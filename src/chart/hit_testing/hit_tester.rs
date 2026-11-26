@@ -4,9 +4,7 @@ use crate::domain::transforms::ScreenPoint;
 
 #[derive(Debug, Clone)]
 pub struct HitTesterResult {
-
     pub hit: HitResult,
-
     pub object_index: usize,
 }
 
