@@ -840,7 +840,6 @@ mod price_scale_mode_tests {
     }
 }
 
-
 #[cfg(test)]
 mod load_failure_tests {
     use super::*;
