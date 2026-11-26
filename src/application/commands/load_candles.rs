@@ -1,18 +1,7 @@
-
-
-
-
-
-
-
-
-
-
 use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::market::errors::MarketError;
 use crate::market::provider::MarketDataProvider;
 use crate::market::symbol::Symbol;
-
 
 #[derive(Debug, Clone)]
 pub struct IngestionRejection {
@@ -23,7 +12,6 @@ pub struct IngestionRejection {
 
     pub reason: String,
 }
-
 
 #[derive(Debug)]
 pub struct LoadCandlesResult {
@@ -45,23 +33,14 @@ impl LoadCandlesResult {
         self.rejected.is_empty()
     }
 
-
     pub fn total_received(&self) -> usize {
         self.data_points.len() + self.rejected.len()
     }
 }
 
-
 pub struct LoadCandles;
 
 impl LoadCandles {
-
-
-
-
-
-
-
 
     pub fn execute(
         provider: &dyn MarketDataProvider,
