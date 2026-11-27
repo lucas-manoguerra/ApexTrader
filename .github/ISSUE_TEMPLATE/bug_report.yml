@@ -1,0 +1,64 @@
+name: Bug report
+description: Reportá un comportamiento incorrecto o un fallo reproducible.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Antes de enviar, revisá si ya existe una Issue para el mismo problema. Consultá también la [guía de contribución](https://github.com/lucas-manoguerra/ApexTrader/blob/main/CONTRIBUTING.md) y el [protocolo de trabajo en equipo](https://github.com/lucas-manoguerra/ApexTrader/blob/main/docs/development/team-collaboration.md).
+  - type: textarea
+    id: observed
+    attributes:
+      label: Comportamiento observado
+      description: ¿Qué ocurrió? Incluí el mensaje de error completo si existe.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamiento esperado
+      description: ¿Qué esperabas que ocurriera?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Pasos para reproducir
+      description: Enumerá los pasos mínimos para reproducir el problema.
+      placeholder: |
+        1. Abrir...
+        2. Seleccionar...
+        3. Observar...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Entorno
+      description: Sistema operativo, versión de ApexTrader y commit si están disponibles. No hace falta completar datos desconocidos.
+      placeholder: |
+        OS:
+        Versión:
+        Commit:
+    validations:
+      required: false
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidencia
+      description: Logs, capturas o archivos mínimos que ayuden a verificar el fallo. Eliminá credenciales y datos sensibles.
+    validations:
+      required: false
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impacto observado
+      options:
+        - Bloquea el uso
+        - Impacto alto
+        - Impacto limitado
+        - No determinado
+    validations:
+      required: true
