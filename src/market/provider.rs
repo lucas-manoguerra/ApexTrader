@@ -71,6 +71,8 @@ mod tests {
         let error = update("BTC/USDT")
             .validate_symbol(&expected)
             .expect_err("símbolo inesperado");
-        assert!(matches!(error, MarketError::InvalidResponse(message) if message.contains("BTC/USDT") && message.contains("ETH/USDT")));
+        assert!(
+            matches!(error, MarketError::InvalidResponse(message) if message.contains("BTC/USDT") && message.contains("ETH/USDT"))
+        );
     }
 }
