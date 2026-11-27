@@ -459,7 +459,8 @@ impl ApexTraderApp {
                                             "No se pudo aplicar la actualización realtime: {error}"
                                         );
                                     } else {
-                                        self.follow_latest_pending |= self.chart.len() > previous_count;
+                                        self.follow_latest_pending |=
+                                            self.chart.len() > previous_count;
                                         if candle_closed {
                                             tracing::debug!(
                                                 "Mock realtime cerró vela {} en {} ms",
