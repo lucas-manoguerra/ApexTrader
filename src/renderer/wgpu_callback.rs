@@ -307,7 +307,11 @@ mod tests {
         let vertices = ChartGpuCallback::vertices_from_geometry(&geometry, [100.0, 50.0]);
 
         assert_eq!(vertices.len(), 3);
-        assert!(vertices.iter().all(|vertex| vertex.color == [0, 255, 0, 255]));
+        assert!(
+            vertices
+                .iter()
+                .all(|vertex| vertex.color == [0, 255, 0, 255])
+        );
     }
 
     #[test]
