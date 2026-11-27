@@ -2,11 +2,11 @@
 
 ## Estado de la revisión
 
-**Resultado:** fundaciones sustancialmente alineadas con el alcance acordado; revisión de cierre todavía no exhaustiva. La CI #45921206092 del head anterior está verde (19/19). La primera validación de la encapsulación temporal detectó un acceso residual a `open_time_ms` como campo; el head actual usa `open_time_ms()` en `src/presentation/desktop/app.rs`. La ejecución #45921855684 confirmó el error en el head previo. La ejecución #45922397027 corresponde a un head intermedio (`20af5c78...`) y su estado no valida el head actual. La ejecución #45922455299 sobre el head `8c6dc028cdda321384726421c6135b7aab71adf0` fue cancelada al avanzar la rama. Se requiere una nueva CI sobre el head actualizado.
+**Resultado:** fundaciones sustancialmente alineadas con el alcance acordado; revisión de cierre todavía no exhaustiva. La CI #45922786252 sobre el head `0e3e356c6f18859b6bd3bd948c79e27c51910bd8` terminó con 18 controles exitosos y un fallo en `Documentation (ubuntu-latest)`. El fallo fue externo al código: `apt-get update` recibió HTTP 403 del repositorio `packages.microsoft.com` preconfigurado en el runner. Se ajustó el workflow para deshabilitar únicamente ese source externo en runners Linux antes de actualizar APT; la nueva CI debe validar el cambio.
 
 - PR: [#10](https://github.com/lucas-manoguerra/ApexTrader/pull/10)
 - Base: `main` (`b14d400d23fd45d090d3a58055bc0d077ce227cb`)
-- Head auditado en esta actualización: `8c6dc028cdda321384726421c6135b7aab71adf0`
+- Head auditado en esta actualización: `0e3e356c6f18859b6bd3bd948c79e27c51910bd8` (workflow actualizado posteriormente)
 - Diferencia reportada por GitHub: 292 commits, 108 archivos, 3664 adiciones y 2083 eliminaciones.
 - CI anterior: [#45921206092](https://github.com/lucas-manoguerra/ApexTrader/actions/runs/45921206092), **19/19 jobs exitosos**. CI del head intermedio: [#45922397027](https://github.com/lucas-manoguerra/ApexTrader/actions/runs/45922397027), no aplicable al head actual. CI del head actual: [#45922455299](https://github.com/lucas-manoguerra/ApexTrader/actions/runs/45922455299), cancelada.
 
@@ -79,9 +79,9 @@ La inspección de fuentes identifica candidatos claros, pero no sustituye `cargo
 ### C-005 — Encapsulación de invariantes temporales
 
 **Severidad:** alta para integridad del dominio.  
-**Estado:** cambios implementados; CI del head actual pendiente.
+**Estado:** cambios implementados; compilación, tests y Clippy pasaron en #45922786252; documentación Ubuntu bloqueada por error externo de APT. Workflow corregido; pendiente nueva CI.
 
-**Evidencia:** `TimePoint` mantiene privados apertura, cierre e intervalo nominal y expone getters. Se actualizaron los consumidores del dominio, mercado, aplicación, presentación y renderer. La primera CI encontró un acceso residual en `presentation/desktop/app.rs`; se corrigió en el head `8c6dc028cdda321384726421c6135b7aab71adf0` mediante `open_time_ms()`. El primer intento de CI no validó el head completo porque fue cancelado al entrar commits posteriores.
+**Evidencia:** `TimePoint` mantiene privados apertura, cierre e intervalo nominal y expone getters. Se actualizaron los consumidores del dominio, mercado, aplicación, presentación y renderer. La primera CI encontró un acceso residual en `presentation/desktop/app.rs`; se corrigió mediante `open_time_ms()`. La CI #45922786252 pasó compilación, tests y Clippy en los tres sistemas, pero su job de documentación Ubuntu falló antes de ejecutar Cargo por un HTTP 403 del repositorio APT externo. El workflow fue endurecido para aislar ese repositorio; la nueva ejecución queda pendiente.
 
 **Semántica preservada:** el intervalo nominal no se fuerza a coincidir con el span temporal sin un contrato de proveedor/timeframe. La revisión detallada de unidad, DST, calendarios, zonas horarias y fronteras de proveedor está en `docs/audit/temporal-model-review.md`, enlazada desde ADR-0004.
 
@@ -114,7 +114,7 @@ Cada tema debe entrar en un PR propio con contrato, pruebas y criterios de acept
 ## 5. Criterios para cerrar esta etapa
 
 - [x] CI de una revisión anterior verde en Windows, macOS y Linux.
-- [ ] CI del head actual verde en Windows, macOS y Linux.
+- [ ] CI del head actual verde en Windows, macOS y Linux, incluida documentación Ubuntu tras aislar el source APT externo.
 - [x] WGPU seleccionado explícitamente como backend eframe; callback WGPU del chart integrado.
 - [x] No se mantiene el renderer paralelo con lifecycle independiente.
 - [x] Fallback histórico sintético implícito eliminado.
