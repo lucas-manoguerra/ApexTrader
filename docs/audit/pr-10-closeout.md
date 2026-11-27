@@ -47,14 +47,14 @@ La CI acredita compilación y pruebas automatizadas en runners nativos. **No acr
 
 ### C-001 — Supresión global de código muerto
 
-**Estado:** remediación aplicada; CI pendiente.
+**Estado:** remediación aplicada; validación en CI del head actual.
 
 **Severidad:** alta para calidad de ingeniería.  
-**Evidencia:** `src/lib.rs` ya no contiene `#![allow(dead_code)]`; el cambio se realizó en `0e26af734302d4960cd2d8c7de3dfb3f017c0fd6`.
+**Evidencia:** `src/lib.rs` ya no contiene `#![allow(dead_code)]`. La CI posterior detectó dos variantes de `LoadState` sin uso y dos funciones de prueba sin atributo `#[test]`. Se eliminaron las variantes `Idle` y `Loading` y se añadieron los atributos faltantes en `controller.rs` y `viewport.rs`.
 
-La supresión global ocultaba código sin uso y debilitaba la señal de calidad. La remediación elimina la excepción general. La CI del nuevo head debe confirmar que no quedan advertencias de código muerto que hagan fallar Clippy.
+La supresión global ocultaba código sin uso y debilitaba la señal de calidad. Se mantiene retirada. La corrección no introduce excepciones locales para silenciar Clippy.
 
-**Criterio:** mantener la supresión retirada; resolver cada aviso real o justificar una excepción local, estrecha y necesaria, sin restablecer una política global.
+**Criterio:** mantener la supresión retirada y exigir Clippy verde en los tres sistemas operativos.
 
 ### C-002 — Verificador de arquitectura con cobertura limitada
 
@@ -103,7 +103,8 @@ Cada tema debe entrar en un PR propio con contrato, pruebas y criterios de acept
 - [x] No se mantiene el renderer paralelo con lifecycle independiente.
 - [x] Fallback histórico sintético implícito eliminado.
 - [x] Decisiones y limitaciones principales registradas en ADR/auditorías.
-- [x] Retirar la supresión global `dead_code`; CI del nuevo head pendiente.
+- [x] Retirar la supresión global `dead_code`.
+- [x] Corregir los hallazgos concretos expuestos por Clippy; CI del head corregido pendiente.
 - [ ] Confirmar el destino de las dependencias directas candidatas a obsoletas.
 - [ ] Sincronizar el cuerpo del PR con el head y CI vigentes.
 - [ ] Completar revisión humana del diff y obtener aprobación requerida.
