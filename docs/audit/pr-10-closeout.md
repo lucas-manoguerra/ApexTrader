@@ -47,12 +47,14 @@ La CI acredita compilación y pruebas automatizadas en runners nativos. **No acr
 
 ### C-001 — Supresión global de código muerto
 
+<badge>Remediación aplicada; CI pendiente</badge>
+
 **Severidad:** alta para calidad de ingeniería.  
-**Evidencia:** `src/lib.rs` conserva `#![allow(dead_code)]`, mientras `docs/audit/initial-findings.md` registra su eliminación como dirección recomendada.
+**Evidencia:** `src/lib.rs` ya no contiene `#![allow(dead_code)]`; el cambio se realizó en `0e26af734302d4960cd2d8c7de3dfb3f017c0fd6`.
 
-La supresión reduce la capacidad de detectar código abandonado y APIs sin uso. Clippy verde no elimina este riesgo porque la advertencia está deshabilitada globalmente.
+La supresión global ocultaba código sin uso y debilitaba la señal de calidad. La remediación elimina la excepción general. La CI del nuevo head debe confirmar que no quedan advertencias de código muerto que hagan fallar Clippy.
 
-**Acción recomendada:** retirar la supresión y resolver los avisos resultantes de forma explícita, o documentar una excepción estrictamente temporal y acotada. No declarar este hallazgo resuelto mientras permanezca global.
+**Criterio:** mantener la supresión retirada; resolver cada aviso real o justificar una excepción local, estrecha y necesaria, sin restablecer una política global.
 
 ### C-002 — Verificador de arquitectura con cobertura limitada
 
@@ -101,7 +103,7 @@ Cada tema debe entrar en un PR propio con contrato, pruebas y criterios de acept
 - [x] No se mantiene el renderer paralelo con lifecycle independiente.
 - [x] Fallback histórico sintético implícito eliminado.
 - [x] Decisiones y limitaciones principales registradas en ADR/auditorías.
-- [ ] Resolver o aceptar explícitamente la supresión global `dead_code`.
+- [x] Retirar la supresión global `dead_code`; CI del nuevo head pendiente.
 - [ ] Confirmar el destino de las dependencias directas candidatas a obsoletas.
 - [ ] Sincronizar el cuerpo del PR con el head y CI vigentes.
 - [ ] Completar revisión humana del diff y obtener aprobación requerida.
