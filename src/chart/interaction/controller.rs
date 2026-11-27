@@ -274,7 +274,11 @@ impl InteractionController {
                 } else {
                     -1.0
                 };
-                let scale_direction = if viewport.price_scale_inverted() { -1.0 } else { 1.0 };
+                let scale_direction = if viewport.price_scale_inverted() {
+                    -1.0
+                } else {
+                    1.0
+                };
                 next.set_offset_x(anchor_offset_x + delta_x / spacing);
                 if !next.price_scale_locked() && delta_y != 0.0 {
                     next.set_price_scale_auto(false);
