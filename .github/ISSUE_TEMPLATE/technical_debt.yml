@@ -1,8 +1,6 @@
 name: Technical debt / research
 description: Registrá deuda técnica, riesgos o una investigación necesaria.
 title: "chore: "
-labels:
-  - technical-debt
 body:
   - type: markdown
     attributes:
