@@ -17,7 +17,19 @@ impl TimePoint {
         })
     }
 
-    pub const fn open_time_ms(self) -> i64 {\n        self.open_time_ms\n    }\n\n    pub const fn close_time_ms(self) -> i64 {\n        self.close_time_ms\n    }\n\n    pub const fn interval_ms(self) -> i64 {\n        self.interval_ms\n    }\n\n    pub fn midpoint_ms(self) -> f64 {
+    pub const fn open_time_ms(self) -> i64 {
+        self.open_time_ms
+    }
+
+    pub const fn close_time_ms(self) -> i64 {
+        self.close_time_ms
+    }
+
+    pub const fn interval_ms(self) -> i64 {
+        self.interval_ms
+    }
+
+    pub fn midpoint_ms(self) -> f64 {
         (self.open_time_ms as f64 + self.close_time_ms as f64) / 2.0
     }
 }
