@@ -8,6 +8,7 @@ use apex_trader::market::symbol::Symbol;
 use proptest::prelude::*;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
+use std::collections::BTreeMap;
 use std::str::FromStr;
 
 fn valid_symbol() -> impl Strategy<Value = Symbol> {
@@ -92,16 +93,38 @@ proptest! {
 
 proptest! {
     #[test]
-    fn prop_market_candles_unique_timestamps(
-        candles in prop::collection::vec(valid_market_candle(), 0..50),
+    fn prop_chart_state_sorts_and_resolves_duplicate_timestamps(
+        candles in prop::collection::vec((valid_market_candle(), 0i64..20), 0..50),
     ) {
-        let mut times: Vec<i64> = candles.iter().map(|c| c.open_time_ms).collect();
-        times.sort();
-        times.dedup();
+        let mut expected = BTreeMap::new();
+        let mut points = Vec::with_capacity(candles.len());
 
-        let original_count = candles.len();
-        let deduped_count = times.len();
-        assert!(deduped_count <= original_count);
+        for (mut candle, timestamp) in candles {
+            candle.open_time_ms = timestamp;
+            candle.close_time_ms = timestamp + 60_000;
+            expected.insert(timestamp, candle.close);
+            points.push(
+                candle
+                    .to_chart_data_point()
+                    .expect("MarketCandle válida debe convertirse a ChartDataPoint"),
+            );
+        }
+
+        let mut chart = ChartState::new();
+        chart
+            .add_data_points(&points)
+            .expect("ChartState debe aceptar puntos válidos");
+
+        let expected_timestamps: Vec<i64> = expected.keys().copied().collect();
+        prop_assert_eq!(chart.len(), expected.len());
+        prop_assert_eq!(chart.time_scale().timestamps(), expected_timestamps.as_slice());
+
+        for (point, (timestamp, expected_close)) in
+            chart.data_points().iter().zip(expected.iter())
+        {
+            prop_assert_eq!(point.time_point.open_time_ms(), *timestamp);
+            prop_assert_eq!(point.close(), *expected_close);
+        }
     }
 }
 
