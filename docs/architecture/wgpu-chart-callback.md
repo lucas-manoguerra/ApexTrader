@@ -33,10 +33,11 @@ The callback lazily creates chart pipeline resources during its first prepare ca
 
 ## Validation
 
-- Unit tests validate geometry counts, finite coordinates, clipping bounds, empty/degenerate inputs and invalid dimensions.
-- Invalidation tests prove cursor-only changes preserve series geometry.
-- CI checks the WGPU feature graph on Windows, macOS and Linux.
-- Hardware-backed runtime validation is a separate acceptance level; compilation alone does not prove presentation on a real driver.
+- Unit tests validate geometry counts, finite coordinates, clip-space conversion, empty/degenerate inputs and invalid viewport dimensions.
+- Invalidation tests prove cursor-only changes preserve series geometry and empty scenes invalidate the cached series.
+- The chart painter applies an egui clip rectangle spanning the plot and volume panel to the WGPU callback shape. The callback relies on egui-wgpu to translate that clip rectangle into the render-pass scissor; the CPU conversion tests do not prove the final scissor behavior.
+- CI checks compilation and tests on Windows, macOS and Linux.
+- Hardware-backed runtime validation, including visual clipping and DPI behavior, is a separate acceptance level; compilation alone does not prove presentation on a real driver.
 
 ## Current implementation
 
