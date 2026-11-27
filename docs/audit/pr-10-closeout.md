@@ -6,17 +6,17 @@
 
 - PR: [#10](https://github.com/lucas-manoguerra/ApexTrader/pull/10)
 - Base: `main`
-- Head validado: `86e38860f663d428db025189709debbf777e6227`
-- CI: [#45926791124](https://github.com/lucas-manoguerra/ApexTrader/actions/runs/45926791124), **19/19 jobs exitosos**.
-- Diferencia actual reportada por GitHub: 336 commits, 113 archivos, 4654 adiciones y 2149 eliminaciones.
+- HEAD revisado: `2c9ae477a010f51175d47341293a10a15519b1f9`
+- CI: [#45927384392](https://github.com/lucas-manoguerra/ApexTrader/actions/runs/45927384392), **19/19 jobs exitosos**.
+- Diferencia reportada por GitHub: 113 archivos, 4.610 adiciones y 2.149 eliminaciones.
 - Revisiones humanas registradas: ninguna al momento de esta actualización.
-- Estado del PR: abierto, draft; no fusionado.
+- Estado del PR: abierto, no draft, no fusionado.
 
-La auditoría combina inspección de gobernanza, workflow CI, ADR, auditorías, manifiesto, bootstrap, presentación/rendering y comparación de archivos. No equivale a una revisión línea por línea de las 113 diferencias ni a ejecución local de Cargo.
+La revisión realizada cubrió la descripción y metadatos del PR, la lista completa de archivos modificados, la auditoría de cierre y el resultado de todos los jobs de CI. No equivale a una revisión humana línea por línea de las 113 diferencias ni a ejecución local de Cargo.
 
 ## 1. Evidencia de validación
 
-La CI #45926791124 terminó correctamente sobre el HEAD exacto `86e3886`:
+La CI #45927384392 terminó correctamente sobre el HEAD exacto `2c9ae477a010f51175d47341293a10a15519b1f9`:
 
 | Control | Resultado |
 |---|---|
@@ -32,7 +32,7 @@ La CI #45926791124 terminó correctamente sobre el HEAD exacto `86e3886`:
 
 La CI acredita compilación y pruebas automatizadas en runners nativos. **No acredita** ejecución gráfica con GPU/driver real, clipping visual, resize/DPI, recuperación del dispositivo ni distribución instalable.
 
-La ejecución fallida anterior #45926409128 corresponde al HEAD previo `0e11db6`; queda superada por la ejecución verde #45926791124 sobre `86e3886`.
+La ejecución fallida #45926409128 corresponde al HEAD previo `0e11db6`; fue superada por #45926791124 sobre `86e3886` y por la ejecución más reciente #45927384392 sobre el HEAD actual.
 
 No se afirma ejecución local de Cargo.
 
@@ -40,8 +40,8 @@ No se afirma ejecución local de Cargo.
 
 | Área | Evaluación | Estado |
 |---|---|---|
-| Gobernanza y contribución | Contratos, guías, CODEOWNERS y plantilla | Implementado |
-| Arquitectura/documentación | ADR, ownership, contratos y auditorías | Implementado como baseline |
+| Gobernanza y contribución | Contratos, guías, CODEOWNERS y plantilla de PR | Implementado |
+| Arquitectura/documentación | ADR, ownership, contratos y auditorías | Baseline establecido |
 | Separación inicial de capas | Bootstrap, application y presentation separados parcialmente | Implementado; evolución posterior |
 | Backend gráfico | WGPU seleccionado explícitamente en eframe; callback/pipeline propio | Integrado; runtime GPU pendiente |
 | Recursos WGPU | Recursos persistentes y ciclo de vida acotado al callback | CI verificada; hardware pendiente |
@@ -53,7 +53,7 @@ No se afirma ejecución local de Cargo.
 
 ## 3. Deuda explícitamente fuera del PR #10
 
-Estos puntos no bloquean el cierre de las fundaciones y no deben volver a incorporarse a este PR:
+Estos puntos no deben volver a incorporarse a este PR:
 
 1. Descomposición de `presentation::desktop::app` por responsabilidad y ownership.
 2. Contratos/puertos de Application para datos de mercado, con dirección de dependencias validada.
@@ -66,25 +66,26 @@ Estos puntos no bloquean el cierre de las fundaciones y no deben volver a incorp
 9. Persistencia, configuración, instaladores, firma, actualización y distribución.
 10. Benchmarks y optimización del renderer con perfiles representativos.
 11. Ampliación del verificador arquitectónico con fixtures y detección de ciclos.
-12. Limpieza de dependencias directas candidatas (`egui`, `pollster`, `wgpu`, `wgpu-types`, `raw-window-handle`, `winit`) solo con Cargo, lockfile regenerado y CI `--locked` verde.
+12. Limpieza de dependencias directas candidatas solo con Cargo, lockfile regenerado y CI `--locked` verde.
 
 Cada tema debe proponerse en un PR independiente, con un objetivo acotado, contrato, pruebas y criterios de aceptación propios. No crear crates ni abstracciones hasta que una necesidad concreta lo justifique.
 
 ## 4. Criterios de cierre
 
-- [x] CI del HEAD actual verde en Windows, macOS y Linux.
+- [x] CI del HEAD revisado verde en Windows, macOS y Linux.
 - [x] Formato, compilación, Clippy, tests y documentación verdes.
 - [x] Auditoría de seguridad y controles arquitectónicos automatizados verdes.
 - [x] WGPU explícito como backend principal; sin lifecycle paralelo de ventana/surface/device.
 - [x] Fallback histórico sintético implícito eliminado.
 - [x] Invariantes temporales de TimePoint encapsuladas.
 - [x] ADR, contratos y limitaciones documentados.
-- [x] Descripción del PR sincronizada con evidencia y deuda pendiente.
+- [x] Alcance técnico congelado; deuda registrada para PRs siguientes.
 - [ ] Revisión humana final del diff y aprobación, si corresponde a las reglas del repositorio.
+- [ ] CI verde del commit que sincroniza esta auditoría.
 - [ ] Merge del PR.
 
 ## 5. Recomendación final
 
-El PR #10 cumplió el objetivo de establecer fundaciones de ingeniería y su HEAD actual está validado por CI multiplataforma. Su tamaño es mayor al deseable para el flujo futuro, por lo que debe tratarse como una excepción fundacional, no como patrón de trabajo.
+El PR #10 cumplió el objetivo de establecer fundaciones de ingeniería y el HEAD revisado está validado por CI multiplataforma. Su tamaño es mayor al deseable para el flujo futuro, por lo que debe tratarse como una excepción fundacional, no como patrón de trabajo.
 
-**No agregar más implementación a este PR.** Completar la revisión final y fusionarlo; luego continuar desde `main` con PRs pequeños y secuenciales. Mantener explícito que runtime WGPU real y distribución no están certificados.
+**No agregar más implementación a este PR.** Completar la sincronización documental, la revisión humana final y fusionarlo. Luego continuar desde `main` con PRs pequeños y secuenciales. Mantener explícito que runtime WGPU real y distribución no están certificados.
