@@ -1,8 +1,3 @@
-/// Errores de tipos numéricos de mercado (precio, cantidad, rango de precios).
-///
-/// Definidos con `thiserror` para tener tipos propios de error en lugar de
-/// devolver `String`. Esto permite que el llamante haga `match` sobre el tipo
-/// de error y reaccione de forma específica.
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum PriceError {
     #[error("El precio debe ser un valor finito (no NaN ni infinito)")]

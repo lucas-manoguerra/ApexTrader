@@ -3,7 +3,6 @@ use apex_trader::domain::viewport::Viewport;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::ToPrimitive;
 
-/// S6.1: nice_tick_step devuelve un step "nice" (1, 2, 5, 10, etc.)
 #[test]
 fn nice_tick_step_returns_nice_values() {
     let min = Price::new(Decimal::new(10000, 2)).expect("100.00 válido");
@@ -13,7 +12,6 @@ fn nice_tick_step_returns_nice_values() {
     assert_eq!(diff, Decimal::new(10000, 2));
 }
 
-/// S6.2: Los ticks de precio se ajustan al zoom (menor zoom = menos rango visible).
 #[test]
 fn price_ticks_adjust_to_zoom() {
     let min = Price::new(Decimal::new(10000, 2)).expect("100.00 válido");
@@ -25,7 +23,6 @@ fn price_ticks_adjust_to_zoom() {
     assert!(half_range_at_zoom_2 < half_range_at_zoom_1);
 }
 
-/// S6.3: Los precios se formatean con 2 decimales.
 #[test]
 fn price_format_has_two_decimals() {
     let price = Price::new(Decimal::new(52345, 2)).expect("523.45 válido");
@@ -37,7 +34,6 @@ fn price_format_has_two_decimals() {
     assert_eq!(label2, "1.00");
 }
 
-/// S6.4: Los índices de vela en el eje X son enteros legibles.
 #[test]
 fn x_axis_index_labels_are_integers() {
     let viewport = Viewport::new();
@@ -54,7 +50,6 @@ fn x_axis_index_labels_are_integers() {
     assert!(x1 > x0, "el índice 1 debe estar a la derecha del índice 0");
 }
 
-/// S6.5: La cantidad de ticks es razonable (no satura el eje).
 #[test]
 fn tick_count_is_reasonable() {
     let min = Price::new(Decimal::new(10000, 2)).expect("100.00 válido");

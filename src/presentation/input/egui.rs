@@ -1,9 +1,3 @@
-//! Adaptador de eventos de egui al sistema normalizado de interacción.
-//!
-//! Este módulo es la única frontera que conoce egui. Las coordenadas se
-//! convierten una sola vez del rect completo al área útil de plot; después,
-//! el controlador opera sobre el Viewport propiedad de ChartState.
-
 use crate::chart::interaction::controller::InteractionController;
 use crate::chart::interaction::events::{
     AxisDoubleClickEvent, AxisPointerDownEvent, InteractionEvent, Modifiers, PointerButton,
@@ -15,10 +9,6 @@ use crate::domain::chart_state::ChartState;
 use crate::domain::transforms::{ChartPoint, ScreenPoint, screen_to_chart_point};
 use eframe::egui;
 
-/// Manejador persistente de entrada del chart.
-///
-/// Conserva el estado del gesto entre frames. No posee un Viewport ni duplica
-/// zoom/pan: cada evento modifica el Viewport compartido del ChartState.
 pub struct InputHandler {
     controller: InteractionController,
     crosshair_pos: Option<ScreenPoint>,
@@ -29,7 +19,6 @@ impl InputHandler {
         Self::with_options(InteractionOptions::default())
     }
 
-    /// Crea el adaptador de entrada con opciones de interacción explícitas.
     pub fn with_options(options: InteractionOptions) -> Self {
         Self {
             controller: InteractionController::with_options(0.0, 0.0, options),
@@ -37,20 +26,14 @@ impl InputHandler {
         }
     }
 
-    /// Devuelve las opciones de interacción activas.
     pub fn options(&self) -> InteractionOptions {
         self.controller.options()
     }
 
-    /// Actualiza las opciones de interacción.
-    ///
-    /// Si cambia la configuración, el controlador cancela cualquier gesto
-    /// activo para evitar continuar con anclas obsoletas.
     pub fn set_options(&mut self, options: InteractionOptions) {
         self.controller.set_options(options);
     }
 
-    /// Devuelve la posición del crosshair relativa al rect completo del chart.
     pub fn crosshair_pos(&self) -> Option<ScreenPoint> {
         self.crosshair_pos
     }
@@ -62,11 +45,6 @@ impl Default for InputHandler {
     }
 }
 
-/// Procesa la entrada del frame y actualiza el Viewport compartido.
-///
-/// Los gestos de arrastre usan la posición absoluta actual del puntero; el
-/// controlador calcula siempre el cambio desde el punto de inicio. Esto evita
-/// sumar varias veces un delta acumulado de egui.
 pub fn handle_input(
     input_handler: &mut InputHandler,
     ui: &egui::Ui,
@@ -92,7 +70,6 @@ pub fn handle_input(
 
     let candle_count = chart.len();
 
-    // Adaptar el scroll vertical (zoom temporal) y horizontal (pan) al punto bajo el cursor.
     let scroll_delta = ui.input(|input| input.smooth_scroll_delta);
     if (scroll_delta.x != 0.0 || scroll_delta.y != 0.0)
         && let Some(pos) = ui.input(|input| input.pointer.hover_pos())
@@ -113,7 +90,6 @@ pub fn handle_input(
         input_handler.crosshair_pos = Some(screen_point);
     }
 
-    // El doble clic sobre un eje restablece exclusivamente esa escala.
     if response.double_clicked_by(egui::PointerButton::Primary)
         && let Some(pos) = response.interact_pointer_pos()
         && let Some((axis, _)) = axis_pointer_coordinates(pos, interaction_rect, &layout)
@@ -124,8 +100,6 @@ pub fn handle_input(
             .on_event(chart.viewport_mut(), candle_count, &event);
     }
 
-    // Un arrastre iniciado sobre un eje escala ese eje; en el plot conserva
-    // el comportamiento anterior de pan con el botón principal.
     if response.drag_started_by(egui::PointerButton::Primary)
         && let Some(pos) = response.interact_pointer_pos()
     {
@@ -166,8 +140,6 @@ pub fn handle_input(
             .on_event(chart.viewport_mut(), candle_count, &event);
     }
 
-    // Los eventos de arrastre contienen posiciones absolutas: el controlador
-    // calcula siempre el desplazamiento desde el punto de inicio del gesto.
     if response.dragged_by(egui::PointerButton::Primary)
         && let Some(pos) = response.interact_pointer_pos()
     {
@@ -211,8 +183,6 @@ pub fn handle_input(
             .on_event(chart.viewport_mut(), candle_count, &event);
     }
 
-    // El crosshair se guarda relativo al rect completo del chart; las
-    // coordenadas del controlador, en cambio, son relativas al plot.
     input_handler.crosshair_pos = ui
         .input(|input| input.pointer.hover_pos())
         .and_then(|pos| pointer_coordinates(pos, interaction_rect, &layout))

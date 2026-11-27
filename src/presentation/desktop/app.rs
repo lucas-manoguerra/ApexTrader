@@ -1,11 +1,4 @@
-//! Composición de dependencias de la capa de aplicación.
-//!
-//! Encapsula la creación de `ChartState`, el renderer, la carga de fuentes y
-//! los datos de prueba de ejemplo. Aquí vive la `ApexTraderApp` que antes
-//! estaba en `main.rs`.
-
 use crate::application::commands::load_candles::LoadCandles;
-use crate::application::events::{self, InputHandler};
 use crate::chart::layout::ChartLayout;
 use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::domain::chart_state::ChartState;
@@ -13,12 +6,11 @@ use crate::domain::price::Price;
 use crate::domain::price_range::PriceRange;
 use crate::domain::transforms::ScreenPoint;
 use crate::domain::viewport::{PriceScaleMode, PriceScaleType, Viewport};
-use crate::logging::init as init_logging;
 use crate::market::candle::MarketCandle;
-use crate::market::mock::MockMarketDataProvider;
-use crate::market::mock_realtime::MockRealtimeMarketDataProvider;
+use crate::market::errors::MarketError;
 use crate::market::provider::{MarketDataProvider, RealtimeMarketDataProvider};
 use crate::market::symbol::Symbol;
+use crate::presentation::input::egui::{self as input_egui, InputHandler};
 use crate::renderer::{
     ChartRenderer, ChartScene, InvalidationMask, InvalidationReason, create_renderer,
 };
@@ -26,61 +18,42 @@ use eframe::egui;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tracing;
 
-const MOCK_INTERVAL_MS: i64 = 60_000;
-const MOCK_HISTORY_CANDLES: i64 = 200;
-const MOCK_TICKS_PER_CANDLE: u32 = 20;
-const MOCK_REALTIME_VOLUME: f64 = 35.0;
-const MOCK_REALTIME_TICK_INTERVAL: Duration = Duration::from_millis(250);
+const DEFAULT_INTERVAL_MS: i64 = 60_000;
+const DEFAULT_HISTORY_CANDLES: i64 = 200;
+const REALTIME_POLL_INTERVAL: Duration = Duration::from_millis(250);
 
-/// Estado de carga de datos de mercado.
+pub(crate) type RealtimeProviderFactory = Arc<
+    dyn Fn(MarketCandle) -> Result<Box<dyn RealtimeMarketDataProvider>, MarketError> + Send + Sync,
+>;
+
 #[derive(Debug, Clone, PartialEq)]
 enum LoadState {
-    /// Todavía no se inició la carga.
-    Idle,
-    /// Los datos se están cargando.
-    Loading,
-    /// Se cargaron `count` velas correctamente.
     Loaded { count: usize },
-    /// La carga falló con el mensaje dado.
+
     Error(String),
 }
 
-/// Aplicación de escritorio con egui.
-///
-/// Solo coordina: crea el `ChartState` (dueño de los datos y el viewport),
-/// crea el renderer (wgpu o glow) y le pide al renderer que dibuje prestando
-/// esos datos (`&[Candle]` y `&Viewport`).
-///
-/// Maneja el input de usuario a través de `InputHandler`.
-struct ApexTraderApp {
+pub(crate) struct ApexTraderApp {
     chart: ChartState,
     renderer: Box<dyn ChartRenderer>,
     input_handler: InputHandler,
     load_state: LoadState,
-    /// Símbolo ingresado por el usuario para cargar datos de mercado.
     symbol_input: String,
-    /// Incremento mínimo de precio del instrumento seleccionado.
     price_tick_size: f64,
-    /// Viewport del frame anterior (para calcular invalidation mask).
     prev_viewport: Option<Viewport>,
-    /// Posición del crosshair del frame anterior.
     prev_crosshair_pos: Option<ScreenPoint>,
-    /// Revisión de datos del frame anterior.
     prev_data_revision: u64,
-    /// Indica que una carga completa de historial requiere ajustar el eje X una vez.
     fit_content_pending: bool,
-    /// Stream realtime intercambiable por un proveedor WebSocket real.
+    market_data_provider: Box<dyn MarketDataProvider>,
+    realtime_provider_factory: RealtimeProviderFactory,
     realtime_provider: Option<Box<dyn RealtimeMarketDataProvider>>,
-    /// Sigue la última vela cuando el usuario está mirando el extremo derecho.
     follow_latest: bool,
-    /// Indica que se agregó una vela nueva y hay que evaluar el seguimiento.
     follow_latest_pending: bool,
-    /// Instante previsto para la siguiente actualización realtime.
     next_realtime_tick: Instant,
-    /// Rect de dibujo del frame anterior.
     prev_rect: Option<egui::Rect>,
 }
 
@@ -205,7 +178,6 @@ impl eframe::App for ApexTraderApp {
 
             ui.separator();
 
-            // Controles para cambiar el símbolo y recargar datos de mercado.
             ui.horizontal(|ui| {
                 ui.label("Símbolo:");
                 let response = ui.text_edit_singleline(&mut self.symbol_input);
@@ -216,16 +188,13 @@ impl eframe::App for ApexTraderApp {
                     match Symbol::from_str(&self.symbol_input) {
                         Ok(symbol) => {
                             self.price_tick_size = price_tick_size_for_symbol(&symbol);
-                            let provider = MockMarketDataProvider::new(50_000.0)
-                                .with_interval_ms(MOCK_INTERVAL_MS)
-                                .with_base_volume(MOCK_REALTIME_VOLUME);
-                            let to_ms = latest_closed_candle_open_time(MOCK_INTERVAL_MS);
+                            let to_ms = latest_closed_candle_open_time(DEFAULT_INTERVAL_MS);
                             let from_ms = to_ms.saturating_sub(
-                                (MOCK_HISTORY_CANDLES - 1) * MOCK_INTERVAL_MS,
+                                (DEFAULT_HISTORY_CANDLES - 1) * DEFAULT_INTERVAL_MS,
                             );
                             self.load_state = load_symbol_into_chart(
                                 &mut self.chart,
-                                &provider,
+                                self.market_data_provider.as_ref(),
                                 symbol.clone(),
                                 from_ms,
                                 to_ms,
@@ -233,10 +202,9 @@ impl eframe::App for ApexTraderApp {
                             self.realtime_provider = create_realtime_provider(
                                 &self.chart,
                                 symbol,
-                                MOCK_REALTIME_VOLUME,
-                                MOCK_TICKS_PER_CANDLE,
+                                &self.realtime_provider_factory,
                             );
-                            self.next_realtime_tick = Instant::now() + MOCK_REALTIME_TICK_INTERVAL;
+                            self.next_realtime_tick = Instant::now() + REALTIME_POLL_INTERVAL;
                             self.fit_content_pending = true;
                         }
                         Err(e) => {
@@ -261,9 +229,6 @@ impl eframe::App for ApexTraderApp {
             let chart_layout =
                 ChartLayout::compute(chart_rect.width() as f64, chart_rect.height() as f64);
 
-            // Ajustar el historial completo solo al iniciar o tras una carga
-            // explícita. Las actualizaciones incrementales no deben resetear
-            // el zoom ni el desplazamiento que eligió el usuario.
             if self.fit_content_pending {
                 let logical_count = self.chart.time_scale().len();
                 if logical_count > 0 {
@@ -287,8 +252,6 @@ impl eframe::App for ApexTraderApp {
                         )
                     };
                     if was_at_right_edge {
-                        // Una posición lógica a la izquierda mantiene la nueva
-                        // vela en el borde derecho sin tocar zoom ni escala Y.
                         self.chart
                             .viewport_mut()
                             .set_offset_x(current_offset - 1.0);
@@ -325,14 +288,12 @@ impl eframe::App for ApexTraderApp {
 
             let crosshair_pos = {
                 let chart = &mut self.chart;
-                events::handle_input(
+                input_egui::handle_input(
                     &mut self.input_handler,
                     ui,
                     &response,
                     interaction_rect,
-                    chart,
-                );
-                self.input_handler.crosshair_pos()
+                    chart,                );                self.input_handler.crosshair_pos()
             };
 
             let data_revision = self.chart.data_revision();
@@ -344,9 +305,6 @@ impl eframe::App for ApexTraderApp {
                 .viewport()
                 .visible_range(logical_count, drawing_width);
 
-            // Recalcular la autoescala después de procesar input permite que
-            // un pan horizontal actualice el rango en el mismo frame. Si el
-            // gesto fue vertical, el controlador ya habrá cambiado a Manual.
             let auto_scale_range = if self.chart.viewport().price_scale_auto()
                 && !visible_before_scale_update.is_empty()
             {
@@ -370,7 +328,6 @@ impl eframe::App for ApexTraderApp {
             let points = self.chart.data_points();
             let visible = viewport.visible_range(logical_count, drawing_width);
 
-            // Calcular máscara de invalidación basada en qué cambió entre frames.
             let mask =
                 self.calculate_invalidation_mask(viewport, crosshair_pos, data_revision, chart_rect);
 
@@ -390,7 +347,6 @@ impl eframe::App for ApexTraderApp {
             };
 
             let scene = ChartScene {
-                // ChartScene toma un préstamo de ChartState; no duplica el historial.
                 data_points: points,
                 viewport: *viewport,
                 price_range,
@@ -409,7 +365,6 @@ impl eframe::App for ApexTraderApp {
                 ui.colored_label(egui::Color32::RED, format!("Error: {}", e));
             }
 
-            // Guardar estado actual para el próximo frame.
             self.prev_viewport = Some(*viewport);
             self.prev_crosshair_pos = crosshair_pos;
             self.prev_data_revision = data_revision;
@@ -438,16 +393,12 @@ impl eframe::App for ApexTraderApp {
     }
 }
 
-/// Calcula la máscara de invalidación basada en qué cambió entre frames.
-///
-/// Compara el estado actual con el del frame anterior para determinar
-/// qué partes del chart necesitan ser re-renderizadas.
 impl ApexTraderApp {
     fn advance_realtime(&mut self, ctx: &egui::Context) {
         let now = Instant::now();
         if let Some(provider) = self.realtime_provider.as_mut() {
             if now >= self.next_realtime_tick {
-                self.next_realtime_tick = now + MOCK_REALTIME_TICK_INTERVAL;
+                self.next_realtime_tick = now + REALTIME_POLL_INTERVAL;
                 match provider.next_update() {
                     Ok(update) => {
                         let candle_closed = update.is_closed;
@@ -492,7 +443,6 @@ impl ApexTraderApp {
         data_revision: u64,
         rect: egui::Rect,
     ) -> InvalidationMask {
-        // Primer frame: todo es nuevo.
         if self.prev_viewport.is_none() {
             return InvalidationMask {
                 level: InvalidationReason::Full,
@@ -501,7 +451,6 @@ impl ApexTraderApp {
 
         let mut mask = InvalidationMask::none();
 
-        // Si cambió el rect (resize), es ScaleLayout.
         if let Some(prev_rect) = self.prev_rect
             && prev_rect != rect
         {
@@ -510,7 +459,6 @@ impl ApexTraderApp {
             });
         }
 
-        // Si cambió el viewport (zoom/pan), es ScaleLayout.
         if let Some(prev_vp) = self.prev_viewport
             && *viewport != prev_vp
         {
@@ -519,14 +467,12 @@ impl ApexTraderApp {
             });
         }
 
-        // Si cambiaron los datos, es SeriesData.
         if data_revision != self.prev_data_revision {
             mask = mask.merge(InvalidationMask {
                 level: InvalidationReason::SeriesData,
             });
         }
 
-        // Si cambió solo el crosshair, es CursorOnly (solo si no hay algo peor).
         if crosshair_pos != self.prev_crosshair_pos && mask.level == InvalidationReason::None {
             mask = InvalidationMask {
                 level: InvalidationReason::CursorOnly,
@@ -537,75 +483,60 @@ impl ApexTraderApp {
     }
 }
 
-/// Ejecuta la aplicación de escritorio (punto de entrada de la capa de
-/// aplicación).
-///
-/// Esta función es invocada desde `application::run()` y contiene la lógica
-/// que antes vivía directamente en `main.rs`.
-pub fn run() -> eframe::Result {
-    if let Err(e) = init_logging() {
-        eprintln!("Advertencia: no se pudo inicializar logging: {}", e);
+impl ApexTraderApp {
+    pub(crate) fn new(
+        cc: &eframe::CreationContext<'_>,
+        market_data_provider: Box<dyn MarketDataProvider>,
+        realtime_provider_factory: RealtimeProviderFactory,
+    ) -> Self {
+        configure_fonts(&cc.egui_ctx);
+
+        let mut chart = ChartState::new();
+
+        let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
+        let price_tick_size = price_tick_size_for_symbol(&symbol);
+        let to_ms = latest_closed_candle_open_time(DEFAULT_INTERVAL_MS);
+        let from_ms = to_ms.saturating_sub((DEFAULT_HISTORY_CANDLES - 1) * DEFAULT_INTERVAL_MS);
+
+        let load_state = load_symbol_into_chart(
+            &mut chart,
+            market_data_provider.as_ref(),
+            symbol.clone(),
+            from_ms,
+            to_ms,
+        );
+        let realtime_provider =
+            create_realtime_provider(&chart, symbol, &realtime_provider_factory);
+
+        let renderer = create_renderer(
+            cc.wgpu_render_state
+                .as_ref()
+                .map(|state| state.target_format),
+        );
+        let data_revision = chart.data_revision();
+
+        Self {
+            chart,
+            renderer,
+            input_handler: InputHandler::new(),
+            load_state,
+            symbol_input: "BTC/USDT".to_string(),
+            price_tick_size,
+            prev_viewport: None,
+            prev_crosshair_pos: None,
+            prev_data_revision: data_revision,
+            fit_content_pending: true,
+            market_data_provider,
+            realtime_provider_factory,
+            realtime_provider,
+            follow_latest: true,
+            follow_latest_pending: false,
+            next_realtime_tick: Instant::now() + REALTIME_POLL_INTERVAL,
+            prev_rect: None,
+        }
     }
-
-    tracing::info!("Iniciando ApexTrader");
-
-    let native_options = eframe::NativeOptions::default();
-
-    eframe::run_native(
-        "ApexTrader",
-        native_options,
-        Box::new(|cc| {
-            configure_fonts(&cc.egui_ctx);
-
-            let mut chart = ChartState::new();
-
-            let provider = MockMarketDataProvider::new(50_000.0)
-                .with_interval_ms(MOCK_INTERVAL_MS)
-                .with_base_volume(MOCK_REALTIME_VOLUME);
-            let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
-            let price_tick_size = price_tick_size_for_symbol(&symbol);
-            let to_ms = latest_closed_candle_open_time(MOCK_INTERVAL_MS);
-            let from_ms = to_ms.saturating_sub((MOCK_HISTORY_CANDLES - 1) * MOCK_INTERVAL_MS);
-
-            let load_state =
-                load_symbol_into_chart(&mut chart, &provider, symbol.clone(), from_ms, to_ms);
-            let realtime_provider = create_realtime_provider(
-                &chart,
-                symbol,
-                MOCK_REALTIME_VOLUME,
-                MOCK_TICKS_PER_CANDLE,
-            );
-
-            // Crear renderer (intenta wgpu, cae a glow si falla)
-            let renderer = create_renderer();
-            let data_revision = chart.data_revision();
-
-            Ok(Box::new(ApexTraderApp {
-                chart,
-                renderer,
-                input_handler: InputHandler::new(),
-                load_state,
-                symbol_input: "BTC/USDT".to_string(),
-                price_tick_size,
-                prev_viewport: None,
-                prev_crosshair_pos: None,
-                prev_data_revision: data_revision,
-                fit_content_pending: true,
-                realtime_provider,
-                follow_latest: true,
-                follow_latest_pending: false,
-                next_realtime_tick: Instant::now() + MOCK_REALTIME_TICK_INTERVAL,
-                prev_rect: None,
-            }))
-        }),
-    )
 }
 
-/// Incremento mínimo para los instrumentos soportados por el mock.
-///
-/// La precisión de mercado real debe provenir de los metadatos del exchange;
-/// estas reglas solo permiten que el gráfico sintético represente formatos
-/// habituales para BTC, futuros CME y pares FX.
 fn price_tick_size_for_symbol(symbol: &Symbol) -> f64 {
     let base = symbol.base().to_ascii_uppercase();
     let quote = symbol.quote().to_ascii_uppercase();
@@ -622,7 +553,6 @@ fn price_tick_size_for_symbol(symbol: &Symbol) -> f64 {
     0.01
 }
 
-/// Timestamp de apertura de la última vela completamente cerrada.
 fn latest_closed_candle_open_time(interval_ms: i64) -> i64 {
     let now_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -633,21 +563,19 @@ fn latest_closed_candle_open_time(interval_ms: i64) -> i64 {
     current_open.saturating_sub(interval_ms)
 }
 
-/// Construye el stream realtime a continuación del último punto histórico.
 fn create_realtime_provider(
     chart: &ChartState,
     symbol: Symbol,
-    base_volume: f64,
-    ticks_per_candle: u32,
+    factory: &RealtimeProviderFactory,
 ) -> Option<Box<dyn RealtimeMarketDataProvider>> {
     let last_point = chart.data_points().last()?;
     let close_time_ms = last_point
         .time_point
-        .open_time_ms
-        .checked_add(last_point.time_point.interval_ms)?;
+        .open_time_ms()
+        .checked_add(last_point.time_point.interval_ms())?;
     let last_candle = MarketCandle {
-        symbol: symbol.clone(),
-        open_time_ms: last_point.time_point.open_time_ms,
+        symbol,
+        open_time_ms: last_point.time_point.open_time_ms(),
         open: last_point.open(),
         high: last_point.high(),
         low: last_point.low(),
@@ -655,29 +583,14 @@ fn create_realtime_provider(
         volume: last_point.volume(),
         close_time_ms,
     };
-    let seed_provider = MockMarketDataProvider::new(last_point.close())
-        .with_interval_ms(last_point.time_point.interval_ms)
-        .with_base_volume(base_volume);
-    match MockRealtimeMarketDataProvider::from_last_candle(
-        last_candle,
-        ticks_per_candle,
-        base_volume,
-        seed_provider.seed_for_symbol(&symbol),
-    ) {
-        Ok(provider) => Some(Box::new(provider)),
+    match factory(last_candle) {
+        Ok(provider) => Some(provider),
         Err(error) => {
-            tracing::warn!("No se pudo iniciar el mock realtime: {error}");
+            tracing::warn!("No se pudo iniciar el proveedor realtime: {error}");
             None
         }
     }
 }
-
-/// Carga velas de un símbolo desde un proveedor de mercado en el `ChartState`.
-///
-/// Limpia las velas previas, obtiene las nuevas del proveedor, las agrega al
-/// chart y aplica `auto_scale` para que quepan en pantalla.
-/// En caso de error, hace fallback a velas sintéticas y retorna
-/// `LoadState::Error`.
 fn load_symbol_into_chart(
     chart: &mut ChartState,
     provider: &dyn MarketDataProvider,
@@ -725,41 +638,14 @@ fn load_symbol_into_chart(
             tracing::error!("No se pudieron cargar datos de mercado: {e}");
             chart.clear();
 
-            // El fallback usa el mismo generador OHLCV realista para no volver
-            // a introducir una serie simplista y desconectada del histórico.
-            let fallback_provider = MockMarketDataProvider::new(100.0)
-                .with_interval_ms(MOCK_INTERVAL_MS)
-                .with_base_volume(MOCK_REALTIME_VOLUME);
-            match LoadCandles::execute(&fallback_provider, symbol.clone(), from_ms, to_ms) {
-                Ok(fallback) => {
-                    if let Err(error) = chart.add_data_points(&fallback.data_points) {
-                        tracing::error!("No se pudo cargar el histórico de fallback: {error}");
-                    }
-                    refresh_price_scale_type_for_data(chart);
-                    if let Some(range) = price_range_from_data_points(chart) {
-                        let point_count = chart.len();
-                        chart
-                            .viewport_mut()
-                            .auto_scale(range, point_count, 1920.0, 1080.0);
-                    }
-                }
-                Err(fallback_error) => {
-                    tracing::error!(
-                        "También falló el histórico sintético de fallback: {fallback_error}"
-                    );
-                }
-            }
-            tracing::info!(
-                "ChartState inicializado con {} puntos de datos (fallback)",
-                chart.len()
+            tracing::warn!(
+                "ChartState vaciado: no se publicarán datos sintéticos tras un fallo de carga"
             );
             LoadState::Error(e.to_string())
         }
     }
 }
 
-/// Intenta cargar una fuente del sistema Windows para que los caracteres
-/// especiales (tildes, ñ, em dash, etc.) se rendericen correctamente.
 fn configure_fonts(ctx: &egui::Context) {
     let mut font_defs = egui::FontDefinitions::default();
 
@@ -797,7 +683,6 @@ fn configure_fonts(ctx: &egui::Context) {
     ctx.set_fonts(font_defs);
 }
 
-/// Actualiza los parámetros de escala que dependen del símbolo recién cargado.
 fn refresh_price_scale_type_for_data(chart: &mut ChartState) {
     let points = chart.data_points();
     let first_close = points.first().map(|point| point.close());
@@ -819,7 +704,6 @@ fn refresh_price_scale_type_for_data(chart: &mut ChartState) {
     }
 }
 
-/// Calcula el rango de precios visible según el criterio de autoescala.
 fn visible_price_range(points: &[ChartDataPoint], mode: PriceScaleMode) -> Option<(f64, f64)> {
     let mut range: Option<(f64, f64)> = None;
 
@@ -841,9 +725,6 @@ fn visible_price_range(points: &[ChartDataPoint], mode: PriceScaleMode) -> Optio
     range
 }
 
-/// Calcula el `PriceRange` (mínimo/máximo) de los puntos de datos del chart.
-///
-/// Devuelve `None` si no hay puntos de datos.
 fn price_range_from_data_points(chart: &ChartState) -> Option<PriceRange> {
     let points = chart.data_points();
     if points.is_empty() {
@@ -935,5 +816,40 @@ mod price_scale_mode_tests {
     #[test]
     fn auto_scale_range_is_empty_without_valid_points() {
         assert_eq!(visible_price_range(&[], PriceScaleMode::HighLow), None);
+    }
+}
+
+#[cfg(test)]
+mod load_failure_tests {
+    use super::*;
+    use crate::market::errors::MarketError;
+
+    struct FailingMarketDataProvider;
+
+    impl MarketDataProvider for FailingMarketDataProvider {
+        fn name(&self) -> &str {
+            "failing-provider"
+        }
+
+        fn fetch_candles(
+            &self,
+            _symbol: Symbol,
+            _from_ms: i64,
+            _to_ms: i64,
+        ) -> Result<Vec<MarketCandle>, MarketError> {
+            Err(MarketError::Network("provider unavailable".to_string()))
+        }
+    }
+
+    #[test]
+    fn failed_market_load_does_not_publish_synthetic_data() {
+        let mut chart = ChartState::new();
+        let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
+
+        let state =
+            load_symbol_into_chart(&mut chart, &FailingMarketDataProvider, symbol, 0, 60_000);
+
+        assert!(matches!(state, LoadState::Error(_)));
+        assert!(chart.is_empty());
     }
 }

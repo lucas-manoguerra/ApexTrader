@@ -1,10 +1,8 @@
 /target
 
-# Rust
 *.rs.bak
 Cargo.lock.old
 
-# Windows / IDE
 *.pdb
 *.idb
 *.dll

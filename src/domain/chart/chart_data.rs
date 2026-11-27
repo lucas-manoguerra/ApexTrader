@@ -1,28 +1,13 @@
-//! Datos de chart: vela OHLCV asociada a su punto temporal y índice lógico.
-//!
-//! `ChartDataPoint` combina el dato financiero (`Candle`) con su posición
-//! temporal (`TimePoint`) y su índice lógico en el chart. Es la unidad
-//! fundamental que el viewport y el renderer consumen.
-
 use crate::domain::candle::Candle;
 
-/// Punto de datos del chart: vela OHLCV + punto temporal + índice lógico.
-///
-/// `logical_index` es `None` hasta que el `TimeScale` le asigna un índice.
-/// Esto permite representar huecos temporales y velas fuera del rango de
-/// datos sin fabricar velas de mercado.
 #[derive(Debug, Clone, Copy)]
 pub struct ChartDataPoint {
-    /// Vela OHLCV.
     pub candle: Candle,
-    /// Punto temporal asociado (timestamp y intervalo).
     pub time_point: crate::domain::chart::time_point::TimePoint,
-    /// Índice lógico en el chart (None hasta asignación del viewport).
     pub logical_index: Option<usize>,
 }
 
 impl ChartDataPoint {
-    /// Crea un `ChartDataPoint` a partir de una vela y un punto temporal.
     pub fn new(candle: Candle, time_point: crate::domain::chart::time_point::TimePoint) -> Self {
         Self {
             candle,
@@ -31,27 +16,22 @@ impl ChartDataPoint {
         }
     }
 
-    /// Devuelve el precio de apertura.
     pub fn open(&self) -> f64 {
         self.candle.open()
     }
 
-    /// Devuelve el precio máximo.
     pub fn high(&self) -> f64 {
         self.candle.high()
     }
 
-    /// Devuelve el precio mínimo.
     pub fn low(&self) -> f64 {
         self.candle.low()
     }
 
-    /// Devuelve el precio de cierre.
     pub fn close(&self) -> f64 {
         self.candle.close()
     }
 
-    /// Devuelve el volumen.
     pub fn volume(&self) -> f64 {
         self.candle.volume()
     }

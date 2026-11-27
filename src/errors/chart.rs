@@ -1,10 +1,5 @@
 use crate::domain::candle::Candle;
 
-/// Errores del dominio del gráfico.
-///
-/// Definidos con `thiserror` para tener tipos propios de error en lugar de
-/// devolver `String`. Esto permite que el llamante haga `match` sobre el tipo
-/// de error y reaccione de forma específica.
 #[derive(Debug, thiserror::Error)]
 pub enum ChartError {
     #[error("El rango de precios es inválido: mínimo {min} > máximo {max}")]

@@ -1,19 +1,10 @@
-//! Orquestrador de hit-testing sobre múltiples objetos visuales.
-//!
-//! Recibe una lista ordenada de objetos testables (por z-order: los últimos
-//! en la lista se dibujan encima, por lo que se prueban primero) y devuelve
-//! el mejor hit, o `None` si ningún elemento está bajo el cursor.
-
 use crate::chart::hit_testing::result::{HitKind, HitResult, HitSeriesId, HitTestContext};
 use crate::chart::hit_testing::r#trait::HitTestable;
 use crate::domain::transforms::ScreenPoint;
 
-/// Resultado final del hit-tester: el mejor hit entre todos los objetos.
 #[derive(Debug, Clone)]
 pub struct HitTesterResult {
-    /// El elemento más cercano al cursor (o el primero si hay empate).
     pub hit: HitResult,
-    /// Índice del objeto en la lista original que produjo el hit.
     pub object_index: usize,
 }
 
@@ -53,8 +44,6 @@ where
     best
 }
 
-/// Devuelve todos los hits (no solo el mejor), ordenados por z-order
-/// descendente (frente primero).
 pub fn hit_test_all<T>(objects: &[T], ctx: &HitTestContext<'_>) -> Vec<(usize, HitResult)>
 where
     T: HitTestable,
@@ -74,11 +63,6 @@ where
     hits
 }
 
-/// Ejemplo de objeto testable: una vela individual.
-///
-/// Ilustra cómo implementar `HitTestable` para una vela de una serie.
-/// La tolerancia de selección es de 6 píxeles alrededor del centro X de
-/// la vela y de todo el cuerpo en Y.
 #[derive(Debug, Clone, Copy)]
 pub struct CandleHitTest {
     pub index: usize,
@@ -188,7 +172,7 @@ mod tests {
     fn hit_test_candle_outside_tolerance() {
         let viewport = make_viewport();
         let layout = make_layout();
-        // Cursor lejos de la vela (100 píxeles de distancia en X).
+
         let ctx = make_ctx(&viewport, &layout, 600.0, 300.0);
 
         let candle = CandleHitTest {
@@ -211,7 +195,6 @@ mod tests {
         let layout = make_layout();
         let ctx = make_ctx(&viewport, &layout, 500.0, 300.0);
 
-        // Fondo: vela en el centro.
         let back = CandleHitTest {
             index: 0,
             center_x: 500.0,
@@ -221,7 +204,7 @@ mod tests {
             series_id: HitSeriesId(1),
             tolerance: 10.0,
         };
-        // Frente: otra vela en el mismo punto (dibujada después).
+
         let front = CandleHitTest {
             index: 1,
             center_x: 500.0,
@@ -235,7 +218,6 @@ mod tests {
         let objects = vec![back, front];
         let result = hit_test_objects(&objects, &ctx).expect("debe haber hit");
 
-        // El de frente (índice 1) debe ganar por z-order.
         assert_eq!(result.object_index, 1);
         match result.hit.kind {
             HitKind::Candle { index } => assert_eq!(index, 1),
@@ -247,7 +229,7 @@ mod tests {
     fn hit_test_outside_plot_returns_none() {
         let viewport = make_viewport();
         let layout = make_layout();
-        // Cursor fuera del plot (izquierda).
+
         let ctx = make_ctx(&viewport, &layout, -10.0, 300.0);
 
         let candle = CandleHitTest {
@@ -292,7 +274,7 @@ mod tests {
         let objects = vec![c1, c2];
         let hits = hit_test_all(&objects, &ctx);
         assert_eq!(hits.len(), 2);
-        // hit_test_all itera de atrás hacia adelante: c2 (índice 1) primero.
+
         assert_eq!(hits[0].0, 1);
         assert_eq!(hits[1].0, 0);
     }

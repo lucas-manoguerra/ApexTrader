@@ -2,36 +2,20 @@
 name = "apex-trader"
 version = "0.1.0"
 edition = "2024"
-# This application is not a publishable crate; a project license must be chosen separately.
 publish = false
 
 [dependencies]
-# UI y ventana (ya funcionando)
-eframe = { version = "0.37", default-features = false, features = ["glow"] }
+eframe = { version = "0.37", default-features = false, features = ["wgpu", "wayland", "x11"] }
 egui = "0.37"
-
-# Errores tipados (reemplaza String por tipos propios de error)
 thiserror = "2"
-
-# Logging estructurado y trazabilidad
 tracing = "0.1"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-
-# Conversión segura bytes ↔ tipos (para buffers GPU y wgpu)
 bytemuck = "1"
 bytemuck_derive = "1"
-
-# Tipos decimal para precios y cantidades (punto decimal base 10, sin errores de punto flotante)
 rust_decimal = { version = "1.43", features = ["maths", "serde"] }
-
-# Ejecutar futuros async de forma bloqueante (útil para wgpu)
 pollster = "1"
-
-# Renderizado GPU acelerado (objetivo: reemplazar glow para el chart)
 wgpu = { version = "30", features = ["dx12", "wgsl"] }
 wgpu-types = "30"
-
-# Handle de ventana nativa para crear surface de wgpu
 raw-window-handle = "0.6"
 winit = "0.30.13"
 
@@ -40,5 +24,4 @@ name = "chart_transform_benchmark"
 harness = false
 
 [dev-dependencies]
-# Pruebas de propiedades para el chart engine (zoom, pan, transformaciones, auto_scale).
 proptest = "1"

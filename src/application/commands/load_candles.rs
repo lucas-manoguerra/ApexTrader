@@ -1,68 +1,37 @@
-//! Comando para cargar velas de mercado desde un proveedor.
-//!
-//! Coordina la obtención de datos (`MarketDataProvider`) y su conversión
-//! a puntos de datos de chart (`domain::chart::ChartDataPoint`), listas para
-//! ser ingestadas por `ChartState`.
-//!
-//! Política de ingestión explícita (AT-010): no se descartan velas inválidas
-//! silenciosamente. Cada rechazo se registra con su motivo y se devuelve en
-//! el resultado para que la capa de aplicación pueda informar al usuario.
-
 use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::market::errors::MarketError;
 use crate::market::provider::MarketDataProvider;
 use crate::market::symbol::Symbol;
 
-/// Motivo por el cual un punto de datos fue rechazado durante la ingestión.
 #[derive(Debug, Clone)]
 pub struct IngestionRejection {
-    /// Índice del punto dentro del lote recibido del proveedor.
     pub index: usize,
-    /// Timestamp de apertura (si se pudo leer).
     pub open_time_ms: i64,
-    /// Motivo del rechazo.
     pub reason: String,
 }
 
-/// Resultado de cargar velas: lista de puntos de datos válidos y los rechazados.
 #[derive(Debug)]
 pub struct LoadCandlesResult {
-    /// Puntos de datos convertidos a dominio, ordenados por tiempo.
     pub data_points: Vec<ChartDataPoint>,
-    /// Puntos de datos rechazados durante la ingestión.
     pub rejected: Vec<IngestionRejection>,
-    /// Símbolo consultado.
     pub symbol: Symbol,
-    /// Timestamp de inicio del rango consultado.
     pub from_ms: i64,
-    /// Timestamp de fin del rango consultado.
     pub to_ms: i64,
 }
 
 impl LoadCandlesResult {
-    /// Devuelve `true` si no hubo rechazos.
     pub fn is_clean(&self) -> bool {
         self.rejected.is_empty()
     }
 
-    /// Devuelve el total de puntos recibidos (aceptados + rechazados).
     pub fn total_received(&self) -> usize {
         self.data_points.len() + self.rejected.len()
     }
 }
 
-/// Comando: cargar velas de un símbolo desde un proveedor de mercado.
 pub struct LoadCandles;
 
 impl LoadCandles {
-    /// Ejecuta la carga de velas.
-    ///
-    /// Obtiene velas del proveedor, las convierte a `ChartDataPoint` y las
-    /// devuelve ordenadas por tiempo de apertura. Errores de red, auth o
-    /// rate limit se propagan como `MarketError` sin hacer panic.
-    ///
-    /// Velas inválidas no se descartan silenciosamente: se rechazan con un
-    /// motivo registrado en `rejected`.
     pub fn execute(
         provider: &dyn MarketDataProvider,
         symbol: Symbol,
@@ -173,7 +142,7 @@ mod tests {
             assert!(dp.high().is_finite());
             assert!(dp.low().is_finite());
             assert!(dp.close().is_finite());
-            assert!(dp.time_point.open_time_ms >= 0);
+            assert!(dp.time_point.open_time_ms() >= 0);
         }
     }
 
@@ -184,11 +153,11 @@ mod tests {
 
         let result = LoadCandles::execute(&provider, symbol, 0, 120_000).expect("velas cargadas");
 
-        assert_eq!(result.data_points[0].time_point.open_time_ms, 0);
-        // Los tiempos deben ser ascendentes.
+        assert_eq!(result.data_points[0].time_point.open_time_ms(), 0);
+
         for w in result.data_points.windows(2) {
             assert!(
-                w[0].time_point.open_time_ms < w[1].time_point.open_time_ms,
+                w[0].time_point.open_time_ms() < w[1].time_point.open_time_ms(),
                 "puntos de datos ordenados por tiempo ascendente"
             );
         }

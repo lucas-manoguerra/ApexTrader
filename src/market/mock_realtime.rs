@@ -1,16 +1,9 @@
-//! Proveedor mock de actualizaciones realtime.
-//!
-//! Simula ticks deterministas sobre una vela en formación. Cada actualización
-//! conserva el timestamp de apertura de la vela hasta cerrarla; la siguiente
-//! actualización comienza una vela nueva contigua a la anterior.
-
 use crate::market::candle::MarketCandle;
 use crate::market::errors::MarketError;
 use crate::market::mock::{normal_noise, unit_noise};
 use crate::market::provider::{RealtimeMarketDataProvider, RealtimeMarketUpdate};
 use crate::market::symbol::Symbol;
 
-/// Proveedor de realtime basado en ticks sintéticos.
 #[derive(Debug, Clone)]
 pub struct MockRealtimeMarketDataProvider {
     symbol: Symbol,
@@ -26,10 +19,6 @@ pub struct MockRealtimeMarketDataProvider {
 }
 
 impl MockRealtimeMarketDataProvider {
-    /// Inicializa el stream a partir de la última vela histórica cerrada.
-    ///
-    /// La siguiente vela comienza exactamente en el timestamp de cierre de
-    /// la última vela y abre al precio de cierre del histórico.
     pub fn from_last_candle(
         last_candle: MarketCandle,
         ticks_per_candle: u32,
@@ -221,8 +210,8 @@ mod tests {
             .to_chart_data_point()
             .expect("punto temporal válido");
 
-        assert_eq!(point.time_point.open_time_ms, update.candle.open_time_ms);
-        assert_eq!(point.time_point.interval_ms, 60_000);
+        assert_eq!(point.time_point.open_time_ms(), update.candle.open_time_ms);
+        assert_eq!(point.time_point.interval_ms(), 60_000);
         assert_eq!(point.volume(), update.candle.volume);
     }
 

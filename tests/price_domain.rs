@@ -5,7 +5,6 @@ use apex_trader::errors::PriceError;
 use apex_trader::errors::QuantityError;
 use rust_decimal::Decimal;
 
-/// Precio es un tipo puro de dominio: acepta valores finitos y no negativos.
 #[test]
 fn price_accepts_valid_positive_value() {
     let p = Price::new(Decimal::new(12345, 2)).expect("123.45 es un precio válido");
@@ -45,7 +44,6 @@ fn price_from_str_rejects_invalid_input() {
     assert!(result.is_err());
 }
 
-/// Quantity es un tipo puro de dominio: solo acepta valores finitos y > 0.
 #[test]
 fn quantity_accepts_positive_value() {
     let q = Quantity::new(Decimal::new(12345, 2)).expect("123.45 es una cantidad válida");
@@ -75,7 +73,6 @@ fn quantity_from_str_parses_correctly() {
     assert_eq!(q.value(), Decimal::new(123, 5));
 }
 
-/// PriceRange garantiza el invariante min <= max.
 #[test]
 fn price_range_accepts_valid_range() {
     let min = Price::new(Decimal::new(10000, 2)).expect("100.00 válido");

@@ -1,49 +1,39 @@
-//! Velas de mercado con metadatos de símbolo y timestamp.
-//!
-//! `MarketCandle` extiende la vela de dominio (`domain::Candle`) con
-//! símbolo, timestamp y volumen, para ordenar y dedup datos del mercado.
-
 use crate::domain::candle::Candle;
 use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::domain::chart::time_point::TimePoint;
 use crate::market::errors::MarketError;
 use crate::market::symbol::Symbol;
 
-/// Vela de mercado con metadatos de símbolo y timestamp.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MarketCandle {
-    /// Símbolo al que pertenece la vela.
     pub symbol: Symbol,
-    /// Timestamp de apertura en milisegundos Unix (UTC).
     pub open_time_ms: i64,
-    /// Precio de apertura.
     pub open: f64,
-    /// Precio máximo.
     pub high: f64,
-    /// Precio mínimo.
     pub low: f64,
-    /// Precio de cierre.
     pub close: f64,
-    /// Volumen negociado en el período.
     pub volume: f64,
-    /// Timestamp de cierre en milisegundos Unix (UTC).
     pub close_time_ms: i64,
 }
 
 impl MarketCandle {
-    /// Convierte a `domain::Candle` (solo OHLCV, sin metadatos temporales).
     pub fn to_domain_candle(&self) -> Result<Candle, MarketError> {
         Candle::new(self.open, self.high, self.low, self.close, self.volume)
             .map_err(|e| MarketError::InvalidResponse(format!("vela inválida: {e}")))
     }
 
-    /// Convierte a `domain::chart::ChartDataPoint`, preservando el
-    /// timestamp y el intervalo para que el viewport pueda establecer
-    /// la relación entre tiempo e índice lógico.
     pub fn to_chart_data_point(&self) -> Result<ChartDataPoint, MarketError> {
-        let candle = Candle::new(self.open, self.high, self.low, self.close, self.volume)
-            .map_err(|e| MarketError::InvalidResponse(format!("vela inválida: {e}")))?;
-        let interval_ms = self.close_time_ms - self.open_time_ms;
+        let candle = self.to_domain_candle()?;
+        let interval_ms = self
+            .close_time_ms
+            .checked_sub(self.open_time_ms)
+            .filter(|value| *value > 0)
+            .ok_or_else(|| {
+                MarketError::InvalidResponse(format!(
+                    "intervalo temporal inválido: open={}, close={}",
+                    self.open_time_ms, self.close_time_ms
+                ))
+            })?;
         let time_point = TimePoint::new(self.open_time_ms, self.close_time_ms, interval_ms)
             .ok_or_else(|| {
                 MarketError::InvalidResponse(format!(
@@ -54,7 +44,6 @@ impl MarketCandle {
         Ok(ChartDataPoint::new(candle, time_point))
     }
 
-    /// Devuelve `true` si la vela es financieramente válida.
     pub fn is_valid(&self) -> bool {
         self.open.is_finite()
             && self.high.is_finite()
@@ -67,7 +56,10 @@ impl MarketCandle {
             && self.open <= self.high
             && self.low <= self.close
             && self.close <= self.high
-            && self.close_time_ms >= self.open_time_ms
+            && self
+                .close_time_ms
+                .checked_sub(self.open_time_ms)
+                .is_some_and(|value| value > 0)
     }
 }
 
@@ -76,19 +68,22 @@ mod tests {
     use super::*;
     use std::str::FromStr;
 
-    #[test]
-    fn market_candle_to_domain_candle() {
-        let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
-        let candle = MarketCandle {
-            symbol,
-            open_time_ms: 1000,
+    fn valid_market_candle(open_time_ms: i64, close_time_ms: i64) -> MarketCandle {
+        MarketCandle {
+            symbol: Symbol::from_str("BTC/USDT").expect("símbolo válido"),
+            open_time_ms,
             open: 50000.0,
             high: 51000.0,
             low: 49000.0,
             close: 50500.0,
             volume: 10.5,
-            close_time_ms: 2000,
-        };
+            close_time_ms,
+        }
+    }
+
+    #[test]
+    fn market_candle_to_domain_candle() {
+        let candle = valid_market_candle(1000, 2000);
         let domain = candle.to_domain_candle().expect("vela válida");
         assert!((domain.open() - 50000.0).abs() < f64::EPSILON);
         assert!((domain.high() - 51000.0).abs() < f64::EPSILON);
@@ -97,19 +92,40 @@ mod tests {
     }
 
     #[test]
-    fn market_candle_rejects_invalid() {
-        let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
-        let candle = MarketCandle {
-            symbol,
-            open_time_ms: 2000,
-            open: 50000.0,
-            high: 49000.0, // high < open → inválido
-            low: 49000.0,
-            close: 49500.0,
-            volume: 10.5,
-            close_time_ms: 3000,
-        };
+    fn market_candle_rejects_invalid_prices() {
+        let mut candle = valid_market_candle(1000, 2000);
+        candle.high = 49000.0;
         assert!(!candle.is_valid());
         assert!(candle.to_domain_candle().is_err());
+    }
+
+    #[test]
+    fn market_candle_rejects_zero_duration() {
+        let candle = valid_market_candle(1000, 1000);
+        assert!(!candle.is_valid());
+        assert!(candle.to_chart_data_point().is_err());
+    }
+
+    #[test]
+    fn market_candle_rejects_inverted_time_range() {
+        let candle = valid_market_candle(2000, 1000);
+        assert!(!candle.is_valid());
+        assert!(candle.to_chart_data_point().is_err());
+    }
+
+    #[test]
+    fn market_candle_rejects_timestamp_subtraction_overflow() {
+        let candle = valid_market_candle(i64::MIN, i64::MAX);
+        assert!(!candle.is_valid());
+        assert!(candle.to_chart_data_point().is_err());
+    }
+
+    #[test]
+    fn market_candle_converts_positive_duration() {
+        let candle = valid_market_candle(1000, 2000);
+        let point = candle.to_chart_data_point().expect("intervalo válido");
+        assert_eq!(point.time_point.open_time_ms(), 1000);
+        assert_eq!(point.time_point.close_time_ms(), 2000);
+        assert_eq!(point.time_point.interval_ms(), 1000);
     }
 }

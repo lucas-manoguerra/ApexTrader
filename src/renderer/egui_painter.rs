@@ -2,41 +2,53 @@ use crate::domain::chart::time_scale::TimeScale;
 use crate::domain::transforms::{self, ScreenPoint, screen_to_chart_point};
 use crate::domain::viewport::{PriceScaleType, Viewport};
 use crate::errors::RendererError;
-use crate::renderer::{ChartRenderer, ChartScene, RenderFrame, RenderLayer};
+use crate::renderer::{
+    ChartGpuCallback, ChartRenderer, ChartScene, GpuVertex, RenderFrame, RenderLayer,
+    build_geometry,
+};
 use eframe::egui;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
-/// Renderizador de chart usando el Painter de egui (backend glow/OpenGL).
-///
-/// Este es el renderer que funciona actualmente en tu GPU Intel UHD 630.
-pub struct GlowChartRenderer {
-    /// Shapes de velas y volumen calculadas en el último frame estructural.
-    /// egui exige volver a emitirlas en cada frame; por eso se reproducen
-    /// desde esta caché cuando solo cambia el crosshair.
+static NEXT_CALLBACK_ID: AtomicU64 = AtomicU64::new(1);
+
+pub struct EguiPainterChartRenderer {
+    callback_id: u64,
+    resource_owner: Arc<()>,
     cached_series_layer: RenderLayer,
     cached_series_shapes: Vec<egui::Shape>,
+    cached_gpu_vertices: Arc<[GpuVertex]>,
+    target_format: Option<eframe::wgpu::TextureFormat>,
     series_cache_valid: bool,
 }
 
-impl GlowChartRenderer {
+impl EguiPainterChartRenderer {
     pub fn new() -> Self {
         Self {
+            callback_id: NEXT_CALLBACK_ID.fetch_add(1, Ordering::Relaxed),
+            resource_owner: Arc::new(()),
             cached_series_layer: RenderLayer::default(),
             cached_series_shapes: Vec::new(),
+            cached_gpu_vertices: Arc::from([]),
+            target_format: None,
             series_cache_valid: false,
+        }
+    }
+
+    pub fn with_target_format(target_format: Option<eframe::wgpu::TextureFormat>) -> Self {
+        Self {
+            target_format,
+            ..Self::new()
         }
     }
 }
 
-impl Default for GlowChartRenderer {
+impl Default for EguiPainterChartRenderer {
     fn default() -> Self {
         Self::new()
     }
 }
 
-/// Obtiene la etiqueta temporal en una coordenada lógica fraccionaria.
-///
-/// Las posiciones entre velas se interpolan en tiempo real, incluso cuando
-/// los intervalos entre timestamps son irregulares.
 fn time_label_at_logical(
     data_points: &[crate::domain::chart::chart_data::ChartDataPoint],
     logical_index: f64,
@@ -62,8 +74,8 @@ fn time_label_at_logical(
         return String::new();
     };
     let fraction = bounded_index - left_index as f64;
-    let start = left.time_point.open_time_ms as i128;
-    let end = right.time_point.open_time_ms as i128;
+    let start = left.time_point.open_time_ms() as i128;
+    let end = right.time_point.open_time_ms() as i128;
     let timestamp = (start as f64 + (end - start) as f64 * fraction).round();
 
     if !timestamp.is_finite() || timestamp < i64::MIN as f64 || timestamp > i64::MAX as f64 {
@@ -172,9 +184,7 @@ struct TimeAxisParams<'a> {
 
 #[derive(Debug, Clone, Copy)]
 struct PriceTick {
-    /// Valor que se muestra en la etiqueta (precio o variación porcentual).
     value: f64,
-    /// Valor transformado utilizado para calcular la posición vertical.
     scale_value: f64,
     y: f64,
     label_step: f64,
@@ -332,9 +342,6 @@ fn time_axis_ticks(left: f64, right: f64, params: &TimeAxisParams<'_>) -> Vec<Ti
         return Vec::new();
     }
 
-    // Elegir un intervalo "nice" en barras y traducirlo a tiempo real. Al
-    // agrupar por buckets UTC, las marcas caen en límites de reloj (5m, 15m,
-    // 1h, etc.) en lugar de depender del primer índice visible.
     let target_labels = ((width / 118.0).floor() as usize).clamp(2, 9);
     let logical_span = visible.last.saturating_sub(visible.first).max(1);
     let bar_step = nice_tick_step(logical_span as f64, target_labels.saturating_sub(1))
@@ -344,8 +351,8 @@ fn time_axis_ticks(left: f64, right: f64, params: &TimeAxisParams<'_>) -> Vec<Ti
     let base_interval_ms = params
         .data_points
         .iter()
-        .find(|point| point.time_point.interval_ms > 0)
-        .map(|point| point.time_point.interval_ms)
+        .find(|point| point.time_point.interval_ms() > 0)
+        .map(|point| point.time_point.interval_ms())
         .unwrap_or(1);
     let tick_interval_ms = base_interval_ms
         .saturating_mul(bar_step.min(i64::MAX as usize) as i64)
@@ -364,7 +371,7 @@ fn time_axis_ticks(left: f64, right: f64, params: &TimeAxisParams<'_>) -> Vec<Ti
             break;
         }
 
-        let timestamp = point.time_point.open_time_ms;
+        let timestamp = point.time_point.open_time_ms();
         let bucket = timestamp.div_euclid(tick_interval_ms);
         if index < visible.first {
             previous_bucket = Some(bucket);
@@ -382,8 +389,7 @@ fn time_axis_ticks(left: f64, right: f64, params: &TimeAxisParams<'_>) -> Vec<Ti
 
         let label =
             TimeScale::format_time_axis_label(timestamp, tick_interval_ms, previous_tick_timestamp);
-        // Reservar espacio según la etiqueta visible evita colisiones sin
-        // imponer una separación excesiva a los ticks compactos HH:mm.
+
         let minimum_spacing = (label.chars().count() as f64 * 7.5 + 24.0).max(72.0);
         if last_screen_x.is_some_and(|last| screen_x - last < minimum_spacing) {
             continue;
@@ -671,7 +677,6 @@ fn draw_current_price_marker(
     );
 }
 
-/// Convierte la geometría compartida de la serie en primitivas específicas de egui.
 fn series_layer_shapes(layer: &RenderLayer, origin: ScreenPoint) -> Vec<egui::Shape> {
     let mut shapes = Vec::with_capacity(layer.candles.len().saturating_mul(3));
 
@@ -738,7 +743,7 @@ fn should_rebuild_series(cache_valid: bool, reason: crate::renderer::Invalidatio
         )
 }
 
-impl ChartRenderer for GlowChartRenderer {
+impl ChartRenderer for EguiPainterChartRenderer {
     fn draw(
         &mut self,
         painter: &egui::Painter,
@@ -751,7 +756,7 @@ impl ChartRenderer for GlowChartRenderer {
         }
 
         tracing::debug!(
-            "Renderizando {} puntos con glow en rect {:?} (zoom_x={:.2}, zoom_y={:.2})",
+            "Renderizando {} puntos con backend WGPU en rect {:?} (zoom_x={:.2}, zoom_y={:.2})",
             scene.data_points.len(),
             rect,
             scene.viewport.zoom_x(),
@@ -761,7 +766,8 @@ impl ChartRenderer for GlowChartRenderer {
         if scene.data_points.is_empty() {
             self.cached_series_layer = RenderLayer::default();
             self.cached_series_shapes.clear();
-            self.series_cache_valid = true;
+            self.cached_gpu_vertices = Arc::from([]);
+            self.series_cache_valid = false;
             return Ok(());
         }
 
@@ -818,27 +824,44 @@ impl ChartRenderer for GlowChartRenderer {
         };
         let time_ticks = time_axis_ticks(left, right, &time_params);
 
-        // Fondo, escalas y rejilla se calculan con el mismo layout que usa
-        // el hit-testing, evitando que las marcas se desalineen del plot.
         draw_chart_surfaces(painter, layout, frame.origin);
         draw_grid(painter, layout, frame.origin, &price_ticks, &time_ticks);
 
         if rebuild_series {
             self.cached_series_layer = frame.layers.first().cloned().unwrap_or_default();
-            self.cached_series_shapes =
-                series_layer_shapes(&self.cached_series_layer, frame.origin);
+            if self.target_format.is_some() {
+                let geometry = build_geometry(&self.cached_series_layer);
+                self.cached_gpu_vertices = ChartGpuCallback::vertices_from_geometry(
+                    &geometry,
+                    [rect.width(), rect.height()],
+                );
+                self.cached_series_shapes.clear();
+            } else {
+                self.cached_series_shapes =
+                    series_layer_shapes(&self.cached_series_layer, frame.origin);
+                self.cached_gpu_vertices = Arc::from([]);
+            }
             self.series_cache_valid = true;
         }
 
-        // Las velas y el volumen quedan recortados al área de datos; nunca
-        // invaden las bandas de escalas.
         let series_clip = egui::Rect::from_min_max(
             egui::pos2(left as f32, top as f32),
             egui::pos2(right as f32, volume_bottom as f32),
         );
-        painter
-            .with_clip_rect(series_clip)
-            .extend(self.cached_series_shapes.iter().cloned());
+        let series_painter = painter.with_clip_rect(series_clip);
+        if let Some(target_format) = self.target_format {
+            if !self.cached_gpu_vertices.is_empty() {
+                series_painter.add(ChartGpuCallback::shape(
+                    self.callback_id,
+                    rect,
+                    self.cached_gpu_vertices.clone(),
+                    target_format,
+                    Arc::downgrade(&self.resource_owner),
+                ));
+            }
+        } else {
+            series_painter.extend(self.cached_series_shapes.iter().cloned());
+        }
 
         let font_id = egui::FontId::proportional(11.0);
         let last_point = scene.data_points.last();
@@ -988,7 +1011,11 @@ impl ChartRenderer for GlowChartRenderer {
     }
 
     fn name(&self) -> &str {
-        "glow (egui Painter)"
+        if self.target_format.is_some() {
+            "WGPU chart pipeline + egui UI"
+        } else {
+            "egui Painter fallback"
+        }
     }
 }
 
@@ -1284,14 +1311,14 @@ mod tests {
                 level: InvalidationReason::Full,
             },
         };
-        let mut renderer = GlowChartRenderer::new();
+        let mut renderer = EguiPainterChartRenderer::new();
         let context = egui::Context::default();
         let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 500.0));
 
         let mut output = context.run_ui(egui::RawInput::default(), |ctx| {
             let painter = ctx.layer_painter(egui::LayerId::new(
                 egui::Order::Middle,
-                egui::Id::unique("glow-renderer-candle-cache"),
+                egui::Id::unique("egui-painter-renderer-candle-cache"),
             ));
             renderer
                 .draw(&painter, rect, &scene)
@@ -1310,9 +1337,13 @@ mod tests {
 
     #[test]
     fn empty_scene_clears_previously_cached_shapes() {
-        let mut renderer = GlowChartRenderer {
+        let mut renderer = EguiPainterChartRenderer {
+            callback_id: 0,
+            resource_owner: Arc::new(()),
             cached_series_layer: RenderLayer::default(),
             cached_series_shapes: vec![egui::Shape::Noop],
+            cached_gpu_vertices: Arc::from([]),
+            target_format: None,
             series_cache_valid: true,
         };
         let context = egui::Context::default();
@@ -1322,7 +1353,7 @@ mod tests {
         let mut output = context.run_ui(egui::RawInput::default(), |ctx| {
             let painter = ctx.layer_painter(egui::LayerId::new(
                 egui::Order::Middle,
-                egui::Id::unique("glow-renderer-empty-cache"),
+                egui::Id::unique("egui-painter-renderer-empty-cache"),
             ));
             renderer
                 .draw(&painter, rect, &scene)
@@ -1332,6 +1363,10 @@ mod tests {
         output.textures_delta.clear();
 
         assert!(renderer.cached_series_shapes.is_empty());
-        assert!(renderer.series_cache_valid);
+        assert!(!renderer.series_cache_valid);
+        assert!(should_rebuild_series(
+            renderer.series_cache_valid,
+            InvalidationReason::CursorOnly
+        ));
     }
 }

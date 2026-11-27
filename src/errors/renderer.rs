@@ -1,4 +1,3 @@
-/// Errores del motor de renderizado.
 #[derive(Debug, thiserror::Error)]
 pub enum RendererError {
     #[error("No se pudo crear el contexto de pintura")]

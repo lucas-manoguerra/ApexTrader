@@ -1,13 +1,9 @@
-#![allow(dead_code)]
-
-/// Biblioteca de ApexTrader.
-///
-/// Expone los módulos públicos para que los tests de integración y otros
-/// crates puedan depender de ellos sin arrastrar el binario de escritorio.
 pub mod application;
+pub mod bootstrap;
 pub mod chart;
 pub mod domain;
 pub mod errors;
 pub mod logging;
 pub mod market;
+pub mod presentation;
 pub mod renderer;

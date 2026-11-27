@@ -3,7 +3,6 @@ use apex_trader::domain::price_range::PriceRange;
 use apex_trader::domain::viewport::Viewport;
 use rust_decimal::Decimal;
 
-/// S4: Autoescala ajusta zoom_level para que el rango de precios quepa en pantalla.
 #[test]
 fn auto_scale_zoom_within_limits() {
     let mut viewport = Viewport::new();
@@ -17,7 +16,6 @@ fn auto_scale_zoom_within_limits() {
     assert!(viewport.zoom_x() <= viewport.max_zoom());
 }
 
-/// S4: Con una sola vela, el zoom no es extremo (no se acerca a max_zoom innecesariamente).
 #[test]
 fn auto_scale_single_candle_reasonable_zoom() {
     let mut viewport = Viewport::new();
@@ -31,7 +29,6 @@ fn auto_scale_single_candle_reasonable_zoom() {
     assert!(viewport.zoom_x() <= viewport.max_zoom());
 }
 
-/// S4: Después de auto_scale, el precio mínimo y máximo mapean dentro de la pantalla.
 #[test]
 fn auto_scale_prices_within_screen_bounds() {
     let mut viewport = Viewport::new();
@@ -75,7 +72,6 @@ fn auto_scale_prices_within_screen_bounds() {
     );
 }
 
-/// S4: El centro del rango de precios mapea al centro vertical de la pantalla.
 #[test]
 fn auto_scale_center_price_maps_to_center_y() {
     let mut viewport = Viewport::new();
@@ -92,8 +88,6 @@ fn auto_scale_center_price_maps_to_center_y() {
     assert!((y_mid - screen_height / 2.0).abs() < 1.0);
 }
 
-/// S4: auto_scale solo afecta al eje Y (precio); el eje X (tiempo/velas)
-/// se deja intacto.
 #[test]
 fn auto_scale_only_affects_y_axis() {
     let mut viewport = Viewport::new();
@@ -122,9 +116,6 @@ fn auto_scale_only_affects_y_axis() {
     );
 }
 
-/// S4: El índice de la primera vela mapea a la izquierda con margen.
-/// (auto_scale solo ajusta el eje Y; el centrado horizontal del eje X lo
-/// establece el llamante con set_offset_x.)
 #[test]
 fn auto_scale_first_candle_within_horizontal_margin() {
     let mut viewport = Viewport::new();
@@ -161,7 +152,6 @@ fn auto_scale_first_candle_within_horizontal_margin() {
     );
 }
 
-/// S4: Llamar auto_scale dos veces es idempotente en cuanto a límites.
 #[test]
 fn auto_scale_idempotent() {
     let mut viewport = Viewport::new();

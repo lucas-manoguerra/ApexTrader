@@ -1,9 +1,3 @@
-//! Proveedor de datos históricos sintéticos.
-//!
-//! Genera series OHLCV deterministas con tendencias de varias escalas,
-//! volatilidad variable, mechas asimétricas y volumen correlacionado con
-//! la actividad del precio. No necesita red ni dependencias aleatorias.
-
 use crate::market::candle::MarketCandle;
 use crate::market::errors::MarketError;
 use crate::market::provider::MarketDataProvider;
@@ -18,21 +12,15 @@ const WICK_LOW_SALT: u64 = 0xBF58_476D_1CE4_E5B9;
 const VOLUME_SALT: u64 = 0xDB4F_0B91_75AE_2165;
 const SPIKE_SALT: u64 = 0xBBE0_4E99_8E2A_4C31;
 
-/// Proveedor sintético histórico.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MockMarketDataProvider {
-    /// Nivel de precio alrededor del que oscila la serie.
     pub base_price: f64,
-    /// Duración de cada vela en milisegundos.
     pub interval_ms: i64,
-    /// Volumen típico aproximado por vela, en unidades del instrumento.
     pub base_volume: f64,
-    /// Semilla adicional para generar series alternativas.
     pub seed: u64,
 }
 
 impl MockMarketDataProvider {
-    /// Crea un proveedor con una configuración razonable para BTC/USDT.
     pub fn new(base_price: f64) -> Self {
         Self {
             base_price,
@@ -42,25 +30,21 @@ impl MockMarketDataProvider {
         }
     }
 
-    /// Configura el intervalo temporal de las velas.
     pub fn with_interval_ms(mut self, interval_ms: i64) -> Self {
         self.interval_ms = interval_ms;
         self
     }
 
-    /// Configura el volumen típico por vela.
     pub fn with_base_volume(mut self, base_volume: f64) -> Self {
         self.base_volume = base_volume;
         self
     }
 
-    /// Configura una semilla para obtener otra serie determinista.
     pub fn with_seed(mut self, seed: u64) -> Self {
         self.seed = seed;
         self
     }
 
-    /// Devuelve una semilla estable para el símbolo y la configuración actual.
     pub fn seed_for_symbol(&self, symbol: &Symbol) -> u64 {
         stable_symbol_seed(self.seed, symbol)
     }
@@ -123,8 +107,6 @@ impl MockMarketDataProvider {
             - normal_noise(symbol_seed, index, WICK_LOW_SALT).abs() * typical_range)
             .max(f64::MIN_POSITIVE);
 
-        // El volumen aumenta con el retorno absoluto y presenta picos
-        // ocasionales que simulan eventos de actividad excepcional.
         let activity = 0.45 + unit_noise(symbol_seed, index, VOLUME_SALT) * 1.4;
         let volatility_factor = 1.0 + (absolute_return / 0.000_7).min(4.0) * 0.55;
         let spike = if unit_noise(symbol_seed, index, SPIKE_SALT) > 0.985 {
@@ -178,8 +160,6 @@ impl MarketDataProvider for MockMarketDataProvider {
         }
         self.validate()?;
 
-        // Devuelve velas completas cuyo timestamp de apertura pertenece
-        // al rango inclusivo solicitado. También funciona con tiempos negativos.
         let mut first_index = from_ms.div_euclid(self.interval_ms);
         if from_ms.rem_euclid(self.interval_ms) != 0 {
             first_index = first_index.checked_add(1).ok_or_else(|| {
@@ -207,7 +187,6 @@ impl MarketDataProvider for MockMarketDataProvider {
     }
 }
 
-/// Mezcla determinista de 64 bits (SplitMix64).
 pub(crate) fn mix64(mut value: u64) -> u64 {
     value = value.wrapping_add(0x9E37_79B9_7F4A_7C15);
     value = (value ^ (value >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);

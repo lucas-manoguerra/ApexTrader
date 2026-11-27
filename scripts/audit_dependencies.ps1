@@ -1,10 +1,3 @@
-# Auditoría de dependencias — ApexTrader
-#
-# Requiere cargo-audit y cargo-deny. La CI instala versiones precompiladas
-# antes de ejecutar este script; una herramienta ausente es un error real.
-#
-# Uso: pwsh -File scripts/audit_dependencies.ps1
-# Exit code: 0 = auditorías OK, 1 = herramienta ausente o problema detectado
 
 $ErrorActionPreference = "Stop"
 

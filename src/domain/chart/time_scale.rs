@@ -1,14 +1,3 @@
-//! Escala temporal compartida del chart.
-//!
-//! La escala separa el timestamp de la coordenada lógica. Cada timestamp
-//! distinto ocupa una posición lógica consecutiva; por eso los cierres de
-//! sesión y los huecos entre velas no generan espacios artificiales.
-//! La interpolación entre dos puntos temporales conserva posiciones
-//! fraccionarias para crosshair y navegación.
-//!
-//! Este tipo no posee zoom ni pan. Esa cámara sigue siendo propiedad de
-//! `Viewport`; TimeScale únicamente traduce tiempo ↔ índice lógico.
-
 use crate::domain::chart::time_point::TimePoint;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -21,8 +10,6 @@ impl TimeScale {
         Self::default()
     }
 
-    /// Reconstruye la escala a partir de timestamps, ordenándolos y
-    /// eliminando duplicados.
     pub fn rebuild<I>(&mut self, timestamps: I)
     where
         I: IntoIterator<Item = i64>,
@@ -32,10 +19,6 @@ impl TimeScale {
         self.timestamps_ms.dedup();
     }
 
-    /// Agrega un timestamp al final sin reconstruir toda la escala.
-    ///
-    /// Devuelve false si el timestamp no es estrictamente posterior al último.
-    /// Es la ruta eficiente para la llegada secuencial de nuevas velas realtime.
     pub fn push(&mut self, timestamp_ms: i64) -> bool {
         if self
             .timestamps_ms
@@ -48,7 +31,6 @@ impl TimeScale {
         true
     }
 
-    /// Cantidad de posiciones temporales únicas.
     pub fn len(&self) -> usize {
         self.timestamps_ms.len()
     }
@@ -61,16 +43,10 @@ impl TimeScale {
         &self.timestamps_ms
     }
 
-    /// Devuelve el índice lógico entero asociado exactamente al timestamp.
     pub fn logical_index(&self, timestamp_ms: i64) -> Option<usize> {
         self.timestamps_ms.binary_search(&timestamp_ms).ok()
     }
 
-    /// Reconstruye una escala temporal común a varias series.
-    ///
-    /// Cada serie puede tener una frecuencia o timestamps distintos. La escala
-    /// contiene la unión ordenada de todos los timestamps y elimina duplicados;
-    /// cada serie puede consultar luego su posición con `logical_index`.
     pub fn rebuild_from_series<I, S>(&mut self, series: I)
     where
         I: IntoIterator<Item = S>,
@@ -79,11 +55,6 @@ impl TimeScale {
         self.rebuild(series.into_iter().flatten());
     }
 
-    /// Convierte un intervalo temporal inclusivo en un intervalo lógico.
-    ///
-    /// Los extremos se interpolan entre timestamps irregulares y el intervalo
-    /// se recorta al historial disponible. Devuelve `None` si no hay historial,
-    /// el intervalo está invertido o no intersecta los datos.
     pub fn time_range_to_logical_range(
         &self,
         start_time_ms: i64,
@@ -103,8 +74,6 @@ impl TimeScale {
         ))
     }
 
-    /// Devuelve los índices enteros cuyos timestamps pertenecen al intervalo
-    /// temporal inclusivo. No incluye posiciones interpoladas sin una vela.
     pub fn indices_in_time_range(
         &self,
         start_time_ms: i64,
@@ -128,7 +97,6 @@ impl TimeScale {
         }
     }
 
-    /// Convierte un intervalo lógico (posiblemente fraccionario) a timestamps.
     pub fn logical_range_to_time_range(
         &self,
         first_logical: f64,
@@ -144,11 +112,6 @@ impl TimeScale {
         ))
     }
 
-    /// Convierte un timestamp en una coordenada lógica fraccionaria.
-    ///
-    /// Los intervalos sin datos quedan comprimidos: el tiempo entre dos
-    /// timestamps consecutivos se interpola entre sus índices lógicos.
-    /// No extrapola fuera del historial disponible.
     pub fn time_to_logical(&self, timestamp_ms: i64) -> Option<f64> {
         if self.timestamps_ms.is_empty() {
             return None;
@@ -173,7 +136,6 @@ impl TimeScale {
         }
     }
 
-    /// Convierte un índice lógico (también fraccionario) en timestamp.
     pub fn logical_to_time(&self, logical_index: f64) -> Option<i64> {
         if self.timestamps_ms.is_empty()
             || !logical_index.is_finite()
@@ -202,7 +164,6 @@ impl TimeScale {
         Some(interpolated.round() as i64)
     }
 
-    /// Etiqueta UTC compacta para el eje temporal.
     pub fn format_time_label(timestamp_ms: i64) -> String {
         let seconds = timestamp_ms.div_euclid(1_000);
         let days = seconds.div_euclid(86_400);
@@ -213,11 +174,6 @@ impl TimeScale {
         format!("{day:02}/{month:02} {hour:02}:{minute:02} UTC")
     }
 
-    /// Etiqueta compacta para la escala temporal.
-    ///
-    /// Usa la hora mientras los ticks pertenecen al mismo día y cambia a fecha
-    /// en los límites diarios. Al alejar el zoom muestra mes/año o año para
-    /// evitar etiquetas redundantes. Todos los valores se interpretan en UTC.
     pub fn format_time_axis_label(
         timestamp_ms: i64,
         tick_interval_ms: i64,
@@ -260,13 +216,11 @@ impl TimeScale {
         format!("{hour:02}:{minute:02}")
     }
 
-    /// Etiqueta de un punto temporal.
     pub fn format_time_point(time_point: TimePoint) -> String {
-        Self::format_time_label(time_point.open_time_ms)
+        Self::format_time_label(time_point.open_time_ms())
     }
 }
 
-/// Convierte días desde Unix epoch a fecha gregoriana (algoritmo civil UTC).
 fn civil_from_days(days_since_epoch: i64) -> (i64, u32, u32) {
     let z = days_since_epoch + 719_468;
     let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
@@ -294,7 +248,7 @@ mod tests {
 
     fn scale() -> TimeScale {
         let mut scale = TimeScale::new();
-        // Salto temporal intencional: no crea índices intermedios.
+
         scale.rebuild([0, 60_000, 3_600_000, 3_660_000]);
         scale
     }

@@ -1,10 +1,3 @@
-# Verificación de documentación de librerías — ApexTrader
-#
-# Valida que las tareas ODD registren documentación y versiones de librerías
-# externas mencionadas por el proyecto.
-#
-# Uso: pwsh -File scripts/verify_lib_docs.ps1
-# Exit code: 0 = OK, 1 = inconsistencia detectada
 
 $ErrorActionPreference = "Stop"
 $exitCode = 0
@@ -19,7 +12,6 @@ if (-not (Test-Path -LiteralPath $cargoTomlPath -PathType Leaf)) {
     exit 1
 }
 
-# --- Leer dependencias declaradas en las secciones de Cargo ---
 $cargoToml = Get-Content -LiteralPath $cargoTomlPath -Raw
 $declaredDeps = @{}
 $insideDependencySection = $false
@@ -37,7 +29,6 @@ foreach ($line in ($cargoToml -split '\r?\n')) {
         continue
     }
 
-    # Admite tanto crate = "version" como crate = { version = "..." }.
     if ($line -match '^\s*([a-zA-Z0-9_-]+)\s*=\s*(?:"([^"]+)"|\{[^}]*\bversion\s*=\s*"([^"]+)")') {
         $crate = $matches[1]
         $version = if ($matches[2]) { $matches[2] } else { $matches[3] }
@@ -50,7 +41,6 @@ foreach ($dependency in ($declaredDeps.Keys | Sort-Object)) {
     Write-Host "  $dependency = $($declaredDeps[$dependency])"
 }
 
-# --- Verificar referencias en las tareas ODD ---
 if (-not (Test-Path -LiteralPath $tasksDir -PathType Container)) {
     Write-Host "No existe odd/tasks/: no hay tareas ODD que verificar." -ForegroundColor Yellow
     exit 0
