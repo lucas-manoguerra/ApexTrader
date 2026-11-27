@@ -74,8 +74,8 @@ fn time_label_at_logical(
         return String::new();
     };
     let fraction = bounded_index - left_index as f64;
-    let start = left.time_point.open_time_ms as i128;
-    let end = right.time_point.open_time_ms as i128;
+    let start = left.time_point.open_time_ms() as i128;
+    let end = right.time_point.open_time_ms() as i128;
     let timestamp = (start as f64 + (end - start) as f64 * fraction).round();
 
     if !timestamp.is_finite() || timestamp < i64::MIN as f64 || timestamp > i64::MAX as f64 {
@@ -351,8 +351,8 @@ fn time_axis_ticks(left: f64, right: f64, params: &TimeAxisParams<'_>) -> Vec<Ti
     let base_interval_ms = params
         .data_points
         .iter()
-        .find(|point| point.time_point.interval_ms > 0)
-        .map(|point| point.time_point.interval_ms)
+        .find(|point| point.time_point.interval_ms() > 0)
+        .map(|point| point.time_point.interval_ms())
         .unwrap_or(1);
     let tick_interval_ms = base_interval_ms
         .saturating_mul(bar_step.min(i64::MAX as usize) as i64)
@@ -371,7 +371,7 @@ fn time_axis_ticks(left: f64, right: f64, params: &TimeAxisParams<'_>) -> Vec<Ti
             break;
         }
 
-        let timestamp = point.time_point.open_time_ms;
+        let timestamp = point.time_point.open_time_ms();
         let bucket = timestamp.div_euclid(tick_interval_ms);
         if index < visible.first {
             previous_bucket = Some(bucket);
