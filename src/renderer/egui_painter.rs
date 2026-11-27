@@ -7,7 +7,7 @@ use crate::renderer::{
     build_geometry,
 };
 use eframe::egui;
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_CALLBACK_ID: AtomicU64 = AtomicU64::new(1);
