@@ -191,7 +191,9 @@ impl eframe::App for ApexTraderApp {
                         Ok(symbol) => {
                             self.price_tick_size = price_tick_size_for_symbol(&symbol);
                             let to_ms = latest_closed_candle_open_time(DEFAULT_INTERVAL_MS);
-                            let from_ms = to_ms.saturating_sub((DEFAULT_HISTORY_CANDLES - 1) * DEFAULT_INTERVAL_MS);
+                            let from_ms = to_ms.saturating_sub(
+                                (DEFAULT_HISTORY_CANDLES - 1) * DEFAULT_INTERVAL_MS,
+                            );
                             self.load_state = load_symbol_into_chart(
                                 &mut self.chart,
                                 self.market_data_provider.as_ref(),
@@ -495,8 +497,9 @@ impl ApexTraderApp {
 
         let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
         let price_tick_size = price_tick_size_for_symbol(&symbol);
-        let to_ms = latest_closed_candle_open_time(60_000);
-        let from_ms = to_ms.saturating_sub(199 * 60_000);
+        let to_ms = latest_closed_candle_open_time(DEFAULT_INTERVAL_MS);
+        let from_ms =
+            to_ms.saturating_sub((DEFAULT_HISTORY_CANDLES - 1) * DEFAULT_INTERVAL_MS);
 
         let load_state = load_symbol_into_chart(
             &mut chart,
