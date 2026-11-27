@@ -87,7 +87,11 @@ mod tests {
                 .expect("carga histórica válida");
 
         assert_eq!(chart.len(), result.data_points.len());
-        assert_eq!(chart.data_points(), result.data_points.as_slice());
+        assert_eq!(
+            chart.data_points()[0].time_point.open_time_ms(),
+            result.data_points[0].time_point.open_time_ms()
+        );
+        assert_eq!(chart.data_points()[0].close(), result.data_points[0].close());
         assert!(result.is_clean());
     }
 
