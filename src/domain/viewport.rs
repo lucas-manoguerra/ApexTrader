@@ -259,8 +259,12 @@ impl Viewport {
     }
 
     fn auto_price_scale_center(&self, midpoint: f64, range: f64, zoom: f64) -> f64 {
-        midpoint
-            + (self.price_scale_top_margin - self.price_scale_bottom_margin) * range / (2.0 * zoom)
+        let (top_margin, bottom_margin) = if self.price_scale_inverted {
+            (self.price_scale_bottom_margin, self.price_scale_top_margin)
+        } else {
+            (self.price_scale_top_margin, self.price_scale_bottom_margin)
+        };
+        midpoint + (top_margin - bottom_margin) * range / (2.0 * zoom)
     }
 
     pub fn set_price_scale_auto(&mut self, enabled: bool) {
@@ -284,7 +288,25 @@ impl Viewport {
     }
 
     pub fn set_price_scale_inverted(&mut self, inverted: bool) {
+        if self.price_scale_inverted == inverted {
+            return;
+        }
+
+        let midpoint = self.price_scale_center
+            - if self.price_scale_inverted {
+                (self.price_scale_bottom_margin - self.price_scale_top_margin)
+                    * self.price_scale_range
+                    / (2.0 * self.zoom_y)
+            } else {
+                (self.price_scale_top_margin - self.price_scale_bottom_margin)
+                    * self.price_scale_range
+                    / (2.0 * self.zoom_y)
+            };
         self.price_scale_inverted = inverted;
+        if self.price_scale_auto {
+            self.price_scale_center =
+                self.auto_price_scale_center(midpoint, self.price_scale_range, self.zoom_y);
+        }
     }
 
     pub fn price_scale_reference(&self) -> (f64, f64) {
@@ -1275,6 +1297,38 @@ mod price_scale_inversion_tests {
         viewport.reset();
 
         assert!(!viewport.price_scale_inverted());
+    }
+    #[test]
+    fn inverted_auto_scale_preserves_asymmetric_visual_margins() {
+        let mut viewport = Viewport::new();
+        assert!(viewport.set_price_scale_margins(0.10, 0.05));
+        assert!(viewport.update_auto_price_scale(90.0, 110.0));
+        viewport.set_price_scale_inverted(true);
+
+        let (range, center) = viewport.price_scale_reference();
+        let top_price = viewport
+            .screen_y_to_price_value(100.0, 1_000.0, range, center)
+            .expect("precio superior invertido válido");
+        let bottom_price = viewport
+            .screen_y_to_price_value(950.0, 1_000.0, range, center)
+            .expect("precio inferior invertido válido");
+
+        assert!((top_price - 90.0).abs() < 1e-9);
+        assert!((bottom_price - 110.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn changing_inversion_keeps_manual_price_scale_reference_unchanged() {
+        let mut viewport = Viewport::new();
+        assert!(viewport.set_price_scale_margins(0.10, 0.05));
+        assert!(viewport.update_auto_price_scale(90.0, 110.0));
+        viewport.set_price_scale_auto(false);
+        let reference = viewport.price_scale_reference();
+
+        viewport.set_price_scale_inverted(true);
+
+        assert_eq!(viewport.price_scale_reference(), reference);
+        assert!(!viewport.price_scale_auto());
     }
 }
 
