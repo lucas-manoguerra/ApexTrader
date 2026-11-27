@@ -13,7 +13,11 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 bytemuck = "1"
 bytemuck_derive = "1"
 rust_decimal = { version = "1.43", features = ["maths", "serde"] }
-wgpu = { version = "30", features = ["wgsl"] }
+pollster = "1"
+wgpu = { version = "30", features = ["dx12", "wgsl"] }
+wgpu-types = "30"
+raw-window-handle = "0.6"
+winit = "0.30.13"
 
 [[bench]]
 name = "chart_transform_benchmark"
