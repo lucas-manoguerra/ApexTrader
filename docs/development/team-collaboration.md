@@ -106,18 +106,14 @@ Una PR no está lista por el mero hecho de compilar localmente. La CI y la revis
 - No descartar ni aceptar automáticamente un lado de un conflicto sin revisar su intención.
 - El responsable de la integración verifica el estado final de CI sobre el commit que se va a integrar.
 
-### Restricción temporal de CI
+### Matriz multiplataforma y disponibilidad de CI
 
-Mientras los runners macOS de GitHub Actions no estén disponibles de forma estable, ninguna PR debe integrarse. La exclusión temporal de macOS debe mantenerse explícita y no debe afirmarse cobertura completa de Windows/macOS/Linux.
-
-Cuando el servicio se restablezca:
-
-1. Restaurar macOS en todas las matrices afectadas.
-2. Actualizar las ramas/PRs pendientes con esa configuración.
-3. Ejecutar CI completa en Windows, macOS y Linux.
-4. Resolver fallos antes de integrar.
-5. Integrar las PRs pendientes en orden de dependencia, una por una.
-6. Verificar CI de `main` después de cada integración.
+- La matriz de validación objetivo incluye Windows, macOS y Linux.
+- Una incidencia de infraestructura no justifica eliminar permanentemente una plataforma ni presentar una matriz parcial como cobertura completa.
+- Si un runner o servicio de CI no está disponible, comunicar el bloqueo y mantener pendientes las integraciones que requieren ese control.
+- Cualquier exclusión temporal debe estar justificada, limitada a la infraestructura afectada y tener una tarea de seguimiento para restaurarla.
+- Antes de integrar, ejecutar la matriz completa requerida sobre la revisión exacta que se va a fusionar.
+- Integrar PRs dependientes en el orden declarado, una por una, y verificar CI de `main` después de cada integración.
 
 ## Comunicación de bloqueos
 
