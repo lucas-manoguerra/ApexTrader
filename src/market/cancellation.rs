@@ -1,11 +1,8 @@
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
-/// Shared cooperative cancellation signal for market-data operations.
-///
-/// Providers must check this signal before starting work and between bounded
-/// I/O steps. A provider performing blocking I/O must also configure finite
-/// connect/read/operation timeouts; this token cannot forcibly interrupt an
-/// arbitrary blocking system call.
 #[derive(Debug, Clone, Default)]
 pub struct CancellationToken {
     cancelled: Arc<AtomicBool>,
@@ -24,7 +21,6 @@ impl CancellationToken {
         self.cancelled.load(Ordering::Acquire)
     }
 
-    /// Returns a cancellation error when cancellation has been requested.
     pub fn check(&self) -> Result<(), crate::market::errors::MarketError> {
         if self.is_cancelled() {
             Err(crate::market::errors::MarketError::Cancelled)
