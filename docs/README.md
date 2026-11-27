@@ -8,7 +8,8 @@ Esta documentación define el diseño, los estándares y los procedimientos del 
 |---|---|
 | [Arquitectura](architecture/README.md) | Capas, dependencias, límites y evolución |
 | [Ingeniería](engineering/standards.md) | Estándares Rust, diseño, errores y política de comentarios |
-| [Desarrollo](development/workflow.md) | Flujo de trabajo y contribución |
+| [Desarrollo](development/workflow.md) | Flujo de trabajo técnico |
+| [Trabajo en equipo](development/team-collaboration.md) | Coordinación, asignación de tareas, ramas y prevención de conflictos |
 | [Agentes](agents/README.md) | Roles, harness y protocolo de ejecución |
 | [Calidad](quality/README.md) | Gates, pruebas y CI |
 | [Seguridad](security/README.md) | Dependencias, unsafe y gestión de riesgos |
@@ -23,3 +24,4 @@ Esta documentación define el diseño, los estándares y los procedimientos del 
 - No duplicar una regla en múltiples documentos si puede enlazarse a una fuente canónica.
 - Los ejemplos deben compilar o identificarse expresamente como pseudocódigo.
 - La documentación debe distinguir capacidades implementadas, experimentales y planificadas.
+- Cuando cambie un procedimiento, actualizar la fuente canónica y sus enlaces; no mantener copias divergentes.
