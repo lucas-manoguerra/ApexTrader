@@ -2,7 +2,7 @@
 
 ## Alcance y estado
 
-Revisión estática del modelo temporal en el head `35d6a3a3cb996df7cedac36ea60564d3ba81f7ec`. Evalúa representación de instantes, intervalos, calendario, presentación y responsabilidades de las bibliotecas de fechas. No incorpora una dependencia ni cambia el comportamiento temporal.
+Revisión estática del modelo temporal actualizada en el head `0742e57e5d5c644c4303b12413110a9a0d48a7cf`. Evalúa representación de instantes, intervalos, calendario, presentación y responsabilidades de las bibliotecas de fechas. No incorpora una dependencia ni cambia el comportamiento temporal.
 
 La decisión de biblioteca sigue abierta según ADR-0004. Jiff es la candidata propuesta para evaluación; `time` y Chrono/`chrono-tz` permanecen como alternativas comparables. La selección no debe basarse solo en popularidad o microbenchmarks.
 
@@ -88,6 +88,16 @@ La decisión de biblioteca sigue abierta según ADR-0004. Jiff es la candidata p
 
 **Dirección:** decidir si `TimePoint` representa exclusivamente el intervalo de una vela o un punto/evento temporal más general. Si representa una vela, exigir span positivo y añadir pruebas de igualdad; si es general, separar los tipos y nombrar las invariantes para que el consumidor no infiera una duración que no existe.
 
+### TM-009 — El orden de respuesta del proveedor no está declarado y la capa de aplicación rechaza desorden en lugar de normalizarlo
+
+**Severidad:** alta para proveedores reales y backfills paginados.
+
+**Evidencia:** `MarketDataProvider::fetch_candles` no declara un orden de respuesta. `LoadCandles::execute` acepta únicamente timestamps de apertura estrictamente crecientes respecto del último dato aceptado; un dato duplicado o fuera de orden se agrega a `rejected` en lugar de ordenarse. El mock entrega los datos en orden ascendente, por lo que los tests actuales no ejercitan respuestas reales desordenadas.
+
+**Riesgo:** un proveedor que entregue páginas solapadas, respuestas fuera de orden o reintentos puede producir rechazos parciales. La aplicación no distingue entre una respuesta contractual inválida y un adaptador que todavía no normalizó la respuesta externa.
+
+**Dirección:** cada adaptador debe normalizar y validar orden, duplicados y paginación antes de entregar una secuencia al caso de uso. El contrato debe decidir si la salida interna exige orden ascendente estricto y unicidad por identidad lógica; si lo exige, debe rechazar conflictos y duplicados con política explícita, no ordenar silenciosamente datos ambiguos.
+
 ### TM-008 — Los rangos de selección de TimeScale son inclusivos, pero el contrato no lo declara
 
 **Severidad:** media.
@@ -97,6 +107,17 @@ La decisión de biblioteca sigue abierta según ADR-0004. Jiff es la candidata p
 **Riesgo:** los consumidores pueden asumir que el rango de consulta del proveedor comparte la semántica inclusiva de la selección local. Al paginar o unir backfills, esa suposición puede duplicar o perder eventos.
 
 **Dirección:** documentar cada contrato por separado. Mantener la semántica inclusiva de selección de `TimeScale` mientras sus consumidores la requieran; no trasladarla automáticamente a la API del proveedor. La normalización debe ocurrir en el adaptador de cada fuente con fixtures de frontera.
+
+## Comportamiento observado de consulta histórica
+
+La implementación actual permite describir el comportamiento de la capa de aplicación, pero no convertirlo todavía en contrato universal de proveedores:
+
+- `LoadCandles::execute` valida `from_ms <= to_ms` y acepta velas cuyo `open_time_ms` cae dentro del rango inclusivo `[from_ms, to_ms]`.
+- La capa de aplicación exige que los timestamps de apertura aceptados sean estrictamente crecientes en el orden recibido; no ordena la respuesta.
+- `MockMarketDataProvider` alinea el primer timestamp de apertura al siguiente múltiplo de `interval_ms` que no sea menor que `from_ms`, y el último al múltiplo no mayor que `to_ms`.
+- La interfaz `MarketDataProvider` no documenta ninguna de estas garantías. El mock no sustituye fixtures de proveedores reales.
+
+No cambiar la semántica actual ni generalizarla a todos los proveedores sin decidir antes cómo se paginan rangos solapados y cómo se representan duplicados conflictivos. La semántica de `TimeScale::indices_in_time_range` es otra operación y no define el contrato de consulta histórica.
 
 ## Responsabilidades temporales propuestas
 
