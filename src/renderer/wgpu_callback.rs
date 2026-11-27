@@ -274,6 +274,43 @@ mod tests {
     }
 
     #[test]
+    fn invalid_vertex_discards_its_complete_triangle() {
+        let geometry = RenderGeometry {
+            vertices: vec![
+                RenderVertex {
+                    position: [f32::NAN, 0.0],
+                    color: RenderColor::RED,
+                },
+                RenderVertex {
+                    position: [10.0, 0.0],
+                    color: RenderColor::RED,
+                },
+                RenderVertex {
+                    position: [10.0, 10.0],
+                    color: RenderColor::RED,
+                },
+                RenderVertex {
+                    position: [0.0, 0.0],
+                    color: RenderColor::GREEN,
+                },
+                RenderVertex {
+                    position: [10.0, 0.0],
+                    color: RenderColor::GREEN,
+                },
+                RenderVertex {
+                    position: [10.0, 10.0],
+                    color: RenderColor::GREEN,
+                },
+            ],
+        };
+
+        let vertices = ChartGpuCallback::vertices_from_geometry(&geometry, [100.0, 50.0]);
+
+        assert_eq!(vertices.len(), 3);
+        assert!(vertices.iter().all(|vertex| vertex.color == [0, 255, 0, 255]));
+    }
+
+    #[test]
     fn invalid_viewport_dimensions_produce_no_vertices() {
         let geometry = RenderGeometry {
             vertices: vec![RenderVertex {
