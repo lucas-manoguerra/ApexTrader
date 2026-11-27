@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Guía de contribución
+    url: https://github.com/lucas-manoguerra/ApexTrader/blob/main/CONTRIBUTING.md
+    about: Consultá los requisitos y controles antes de proponer cambios.
+  - name: Protocolo de trabajo en equipo
+    url: https://github.com/lucas-manoguerra/ApexTrader/blob/main/docs/development/team-collaboration.md
+    about: Coordinación de tareas, ownership, ramas, PRs y hallazgos fuera de alcance.
