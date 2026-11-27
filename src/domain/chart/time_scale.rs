@@ -217,7 +217,7 @@ impl TimeScale {
     }
 
     pub fn format_time_point(time_point: TimePoint) -> String {
-        Self::format_time_label(time_point.open_time_ms)
+        Self::format_time_label(time_point.open_time_ms())
     }
 }
 
