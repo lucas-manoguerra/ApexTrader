@@ -119,14 +119,16 @@ fn decimal_places_for_increment(increment: f64) -> usize {
         return 2;
     }
 
-    for decimals in 0_i32..=8 {
+    for decimals in 0_i32..=12 {
         let scale = 10.0_f64.powi(decimals);
         let scaled = increment * scale;
-        if scaled.is_finite() && (scaled - scaled.round()).abs() <= 1e-8 * scaled.abs().max(1.0) {
+        if scaled.is_finite()
+            && (scaled - scaled.round()).abs() <= f64::EPSILON * scaled.abs().max(1.0) * 8.0
+        {
             return decimals as usize;
         }
     }
-    8
+    12
 }
 
 fn format_price_tick(value: f64, step: f64, minimum_tick: f64) -> String {
@@ -136,7 +138,7 @@ fn format_price_tick(value: f64, step: f64, minimum_tick: f64) -> String {
 
     let decimals = decimal_places_for_increment(step)
         .max(decimal_places_for_increment(minimum_tick))
-        .clamp(2, 8);
+        .clamp(2, 12);
     format!("{:.*}", decimals, value)
 }
 
@@ -1098,6 +1100,14 @@ mod tests {
         assert_eq!(format_price_tick(50_123.0, 1.0, 0.01), "50123.00");
         assert_eq!(format_price_tick(5_000.25, 0.5, 0.25), "5000.25");
         assert_eq!(format_price_tick(1.08765, 0.0001, 0.00001), "1.08765");
+        assert_eq!(
+            format_price_tick(1.000000001, 0.000000001, 0.000000001),
+            "1.000000001"
+        );
+        assert_eq!(
+            format_price_tick(1.000000000001, 0.000000000001, 0.000000000001),
+            "1.000000000001"
+        );
     }
 
     fn minute_points(
