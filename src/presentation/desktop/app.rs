@@ -7,8 +7,7 @@ use crate::domain::price_range::PriceRange;
 use crate::domain::transforms::ScreenPoint;
 use crate::domain::viewport::{PriceScaleMode, PriceScaleType, Viewport};
 use crate::market::candle::MarketCandle;
-use crate::market::mock::MockMarketDataProvider;
-use crate::market::mock_realtime::MockRealtimeMarketDataProvider;
+use crate::market::errors::MarketError;
 use crate::market::provider::{MarketDataProvider, RealtimeMarketDataProvider};
 use crate::market::symbol::Symbol;
 use crate::presentation::input::egui::{self as input_egui, InputHandler};
@@ -19,14 +18,17 @@ use eframe::egui;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tracing;
 
-const MOCK_INTERVAL_MS: i64 = 60_000;
-const MOCK_HISTORY_CANDLES: i64 = 200;
-const MOCK_TICKS_PER_CANDLE: u32 = 20;
-const MOCK_REALTIME_VOLUME: f64 = 35.0;
-const MOCK_REALTIME_TICK_INTERVAL: Duration = Duration::from_millis(250);
+const REALTIME_POLL_INTERVAL: Duration = Duration::from_millis(250);
+
+pub(crate) type RealtimeProviderFactory = Arc<
+    dyn Fn(MarketCandle) -> Result<Box<dyn RealtimeMarketDataProvider>, MarketError>
+        + Send
+        + Sync,
+>;
 
 #[derive(Debug, Clone, PartialEq)]
 enum LoadState {
@@ -46,6 +48,8 @@ pub(crate) struct ApexTraderApp {
     prev_crosshair_pos: Option<ScreenPoint>,
     prev_data_revision: u64,
     fit_content_pending: bool,
+    market_data_provider: Box<dyn MarketDataProvider>,
+    realtime_provider_factory: RealtimeProviderFactory,
     realtime_provider: Option<Box<dyn RealtimeMarketDataProvider>>,
     follow_latest: bool,
     follow_latest_pending: bool,
@@ -184,16 +188,11 @@ impl eframe::App for ApexTraderApp {
                     match Symbol::from_str(&self.symbol_input) {
                         Ok(symbol) => {
                             self.price_tick_size = price_tick_size_for_symbol(&symbol);
-                            let provider = MockMarketDataProvider::new(50_000.0)
-                                .with_interval_ms(MOCK_INTERVAL_MS)
-                                .with_base_volume(MOCK_REALTIME_VOLUME);
-                            let to_ms = latest_closed_candle_open_time(MOCK_INTERVAL_MS);
-                            let from_ms = to_ms.saturating_sub(
-                                (MOCK_HISTORY_CANDLES - 1) * MOCK_INTERVAL_MS,
-                            );
+                            let to_ms = latest_closed_candle_open_time(60_000);
+                            let from_ms = to_ms.saturating_sub(199 * 60_000);
                             self.load_state = load_symbol_into_chart(
                                 &mut self.chart,
-                                &provider,
+                                self.market_data_provider.as_ref(),
                                 symbol.clone(),
                                 from_ms,
                                 to_ms,
@@ -201,10 +200,8 @@ impl eframe::App for ApexTraderApp {
                             self.realtime_provider = create_realtime_provider(
                                 &self.chart,
                                 symbol,
-                                MOCK_REALTIME_VOLUME,
-                                MOCK_TICKS_PER_CANDLE,
                             );
-                            self.next_realtime_tick = Instant::now() + MOCK_REALTIME_TICK_INTERVAL;
+                            self.next_realtime_tick = Instant::now() + REALTIME_POLL_INTERVAL;
                             self.fit_content_pending = true;
                         }
                         Err(e) => {
@@ -398,7 +395,7 @@ impl ApexTraderApp {
         let now = Instant::now();
         if let Some(provider) = self.realtime_provider.as_mut() {
             if now >= self.next_realtime_tick {
-                self.next_realtime_tick = now + MOCK_REALTIME_TICK_INTERVAL;
+                self.next_realtime_tick = now + REALTIME_POLL_INTERVAL;
                 match provider.next_update() {
                     Ok(update) => {
                         let candle_closed = update.is_closed;
@@ -484,23 +481,32 @@ impl ApexTraderApp {
 }
 
 impl ApexTraderApp {
-    pub(crate) fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub(crate) fn new(
+        cc: &eframe::CreationContext<'_>,
+        market_data_provider: Box<dyn MarketDataProvider>,
+        realtime_provider_factory: RealtimeProviderFactory,
+    ) -> Self {
         configure_fonts(&cc.egui_ctx);
 
         let mut chart = ChartState::new();
 
-        let provider = MockMarketDataProvider::new(50_000.0)
-            .with_interval_ms(MOCK_INTERVAL_MS)
-            .with_base_volume(MOCK_REALTIME_VOLUME);
         let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
         let price_tick_size = price_tick_size_for_symbol(&symbol);
-        let to_ms = latest_closed_candle_open_time(MOCK_INTERVAL_MS);
-        let from_ms = to_ms.saturating_sub((MOCK_HISTORY_CANDLES - 1) * MOCK_INTERVAL_MS);
+        let to_ms = latest_closed_candle_open_time(60_000);
+        let from_ms = to_ms.saturating_sub(199 * 60_000);
 
-        let load_state =
-            load_symbol_into_chart(&mut chart, &provider, symbol.clone(), from_ms, to_ms);
-        let realtime_provider =
-            create_realtime_provider(&chart, symbol, MOCK_REALTIME_VOLUME, MOCK_TICKS_PER_CANDLE);
+        let load_state = load_symbol_into_chart(
+            &mut chart,
+            market_data_provider.as_ref(),
+            symbol.clone(),
+            from_ms,
+            to_ms,
+        );
+        let realtime_provider = create_realtime_provider(
+            &chart,
+            symbol,
+            &realtime_provider_factory,
+        );
 
         let renderer = create_renderer(
             cc.wgpu_render_state
@@ -520,10 +526,12 @@ impl ApexTraderApp {
             prev_crosshair_pos: None,
             prev_data_revision: data_revision,
             fit_content_pending: true,
+            market_data_provider,
+            realtime_provider_factory,
             realtime_provider,
             follow_latest: true,
             follow_latest_pending: false,
-            next_realtime_tick: Instant::now() + MOCK_REALTIME_TICK_INTERVAL,
+            next_realtime_tick: Instant::now() + REALTIME_POLL_INTERVAL,
             prev_rect: None,
         }
     }
@@ -558,8 +566,7 @@ fn latest_closed_candle_open_time(interval_ms: i64) -> i64 {
 fn create_realtime_provider(
     chart: &ChartState,
     symbol: Symbol,
-    base_volume: f64,
-    ticks_per_candle: u32,
+    factory: &RealtimeProviderFactory,
 ) -> Option<Box<dyn RealtimeMarketDataProvider>> {
     let last_point = chart.data_points().last()?;
     let close_time_ms = last_point
@@ -576,15 +583,8 @@ fn create_realtime_provider(
         volume: last_point.volume(),
         close_time_ms,
     };
-    let seed_provider = MockMarketDataProvider::new(last_point.close())
-        .with_interval_ms(last_point.time_point.interval_ms())
-        .with_base_volume(base_volume);
-    match MockRealtimeMarketDataProvider::from_last_candle(
-        last_candle,
-        ticks_per_candle,
-        base_volume,
-        seed_provider.seed_for_symbol(&symbol),
-    ) {
+    last_candle.symbol = symbol;
+    match factory(last_candle) {
         Ok(provider) => Some(Box::new(provider)),
         Err(error) => {
             tracing::warn!("No se pudo iniciar el mock realtime: {error}");
@@ -852,7 +852,7 @@ mod load_failure_tests {
             &FailingMarketDataProvider,
             symbol,
             0,
-            MOCK_INTERVAL_MS,
+            60_000,
         );
 
         assert!(matches!(state, LoadState::Error(_)));
