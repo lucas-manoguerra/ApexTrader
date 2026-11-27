@@ -23,10 +23,7 @@ pub struct ChartGpuCallback {
     owner: Weak<()>,
 }
 
-fn retain_live_resources<T>(
-    resources: &mut HashMap<u64, T>,
-    owner: impl Fn(&T) -> &Weak<()>,
-) {
+fn retain_live_resources<T>(resources: &mut HashMap<u64, T>, owner: impl Fn(&T) -> &Weak<()>) {
     resources.retain(|_, resource| owner(resource).upgrade().is_some());
 }
 
@@ -186,8 +183,7 @@ impl CallbackTrait for ChartGpuCallback {
                 ChartGpuResources::new(device, self.target_format, self.owner.clone())
             });
         if resources.target_format != self.target_format {
-            *resources =
-                ChartGpuResources::new(device, self.target_format, self.owner.clone());
+            *resources = ChartGpuResources::new(device, self.target_format, self.owner.clone());
         }
 
         if resources
