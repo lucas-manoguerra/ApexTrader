@@ -20,9 +20,9 @@ El principio rector para una aplicación de análisis financiero es que ningún 
 
 **Severidad:** crítica para un producto financiero conectado a datos reales.
 
-**Evidencia:** `src/application/services/mod.rs`, función `load_symbol_into_chart`.
+**Evidencia histórica:** `src/application/services/mod.rs`, función `load_symbol_into_chart`, en una revisión anterior.
 
-Cuando falla la carga primaria, la función limpia el gráfico y vuelve a poblarlo con `MockMarketDataProvider::new(100.0)`. El estado conserva `LoadState::Error`, pero los datos sintéticos permanecen en el gráfico y `create_realtime_provider` puede iniciar una secuencia realtime sintética a partir de ellos. La UI muestra el estado de carga, pero no separa visualmente ni bloquea el uso de la serie de fallback.
+En el head actual, `load_symbol_into_chart` está en `src/presentation/desktop/app.rs`. Ante un error limpia `ChartState` y devuelve `LoadState::Error`; la prueba `failed_market_load_does_not_publish_synthetic_data` verifica que el gráfico permanece vacío. El fallback histórico sintético implícito está eliminado. Sin embargo, el arranque y la recarga de la aplicación siguen seleccionando explícitamente `MockMarketDataProvider` y `MockRealtimeMarketDataProvider` como flujo de demostración. No existe todavía una selección de modo de ejecución ni una procedencia de simulación integrada al estado de la serie.
 
 **Riesgo:** un usuario puede analizar una serie que no procede del mercado esperado, y la continuidad visual/realtime puede hacer que parezca una serie válida. En una aplicación financiera, una recuperación nunca debe reemplazar silenciosamente datos reales por datos sintéticos.
 
@@ -68,13 +68,13 @@ La función asigna incrementos mediante heurísticas por nombre: ciertos futuros
 
 **Severidad:** alta.
 
-**Evidencia:** `src/market/provider.rs`, `src/market/mock_realtime.rs`, `src/application/services/mod.rs` y `src/domain/chart_state.rs`.
+**Evidencia:** `src/market/provider.rs`, `src/market/mock_realtime.rs`, `src/presentation/desktop/app.rs` y `src/domain/chart_state.rs`.
 
-El contrato realtime expone `RealtimeMarketUpdate.is_closed`. La aplicación usa ese booleano solo para escribir un log; tanto las actualizaciones abiertas como las cerradas se aplican con `add_data_point`, que reemplaza cualquier punto con el mismo `open_time_ms`. No hay estado de finalización en `ChartDataPoint` ni una regla que impida modificar una vela ya cerrada.
+El contrato realtime expone `RealtimeMarketUpdate.is_closed`. `advance_realtime` convierte cada update a `ChartDataPoint` y lo aplica mediante `ChartState::add_data_point`, independientemente de que esté abierto o cerrado. `is_closed` solo condiciona un mensaje de tracing. `ChartState` reemplaza el punto existente con el mismo `open_time_ms`; `ChartDataPoint` no conserva el estado de cierre. Tampoco existe identidad de update, secuencia del proveedor, versión o procedencia que permita distinguir una retransmisión de una corrección.
 
 **Riesgo:** una actualización tardía, duplicada o fuera de secuencia podría reescribir una vela finalizada sin distinguir una corrección legítima del proveedor de una regresión o un mensaje inválido. Tampoco hay una política explícita de reconciliación entre histórico y realtime.
 
-**Dirección requerida:** modelar el ciclo de vida de la vela (provisional, cerrada, corregida) y la semántica de secuencia/versionado del proveedor. Definir reglas de idempotencia, correcciones tardías, duplicados, gaps y reconciliación histórico/realtime. Las actualizaciones deben validarse antes de mutar el estado y los rechazos deben ser observables.
+**Dirección requerida:** modelar el ciclo de vida de la vela (provisional, cerrada, corregida) y la semántica de secuencia/versionado del proveedor. Definir reglas de idempotencia, correcciones tardías, duplicados, gaps y reconciliación histórico/realtime. Las actualizaciones deben validarse antes de mutar el estado y los rechazos deben ser observables. La política debe impedir que un update ordinario reemplace una vela cerrada; las correcciones posteriores requieren autoridad y versión explícitas.
 
 ### MD-006 — Invariantes temporales de TimePoint
 
@@ -192,3 +192,28 @@ La implementación de `MarketCandle` ahora requiere una duración estrictamente 
 Se eliminó la generación de un histórico sintético de respaldo cuando falla `LoadCandles::execute`. El fallo ahora deja el `ChartState` vacío y devuelve `LoadState::Error`; no se publican velas mock como sustituto de una carga fallida. Se añadió una prueba con un proveedor que devuelve error para verificar que el estado permanece sin puntos y conserva el estado de error.
 
 Los proveedores mock siguen formando parte del arranque actual de demostración; esta corrección no los convierte en proveedores reales ni implementa todavía una separación completa entre modo simulación y modo de mercado. La procedencia y el modo de ejecución deben hacerse explícitos en una etapa posterior. La resolución queda pendiente de CI en el nuevo head.
+
+
+### MD-012 — La aplicación inicia realtime sin un contrato de continuidad verificable
+
+**Severidad:** alta.
+
+**Evidencia:** `src/presentation/desktop/app.rs`, funciones de recarga, `create_realtime_provider` y `advance_realtime`.
+
+Tras la carga histórica, la aplicación intenta crear el proveedor realtime a partir del último punto visible en `ChartState`. La construcción reconstruye un `MarketCandle` desde los valores de presentación y deriva el intervalo nominal de `TimePoint`. Luego inicializa el mock realtime con ese punto. No existe una identidad de serie completa ni metadatos de proveedor, venue, timeframe o procedencia que permitan demostrar que el flujo realtime continúa exactamente la misma serie histórica. Si la carga histórica fue parcial pero aceptada, también puede iniciarse realtime a partir del último punto aceptado, aunque la continuidad del histórico no esté certificada.
+
+**Riesgo:** el gráfico puede presentar una secuencia visualmente continua sin que exista una garantía de continuidad de identidad, calidad o autoridad entre histórico y realtime. Reconstruir el objeto de mercado desde un modelo de presentación también pierde cualquier metadato que no esté representado en `ChartDataPoint`.
+
+**Dirección requerida:** el punto de continuidad debe proceder de un resultado de ingestión validado que conserve identidad de serie, procedencia, calidad y lifecycle. El inicio realtime debe requerir una política explícita sobre completitud/aceptación del histórico y coincidencia de identidad entre ambos flujos. No inferir equivalencia de serie solo por símbolo y timestamp.
+
+### MD-013 — El modo mock está seleccionado directamente desde la presentación
+
+**Severidad:** alta para la futura integración de proveedores reales.
+
+**Evidencia:** `src/presentation/desktop/app.rs`, inicialización de la aplicación y acción de recarga.
+
+La presentación instancia directamente `MockMarketDataProvider` y `MockRealtimeMarketDataProvider`, configura sus parámetros y calcula el rango histórico. Los mocks son el flujo de demostración activo, no un fallback ante error; sin embargo, no existe todavía una selección explícita entre modo simulación y modo conectado ni una identidad de origen expuesta al estado de la serie.
+
+**Riesgo:** la presentación controla la elección de infraestructura y no puede expresar de manera uniforme qué modo y procedencia alimentan el gráfico. Al incorporar proveedores reales, esta construcción directa aumenta el acoplamiento y el riesgo de mezclar datos de simulación con datos de mercado.
+
+**Dirección requerida:** introducir una decisión de composición en bootstrap o en un límite de aplicación dedicado. El modo de simulación y el modo conectado deben seleccionarse explícitamente, y la procedencia debe acompañar al resultado de ingestión hasta la presentación. No convertir los mocks en un proveedor por defecto silencioso ni ocultar su naturaleza.
