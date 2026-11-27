@@ -23,6 +23,13 @@ pub struct ChartGpuCallback {
     owner: Weak<()>,
 }
 
+fn retain_live_resources<T>(
+    resources: &mut HashMap<u64, T>,
+    owner: impl Fn(&T) -> &Weak<()>,
+) {
+    resources.retain(|_, resource| owner(resource).upgrade().is_some());
+}
+
 struct ChartGpuResources {
     pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
@@ -172,7 +179,7 @@ impl CallbackTrait for ChartGpuCallback {
         else {
             return Vec::new();
         };
-        resources_by_callback.retain(|_, resources| resources.owner.upgrade().is_some());
+        retain_live_resources(resources_by_callback, |resources| &resources.owner);
         let resources = resources_by_callback
             .entry(self.callback_id)
             .or_insert_with(|| {
@@ -267,6 +274,23 @@ impl CallbackTrait for ChartGpuCallback {
 mod tests {
     use super::*;
     use crate::renderer::{RenderColor, RenderVertex};
+
+    #[test]
+    fn retired_chart_owners_release_their_gpu_resource_entries() {
+        let active_owner = Arc::new(());
+        let retired_owner = Arc::new(());
+        let mut resources = HashMap::from([
+            (1, (Arc::downgrade(&active_owner), 10)),
+            (2, (Arc::downgrade(&retired_owner), 20)),
+        ]);
+        drop(retired_owner);
+
+        retain_live_resources(&mut resources, |resource| &resource.0);
+
+        assert_eq!(resources.len(), 1);
+        assert_eq!(resources.get(&1).map(|resource| resource.1), Some(10));
+        assert!(!resources.contains_key(&2));
+    }
 
     #[test]
     fn converts_chart_coordinates_to_clip_space() {
