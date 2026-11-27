@@ -1,0 +1,46 @@
+name: Feature request
+description: Proponé una capacidad o mejora de producto.
+title: "feat: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Buscá primero propuestas existentes y describí el problema antes de sugerir una implementación. Consultá la [guía de contribución](https://github.com/lucas-manoguerra/ApexTrader/blob/main/CONTRIBUTING.md) y el [protocolo de trabajo en equipo](https://github.com/lucas-manoguerra/ApexTrader/blob/main/docs/development/team-collaboration.md).
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema que se busca resolver
+      description: ¿Qué necesidad, limitación o flujo de trabajo no está cubierto?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Resultado esperado
+      description: Describí qué debería poder hacer el usuario y cómo sabría que la mejora funciona.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Alcance y límites
+      description: Indicá qué debería incluir y qué conviene dejar explícitamente fuera.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Criterios de aceptación
+      description: Enumerá resultados verificables, sin prescribir detalles internos innecesarios.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto adicional
+      description: Casos de uso, referencias o restricciones conocidas.
+    validations:
+      required: false
