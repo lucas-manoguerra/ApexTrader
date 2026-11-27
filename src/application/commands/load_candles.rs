@@ -142,7 +142,7 @@ mod tests {
             assert!(dp.high().is_finite());
             assert!(dp.low().is_finite());
             assert!(dp.close().is_finite());
-            assert!(dp.time_point.open_time_ms >= 0);
+            assert!(dp.time_point.open_time_ms() >= 0);
         }
     }
 
@@ -153,11 +153,11 @@ mod tests {
 
         let result = LoadCandles::execute(&provider, symbol, 0, 120_000).expect("velas cargadas");
 
-        assert_eq!(result.data_points[0].time_point.open_time_ms, 0);
+        assert_eq!(result.data_points[0].time_point.open_time_ms(), 0);
 
         for w in result.data_points.windows(2) {
             assert!(
-                w[0].time_point.open_time_ms < w[1].time_point.open_time_ms,
+                w[0].time_point.open_time_ms() < w[1].time_point.open_time_ms(),
                 "puntos de datos ordenados por tiempo ascendente"
             );
         }
