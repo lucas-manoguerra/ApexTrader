@@ -6,9 +6,13 @@ use crate::renderer::{
     ChartGpuCallback, ChartRenderer, ChartScene, GpuVertex, RenderFrame, RenderLayer, build_geometry,
 };
 use eframe::egui;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+static NEXT_CALLBACK_ID: AtomicU64 = AtomicU64::new(1);
+
 pub struct EguiPainterChartRenderer {
+    callback_id: u64,
     cached_series_layer: RenderLayer,
     cached_series_shapes: Vec<egui::Shape>,
     cached_gpu_vertices: Arc<[GpuVertex]>,
@@ -19,6 +23,7 @@ pub struct EguiPainterChartRenderer {
 impl EguiPainterChartRenderer {
     pub fn new() -> Self {
         Self {
+            callback_id: NEXT_CALLBACK_ID.fetch_add(1, Ordering::Relaxed),
             cached_series_layer: RenderLayer::default(),
             cached_series_shapes: Vec::new(),
             cached_gpu_vertices: Arc::from([]),
@@ -844,6 +849,7 @@ impl ChartRenderer for EguiPainterChartRenderer {
         if let Some(target_format) = self.target_format {
             if !self.cached_gpu_vertices.is_empty() {
                 series_painter.add(ChartGpuCallback::shape(
+                    self.callback_id,
                     rect,
                     self.cached_gpu_vertices.clone(),
                     target_format,
