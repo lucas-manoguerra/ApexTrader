@@ -1,8 +1,6 @@
 name: Bug report
 description: Reportá un comportamiento incorrecto o un fallo reproducible.
 title: "bug: "
-labels:
-  - bug
 body:
   - type: markdown
     attributes:
