@@ -1,8 +1,8 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TimePoint {
-    pub open_time_ms: i64,
-    pub close_time_ms: i64,
-    pub interval_ms: i64,
+    open_time_ms: i64,
+    close_time_ms: i64,
+    interval_ms: i64,
 }
 
 impl TimePoint {
@@ -17,7 +17,7 @@ impl TimePoint {
         })
     }
 
-    pub fn midpoint_ms(self) -> f64 {
+    pub const fn open_time_ms(self) -> i64 {\n        self.open_time_ms\n    }\n\n    pub const fn close_time_ms(self) -> i64 {\n        self.close_time_ms\n    }\n\n    pub const fn interval_ms(self) -> i64 {\n        self.interval_ms\n    }\n\n    pub fn midpoint_ms(self) -> f64 {
         (self.open_time_ms as f64 + self.close_time_ms as f64) / 2.0
     }
 }
@@ -29,9 +29,9 @@ mod tests {
     #[test]
     fn time_point_creates_valid() {
         let tp = TimePoint::new(0, 60_000, 60_000).expect("intervalo válido");
-        assert_eq!(tp.open_time_ms, 0);
-        assert_eq!(tp.close_time_ms, 60_000);
-        assert_eq!(tp.interval_ms, 60_000);
+        assert_eq!(tp.open_time_ms(), 0);
+        assert_eq!(tp.close_time_ms(), 60_000);
+        assert_eq!(tp.interval_ms(), 60_000);
     }
 
     #[test]
