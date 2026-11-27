@@ -1,8 +1,6 @@
 name: Feature request
 description: Proponé una capacidad o mejora de producto.
 title: "feat: "
-labels:
-  - enhancement
 body:
   - type: markdown
     attributes:
