@@ -85,6 +85,10 @@ Adoptar un modelo temporal híbrido y **evaluar Jiff como biblioteca de calendar
 - Comparar formatting de etiquetas frente a los tests actuales y eliminar conversiones por frame.
 - Añadir benchmarks solo para rutas que vayan a ejecutarse con frecuencia; no asumir que la biblioteca de fechas debe intervenir en el indexado temporal.
 
+## Auditoría de implementación
+
+La revisión estática de los tipos y consumidores actuales se registra en [temporal-model-review.md](../audit/temporal-model-review.md). Identifica seis hallazgos sobre unidad implícita, semántica de intervalos, umbrales de calendario aproximados, UTC fijo, ausencia de calendario de mercado y normalización de fronteras de proveedor. La auditoría no añade una biblioteca ni cambia el modelo de ejecución.
+
 ## Condiciones de revisión
 
 Revisar la selección si Jiff no satisface los requisitos de MSRV, tamaño, licencia, seguridad, actualización de tzdb o compatibilidad multiplataforma; comparar entonces `time` más su solución de zonas horarias y `chrono` más `chrono-tz` con los mismos casos de prueba.
