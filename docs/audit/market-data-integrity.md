@@ -32,9 +32,9 @@ Cuando falla la carga primaria, la función limpia el gráfico y vuelve a poblar
 
 **Severidad:** alta.
 
-**Evidencia:** `src/application/commands/load_candles.rs` y `src/application/services/mod.rs`.
+**Evidencia:** `src/application/commands/load_candles.rs` y `src/presentation/desktop/app.rs`.
 
-`LoadCandles::execute` devuelve puntos aceptados y una colección `rejected`. Si hay rechazos, `load_symbol_into_chart` solo emite advertencias de tracing, agrega los puntos aceptados y devuelve `LoadState::Loaded { count }`. El pie de la UI muestra el estado y el número de puntos, pero no el número de rechazos ni una condición de calidad degradada.
+`LoadCandles::execute` devuelve puntos aceptados y una colección `rejected`. Si hay rechazos, `load_symbol_into_chart` en `src/presentation/desktop/app.rs` solo emite advertencias de tracing, agrega los puntos aceptados y devuelve `LoadState::Loaded { count }`. El pie de la UI muestra el estado y el número de puntos, pero no el número de rechazos ni una condición de calidad degradada.
 
 **Riesgo:** huecos por velas rechazadas, datos parciales o inconsistencias del proveedor pueden confundirse con un histórico íntegro. La telemetría de logs no es suficiente para informar al usuario ni para que otros casos de uso tomen decisiones seguras.
 
@@ -92,13 +92,13 @@ El contrato realtime expone `RealtimeMarketUpdate.is_closed`. La aplicación usa
 
 **Severidad:** media-alta.
 
-**Evidencia:** `src/application/commands/load_candles.rs` y `src/domain/chart_state.rs`.
+**Evidencia:** `src/application/commands/load_candles.rs`, `src/domain/chart_state.rs` y `src/presentation/desktop/app.rs`.
 
-La carga histórica rechaza timestamps duplicados y fuera de orden. La inserción por lote del gráfico ordena y conserva el último punto para cada timestamp según el orden estable del lote. La inserción individual reemplaza el punto existente para ese timestamp. Son políticas diferentes y no se exponen como una decisión de dominio.
+La carga histórica rechaza timestamps duplicados y fuera de orden durante `LoadCandles::execute`. En cambio, `ChartState::add_data_points` extiende el vector recibido y `rebuild_time_scale` lo ordena y consolida timestamps repetidos conservando el último punto según el orden del lote. La inserción individual busca por `open_time_ms` y reemplaza el punto existente. El flujo de presentación actual llama primero a `LoadCandles`, registra los rechazos, limpia el chart y luego agrega el lote aceptado. Por tanto, hoy el lote histórico llega ya filtrado, pero `ChartState` conserva una política de resolución distinta que también puede ser invocada por otros caminos.
 
-**Riesgo:** el resultado puede variar según si el mismo conjunto de datos entra por `LoadCandles`, por lote o por updates individuales. La regla de “último recibido gana” no distingue orden de llegada, tiempo de evento, versión del proveedor ni corrección autorizada.
+**Riesgo:** el resultado depende del camino de ingestión. La regla de “último recibido gana” no distingue retransmisión idéntica, orden de llegada, tiempo de evento, versión del proveedor ni corrección autorizada. Además, el estado del gráfico no dispone de identidad de serie ni procedencia para determinar si dos puntos con igual apertura son comparables.
 
-**Dirección requerida:** definir una política única de identidad de vela y resolución de conflictos. Considerar instrumento, venue, timeframe, open timestamp y origen/versión del dato. Diferenciar duplicado idéntico, actualización provisional, corrección de vela cerrada y conflicto irreconciliable.
+**Dirección requerida:** mantener la resolución de duplicados/conflictos en la frontera de normalización y en la política de aplicación, antes de proyectar los puntos al gráfico. `ChartState` debe recibir una secuencia validada y no decidir autoridad de mercado mediante ordenamiento/deduplicación implícitos. Definir identidad de vela por serie más período y diferenciar duplicado idéntico, actualización provisional, corrección autorizada y conflicto irreconciliable.
 
 ## Observaciones sobre pruebas existentes
 
