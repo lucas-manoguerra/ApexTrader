@@ -32,7 +32,7 @@ local $/;
 my $source = <$fh>;
 my $line = 1;
 my $index = 0;
-my $length = $path =~ /\\.rs\\z/ ? length $source : 0;
+my $length = $path =~ /\.rs\z/ ? length $source : 0;
 my $state = 'normal';
 my $raw_end = '';
 my @found;
