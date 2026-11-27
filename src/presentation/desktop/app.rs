@@ -507,7 +507,9 @@ impl ApexTraderApp {
             create_realtime_provider(&chart, symbol, MOCK_REALTIME_VOLUME, MOCK_TICKS_PER_CANDLE);
 
         let renderer = create_renderer(
-            cc.wgpu_render_state.as_ref().map(|state| state.target_format),
+            cc.wgpu_render_state
+                .as_ref()
+                .map(|state| state.target_format),
         );
         let data_revision = chart.data_revision();
 
