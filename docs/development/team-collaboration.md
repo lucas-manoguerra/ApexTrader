@@ -71,7 +71,7 @@ La reserva es un acuerdo de coordinación, no un bloqueo técnico de GitHub.
 - Sincronizar una rama con `main` mediante la estrategia acordada por el equipo; antes de rebase o force-push, confirmar que nadie más trabaja sobre esa rama.
 - No hacer force-push a ramas compartidas ni sobrescribir commits de otra persona.
 - No crear PRs apiladas salvo que exista una dependencia real. Si se apilan, declararlo en todas las PRs implicadas, explicar el orden de integración y evitar incluir cambios duplicados en la PR dependiente.
-- La exclusión temporal de macOS actualmente obliga a conservar esa configuración en las ramas de trabajo que parten de PRs pendientes. Es una excepción operativa, no el modelo permanente de branching. No retirar ni duplicar esa modificación sin coordinarla.
+- No propagar exclusiones temporales de plataformas a ramas derivadas; comprobar siempre que las ramas nuevas hereden la matriz multiplataforma vigente.
 
 ## Pull Requests
 
