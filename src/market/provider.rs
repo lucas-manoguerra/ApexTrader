@@ -1,3 +1,4 @@
+use crate::market::cancellation::CancellationToken;
 use crate::market::candle::MarketCandle;
 use crate::market::errors::MarketError;
 use crate::market::symbol::Symbol;
@@ -11,6 +12,19 @@ pub trait MarketDataProvider: Send + Sync {
         from_ms: i64,
         to_ms: i64,
     ) -> Result<Vec<MarketCandle>, MarketError>;
+
+    fn fetch_candles_cancellable(
+        &self,
+        symbol: Symbol,
+        from_ms: i64,
+        to_ms: i64,
+        cancellation: &CancellationToken,
+    ) -> Result<Vec<MarketCandle>, MarketError> {
+        cancellation.check()?;
+        let result = self.fetch_candles(symbol, from_ms, to_ms);
+        cancellation.check()?;
+        result
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -36,6 +50,16 @@ pub trait RealtimeMarketDataProvider: Send {
     fn name(&self) -> &str;
 
     fn next_update(&mut self) -> Result<RealtimeMarketUpdate, MarketError>;
+
+    fn next_update_cancellable(
+        &mut self,
+        cancellation: &CancellationToken,
+    ) -> Result<RealtimeMarketUpdate, MarketError> {
+        cancellation.check()?;
+        let result = self.next_update();
+        cancellation.check()?;
+        result
+    }
 }
 
 #[cfg(test)]
