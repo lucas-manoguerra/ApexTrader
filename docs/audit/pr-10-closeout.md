@@ -47,7 +47,7 @@ La CI acredita compilación y pruebas automatizadas en runners nativos. **No acr
 
 ### C-001 — Supresión global de código muerto
 
-<badge>Remediación aplicada; CI pendiente</badge>
+**Estado:** remediación aplicada; CI pendiente.
 
 **Severidad:** alta para calidad de ingeniería.  
 **Evidencia:** `src/lib.rs` ya no contiene `#![allow(dead_code)]`; el cambio se realizó en `0e26af734302d4960cd2d8c7de3dfb3f017c0fd6`.
