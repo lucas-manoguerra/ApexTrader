@@ -1067,6 +1067,7 @@ mod tests {
         assert!(!viewport.price_scale_locked());
     }
 
+    #[test]
     fn zoom_axes_are_independent() {
         let mut viewport = Viewport::new();
         viewport.set_zoom_x(2.0);
