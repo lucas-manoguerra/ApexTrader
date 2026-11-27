@@ -12,20 +12,27 @@ La aplicación mostró glifos tofu en Ubuntu incluso después de retirar la sele
 
 La solución debe garantizar fuentes redistribuibles, reproducibles y disponibles en instalaciones limpias. La biblioteca de renderizado de texto y los archivos tipográficos son responsabilidades distintas: adoptar un renderer GPU no proporciona por sí mismo fuentes ni garantiza su cobertura Unicode.
 
+La revisión de egui 0.37 confirmó que `eframe` expone la feature `default_fonts`, que activa las fuentes embebidas de epaint. `FontDefinitions::default()` queda vacío cuando esa feature no está activa; cuando sí lo está, registra Ubuntu Light para la familia proporcional, Hack para monospace y los iconos propios de egui. El paquete `epaint_default_fonts` declara `(MIT OR Apache-2.0) AND OFL-1.1 AND Ubuntu-font-1.0`. Ubuntu Font Licence 1.0 permite embedding y redistribución bajo sus condiciones, incluida la entrega de avisos y texto de licencia. Por tanto, la licencia no es una incompatibilidad intrínseca: requiere una aceptación explícita en la política de dependencias y una distribución correcta de notices.
+
 ## Alternativas consideradas
 
 ### 1. egui/epaint con fuentes redistribuibles explícitas
 
 egui mantiene la responsabilidad del texto de interfaz y de las etiquetas actuales del gráfico. Las fuentes se incorporan explícitamente y se registran mediante `FontDefinitions`, con familias proporcional y monoespaciada configuradas de forma deliberada.
 
+La primera opción a probar es habilitar `eframe/default_fonts`, que utiliza los recursos de `epaint_default_fonts` ya alineados con la versión de egui del proyecto. Esto proporciona Ubuntu Light para texto proporcional, Hack para monospace y los iconos propios de egui, sin incorporar archivos TTF manualmente. La alternativa de incluir fuentes propias (por ejemplo Noto Sans y Noto Sans Mono) permanece disponible si la cobertura o la apariencia de las fuentes integradas no satisface los criterios.
+
 Ventajas:
 - Conserva el modelo actual de UI y el ownership del texto.
 - No agrega un segundo subsistema de renderizado GPU.
-- Las fuentes pueden ser deterministas y estar embebidas en el ejecutable.
+- Las fuentes son embebidas por la dependencia y no dependen del sistema operativo.
+- Reutiliza los recursos y la configuración tipográfica previstos por egui.
 - Permite resolver primero el defecto visual sin mezclarlo con una migración del renderer.
 
 Costes:
 - La selección, redistribución y atribución de las fuentes son responsabilidad del proyecto.
+- La política de licencias debe permitir explícitamente `OFL-1.1` y `Ubuntu-font-1.0`, según la metadata de `epaint_default_fonts`.
+- Deben incluirse los avisos y textos de licencia de las fuentes efectivamente embebidas.
 - La cobertura y el fallback deben verificarse explícitamente.
 - La configuración debe cubrir controles egui y texto dibujado por `egui::Painter`.
 
@@ -85,8 +92,8 @@ No se adopta una dependencia de fuentes hasta comparar el coste completo de depe
 ## Decisión
 
 1. egui/epaint seguirá siendo el renderer de texto de la UI y de las etiquetas actuales del gráfico.
-2. La corrección de la Issue #27 incorporará fuentes redistribuibles explícitas bajo una licencia aceptada por el proyecto. La estrategia preferida es incluir únicamente los archivos de fuentes necesarios junto con sus avisos de licencia, evitando dependencias cuyo propósito principal sea otro framework tipográfico.
-3. La configuración tipográfica será centralizada y se realizará una sola vez durante la inicialización de la UI.
+2. La corrección de la Issue #27 probará primero `eframe/default_fonts`, con aceptación explícita de `OFL-1.1` y `Ubuntu-font-1.0` en `cargo-deny.toml` y distribución de los avisos/licencias requeridos por las fuentes incluidas. La prueba debe confirmar cobertura y legibilidad de todos los caracteres de aceptación en Ubuntu, Windows y macOS. Si las fuentes de egui no cumplen, se evaluarán archivos externos explícitos (por ejemplo Noto Sans y Noto Sans Mono) con sus licencias y atribuciones.
+3. La configuración tipográfica será centralizada y se realizará una sola vez durante la inicialización de la UI. No se priorizarán fuentes del sistema ni rutas absolutas específicas de plataforma; el objetivo es una misma cadena de fuentes embebidas en todos los sistemas.
 4. Se configurarán las familias proporcional y monoespaciada con fuentes adecuadas; no se asignará una fuente proporcional a la familia monoespaciada sin validar las consecuencias visuales.
 5. La verificación cubrirá caracteres españoles, puntuación, signos, números, decimales y símbolos financieros usados realmente por la aplicación. También cubrirá los textos dibujados mediante `egui::Painter`.
 6. glyphon es el único candidato aprobado para un prototipo técnico posterior, limitado inicialmente al texto del gráfico. No se agrega como dependencia de producción en esta fase.
