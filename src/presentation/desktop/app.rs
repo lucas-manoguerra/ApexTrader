@@ -27,9 +27,7 @@ const DEFAULT_HISTORY_CANDLES: i64 = 200;
 const REALTIME_POLL_INTERVAL: Duration = Duration::from_millis(250);
 
 pub(crate) type RealtimeProviderFactory = Arc<
-    dyn Fn(MarketCandle) -> Result<Box<dyn RealtimeMarketDataProvider>, MarketError>
-        + Send
-        + Sync,
+    dyn Fn(MarketCandle) -> Result<Box<dyn RealtimeMarketDataProvider>, MarketError> + Send + Sync,
 >;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -498,8 +496,7 @@ impl ApexTraderApp {
         let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
         let price_tick_size = price_tick_size_for_symbol(&symbol);
         let to_ms = latest_closed_candle_open_time(DEFAULT_INTERVAL_MS);
-        let from_ms =
-            to_ms.saturating_sub((DEFAULT_HISTORY_CANDLES - 1) * DEFAULT_INTERVAL_MS);
+        let from_ms = to_ms.saturating_sub((DEFAULT_HISTORY_CANDLES - 1) * DEFAULT_INTERVAL_MS);
 
         let load_state = load_symbol_into_chart(
             &mut chart,
@@ -508,11 +505,8 @@ impl ApexTraderApp {
             from_ms,
             to_ms,
         );
-        let realtime_provider = create_realtime_provider(
-            &chart,
-            symbol,
-            &realtime_provider_factory,
-        );
+        let realtime_provider =
+            create_realtime_provider(&chart, symbol, &realtime_provider_factory);
 
         let renderer = create_renderer(
             cc.wgpu_render_state
@@ -852,13 +846,8 @@ mod load_failure_tests {
         let mut chart = ChartState::new();
         let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
 
-        let state = load_symbol_into_chart(
-            &mut chart,
-            &FailingMarketDataProvider,
-            symbol,
-            0,
-            60_000,
-        );
+        let state =
+            load_symbol_into_chart(&mut chart, &FailingMarketDataProvider, symbol, 0, 60_000);
 
         assert!(matches!(state, LoadState::Error(_)));
         assert!(chart.is_empty());
