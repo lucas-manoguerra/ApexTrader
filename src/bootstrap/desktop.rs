@@ -5,7 +5,6 @@ use crate::presentation::desktop::app::{ApexTraderApp, RealtimeProviderFactory};
 use std::sync::Arc;
 
 const SIMULATION_INTERVAL_MS: i64 = 60_000;
-const SIMULATION_HISTORY_CANDLES: i64 = 200;
 const SIMULATION_TICKS_PER_CANDLE: u32 = 20;
 const SIMULATION_VOLUME: f64 = 35.0;
 
@@ -43,7 +42,7 @@ pub fn run() -> eframe::Result {
     eframe::run_native(
         "ApexTrader",
         native_options,
-        Box::new(|creation_context| {
+        Box::new(move |creation_context| {
             Ok(Box::new(ApexTraderApp::new(
                 creation_context,
                 market_data_provider,
