@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::mem::size_of;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use bytemuck_derive::{Pod, Zeroable};
 use eframe::egui;
@@ -20,6 +20,7 @@ pub struct ChartGpuCallback {
     callback_id: u64,
     vertices: Arc<[GpuVertex]>,
     target_format: wgpu::TextureFormat,
+    owner: Weak<()>,
 }
 
 struct ChartGpuResources {
@@ -28,10 +29,12 @@ struct ChartGpuResources {
     vertex_capacity: u64,
     vertex_count: u32,
     last_vertices: Option<Arc<[GpuVertex]>>,
+    target_format: wgpu::TextureFormat,
+    owner: Weak<()>,
 }
 
 impl ChartGpuResources {
-    fn new(device: &wgpu::Device, target_format: wgpu::TextureFormat) -> Self {
+    fn new(device: &wgpu::Device, target_format: wgpu::TextureFormat, owner: Weak<()>) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("apex-trader-chart-shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!("chart.wgsl").into()),
@@ -86,6 +89,8 @@ impl ChartGpuResources {
             vertex_capacity,
             vertex_count: 0,
             last_vertices: None,
+            target_format,
+            owner,
         }
     }
 }
@@ -135,6 +140,7 @@ impl ChartGpuCallback {
         rect: egui::Rect,
         vertices: Arc<[GpuVertex]>,
         target_format: wgpu::TextureFormat,
+        owner: Weak<()>,
     ) -> egui::Shape {
         egui::Shape::Callback(Callback::new_paint_callback(
             rect,
@@ -142,6 +148,7 @@ impl ChartGpuCallback {
                 callback_id,
                 vertices,
                 target_format,
+                owner,
             },
         ))
     }
@@ -165,9 +172,16 @@ impl CallbackTrait for ChartGpuCallback {
         else {
             return Vec::new();
         };
+        resources_by_callback.retain(|_, resources| resources.owner.upgrade().is_some());
         let resources = resources_by_callback
             .entry(self.callback_id)
-            .or_insert_with(|| ChartGpuResources::new(device, self.target_format));
+            .or_insert_with(|| {
+                ChartGpuResources::new(device, self.target_format, self.owner.clone())
+            });
+        if resources.target_format != self.target_format {
+            *resources =
+                ChartGpuResources::new(device, self.target_format, self.owner.clone());
+        }
 
         if resources
             .last_vertices
@@ -184,12 +198,16 @@ impl CallbackTrait for ChartGpuCallback {
         }
 
         let Some(vertex_count) = u32::try_from(self.vertices.len()).ok() else {
+            resources.vertex_count = 0;
+            resources.last_vertices = Some(self.vertices.clone());
             return Vec::new();
         };
         let Some(required_bytes) = u64::try_from(self.vertices.len())
             .ok()
             .and_then(|count| count.checked_mul(size_of::<GpuVertex>() as u64))
         else {
+            resources.vertex_count = 0;
+            resources.last_vertices = Some(self.vertices.clone());
             return Vec::new();
         };
         let Some(required_capacity) = required_bytes.checked_next_power_of_two() else {
