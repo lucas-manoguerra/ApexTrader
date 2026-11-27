@@ -76,17 +76,17 @@ El contrato realtime expone `RealtimeMarketUpdate.is_closed`. La aplicación usa
 
 **Dirección requerida:** modelar el ciclo de vida de la vela (provisional, cerrada, corregida) y la semántica de secuencia/versionado del proveedor. Definir reglas de idempotencia, correcciones tardías, duplicados, gaps y reconciliación histórico/realtime. Las actualizaciones deben validarse antes de mutar el estado y los rechazos deben ser observables.
 
-### MD-006 — El contrato de inserción del gráfico no valida las invariantes temporales
+### MD-006 — Invariantes temporales de TimePoint
 
-**Severidad:** alta.
+**Severidad original:** alta.
 
-**Evidencia:** `src/domain/chart_state.rs` y `src/domain/chart/time_point.rs`.
+**Estado:** encapsulación aplicada en el head actual; pendiente de validación CI.
 
-`TimePoint` expone campos públicos y `ChartState::add_data_point` / `add_data_points` aceptan esos campos sin validar el rango ni el intervalo. El constructor `TimePoint::new` no protege frente a construcción directa ni mutación posterior. El ingreso por lote tampoco valida el contenido temporal antes de modificar el estado.
+**Evidencia:** `src/domain/chart/time_point.rs` ahora mantiene privados `open_time_ms`, `close_time_ms` e `interval_ms` y expone getters de solo lectura. Los consumidores se actualizaron para usar esos getters. La única construcción pública es `TimePoint::new`, que rechaza rangos invertidos e intervalos no positivos. `ChartState` recibe `ChartDataPoint` con un `TimePoint` ya validado, por lo que ya no puede recibir desde otros módulos un valor temporal fabricado mediante struct literal o mutación de campos.
 
-**Riesgo:** se pueden almacenar puntos con intervalos no positivos o rangos invertidos, aunque el constructor normal los rechace. La escala temporal y la navegación parten de timestamps de apertura y pueden quedar desincronizadas de los puntos.
+**Límite deliberado:** `interval_ms` representa el intervalo nominal y no se fuerza a coincidir con `close_time_ms - open_time_ms`; esa semántica requiere una decisión de contrato de mercado/timeframe. La igualdad de timestamps sigue siendo aceptada por `TimePoint::new` por ahora, mientras que el adaptador de mercado rechaza velas de duración cero.
 
-**Dirección requerida:** encapsular los campos temporales y proporcionar constructores/getters con invariantes claras. Hacer que el límite de ingestión valide el lote completo antes de mutar el estado, o devuelva un resultado transaccional que identifique rechazos sin dejar una mutación parcial accidental.
+**Validación requerida:** CI multiplataforma verde en el head que contiene la encapsulación.
 
 ### MD-007 — La política de duplicados depende del camino de ingestión
 
