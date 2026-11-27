@@ -28,6 +28,11 @@ jobs:
       - name: Install Linux desktop dependencies
         if: runner.os == 'Linux'
         run: |
+          for source in /etc/apt/sources.list.d/*; do
+            if [ -f "$source" ] && sudo grep -q "packages.microsoft.com" "$source"; then
+              sudo mv "$source" "$source.disabled"
+            fi
+          done
           sudo apt-get update
           sudo apt-get install --yes pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libxcursor-dev libxinerama-dev libgl1-mesa-dev
 
@@ -70,6 +75,11 @@ jobs:
       - name: Install Linux desktop dependencies
         if: runner.os == 'Linux'
         run: |
+          for source in /etc/apt/sources.list.d/*; do
+            if [ -f "$source" ] && sudo grep -q "packages.microsoft.com" "$source"; then
+              sudo mv "$source" "$source.disabled"
+            fi
+          done
           sudo apt-get update
           sudo apt-get install --yes pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libxcursor-dev libxinerama-dev libgl1-mesa-dev
 
@@ -114,6 +124,11 @@ jobs:
       - name: Install Linux desktop dependencies
         if: runner.os == 'Linux'
         run: |
+          for source in /etc/apt/sources.list.d/*; do
+            if [ -f "$source" ] && sudo grep -q "packages.microsoft.com" "$source"; then
+              sudo mv "$source" "$source.disabled"
+            fi
+          done
           sudo apt-get update
           sudo apt-get install --yes pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libxcursor-dev libxinerama-dev libgl1-mesa-dev
 
@@ -156,6 +171,11 @@ jobs:
       - name: Install Linux desktop dependencies
         if: runner.os == 'Linux'
         run: |
+          for source in /etc/apt/sources.list.d/*; do
+            if [ -f "$source" ] && sudo grep -q "packages.microsoft.com" "$source"; then
+              sudo mv "$source" "$source.disabled"
+            fi
+          done
           sudo apt-get update
           sudo apt-get install --yes pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libxcursor-dev libxinerama-dev libgl1-mesa-dev
 
@@ -197,6 +217,11 @@ jobs:
       - name: Install Linux desktop dependencies
         if: runner.os == 'Linux'
         run: |
+          for source in /etc/apt/sources.list.d/*; do
+            if [ -f "$source" ] && sudo grep -q "packages.microsoft.com" "$source"; then
+              sudo mv "$source" "$source.disabled"
+            fi
+          done
           sudo apt-get update
           sudo apt-get install --yes pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libxcursor-dev libxinerama-dev libgl1-mesa-dev
 
