@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::mem::size_of;
 use std::sync::Arc;
 
@@ -16,6 +17,7 @@ pub struct GpuVertex {
 }
 
 pub struct ChartGpuCallback {
+    callback_id: u64,
     vertices: Arc<[GpuVertex]>,
     target_format: wgpu::TextureFormat,
 }
@@ -98,32 +100,38 @@ impl ChartGpuCallback {
             return Arc::from([]);
         }
 
-        let vertices = geometry
-            .vertices
-            .iter()
-            .filter_map(|vertex| {
-                let x = vertex.position[0] / width * 2.0 - 1.0;
-                let y = 1.0 - vertex.position[1] / height * 2.0;
-                if !x.is_finite() || !y.is_finite() {
-                    return None;
-                }
+        let mut vertices = Vec::with_capacity(geometry.vertices.len());
+        for triangle in geometry.vertices.chunks_exact(3) {
+            let converted = triangle
+                .iter()
+                .map(|vertex| {
+                    let x = vertex.position[0] / width * 2.0 - 1.0;
+                    let y = 1.0 - vertex.position[1] / height * 2.0;
+                    if !x.is_finite() || !y.is_finite() {
+                        return None;
+                    }
 
-                Some(GpuVertex {
-                    position: [x, y],
-                    color: [
-                        vertex.color.red,
-                        vertex.color.green,
-                        vertex.color.blue,
-                        vertex.color.alpha,
-                    ],
+                    Some(GpuVertex {
+                        position: [x, y],
+                        color: [
+                            vertex.color.red,
+                            vertex.color.green,
+                            vertex.color.blue,
+                            vertex.color.alpha,
+                        ],
+                    })
                 })
-            })
-            .collect::<Vec<_>>();
+                .collect::<Option<Vec<_>>>();
+            if let Some(converted) = converted {
+                vertices.extend(converted);
+            }
+        }
 
         Arc::from(vertices)
     }
 
     pub fn shape(
+        callback_id: u64,
         rect: egui::Rect,
         vertices: Arc<[GpuVertex]>,
         target_format: wgpu::TextureFormat,
@@ -131,6 +139,7 @@ impl ChartGpuCallback {
         egui::Shape::Callback(Callback::new_paint_callback(
             rect,
             Self {
+                callback_id,
                 vertices,
                 target_format,
             },
@@ -147,13 +156,18 @@ impl CallbackTrait for ChartGpuCallback {
         _egui_encoder: &mut wgpu::CommandEncoder,
         callback_resources: &mut CallbackResources,
     ) -> Vec<wgpu::CommandBuffer> {
-        if !callback_resources.contains::<ChartGpuResources>() {
-            callback_resources.insert(ChartGpuResources::new(device, self.target_format));
+        if !callback_resources.contains::<HashMap<u64, ChartGpuResources>>() {
+            callback_resources.insert(HashMap::<u64, ChartGpuResources>::new());
         }
 
-        let Some(resources) = callback_resources.get_mut::<ChartGpuResources>() else {
+        let Some(resources_by_callback) =
+            callback_resources.get_mut::<HashMap<u64, ChartGpuResources>>()
+        else {
             return Vec::new();
         };
+        let resources = resources_by_callback
+            .entry(self.callback_id)
+            .or_insert_with(|| ChartGpuResources::new(device, self.target_format));
 
         if resources
             .last_vertices
@@ -179,9 +193,13 @@ impl CallbackTrait for ChartGpuCallback {
             return Vec::new();
         };
         let Some(required_capacity) = required_bytes.checked_next_power_of_two() else {
+            resources.vertex_count = 0;
+            resources.last_vertices = Some(self.vertices.clone());
             return Vec::new();
         };
         if required_capacity > device.limits().max_buffer_size {
+            resources.vertex_count = 0;
+            resources.last_vertices = Some(self.vertices.clone());
             return Vec::new();
         }
 
@@ -211,7 +229,10 @@ impl CallbackTrait for ChartGpuCallback {
         render_pass: &mut wgpu::RenderPass<'static>,
         callback_resources: &CallbackResources,
     ) {
-        let Some(resources) = callback_resources.get::<ChartGpuResources>() else {
+        let Some(resources) = callback_resources
+            .get::<HashMap<u64, ChartGpuResources>>()
+            .and_then(|resources| resources.get(&self.callback_id))
+        else {
             return;
         };
         if resources.vertex_count == 0 {
