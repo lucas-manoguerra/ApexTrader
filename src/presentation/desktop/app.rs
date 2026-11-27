@@ -898,7 +898,9 @@ mod load_failure_tests {
         let error = Symbol::from_str("BTCUSDT").expect_err("símbolo inválido");
         let state = reject_invalid_symbol(&mut chart, error);
 
-        assert!(matches!(state, LoadState::Error(message) if message.starts_with("Símbolo inválido:")));
+        assert!(
+            matches!(state, LoadState::Error(message) if message.starts_with("Símbolo inválido:"))
+        );
         assert!(chart.is_empty());
     }
 
