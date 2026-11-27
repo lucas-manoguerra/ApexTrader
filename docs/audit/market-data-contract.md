@@ -80,6 +80,17 @@ El contrato debe especificar epoch, unidad, semántica de apertura/cierre y lím
 
 Los cálculos de duración deben usar operaciones checked. Toda vela aceptada debe poder convertirse a las representaciones derivadas requeridas sin overflow. Los intervalos nominales y los spans reales deben tener nombres y semánticas separadas.
 
+## Comportamiento actual de la consulta histórica
+
+La implementación existente tiene un comportamiento concreto que debe distinguirse del contrato objetivo para proveedores externos:
+
+- `LoadCandles::execute` valida que `from_ms <= to_ms` y filtra por `open_time_ms` dentro de los límites inclusivos `[from_ms, to_ms]`.
+- Los timestamps de apertura aceptados deben llegar en orden estrictamente ascendente. La capa de aplicación rechaza entradas duplicadas o desordenadas; no las ordena.
+- `MockMarketDataProvider` devuelve aperturas alineadas a su intervalo nominal y trata ambos límites como inclusivos. Su comportamiento no demuestra que un proveedor externo use la misma convención.
+- `MarketDataProvider::fetch_candles` todavía no expresa orden, unicidad, semántica de límites, precisión ni timestamp que gobierna el filtro.
+
+Por tanto, no asumir que el rango inclusivo actual es el contrato canónico definitivo. Cada adaptador externo debe declarar su semántica nativa y convertirla explícitamente a un contrato interno acordado. La política de paginación debe evitar pérdida y duplicación incluso cuando el proveedor incluya ambos extremos. Un adaptador no debe ordenar silenciosamente dos eventos con la misma identidad lógica y contenido conflictivo.
+
 ## Ciclo de vida y calidad
 
 El modelo debe poder distinguir como mínimo:
@@ -139,6 +150,20 @@ La suite deberá incluir:
 - Pruebas de propiedades y fuzzing de adaptadores/serialización.
 
 Las pruebas deben comprobar propiedades observables del sistema, no identidades tautológicas ni solo la consistencia interna de un generador mock.
+
+## Contrato interno de consulta histórica pendiente
+
+Antes de conectar un proveedor real, especificar en el trait o en un tipo de consulta explícito:
+
+- Qué timestamp se filtra: apertura del período, cierre, timestamp de evento u otro identificador temporal.
+- Unidad, precisión y epoch del timestamp.
+- Si los límites de consulta son inclusivos o exclusivos y cómo se transforma la convención nativa del proveedor.
+- Orden de salida requerido y si la unicidad se evalúa por instrumento/serie más apertura.
+- Política para duplicados idénticos, duplicados conflictivos y respuestas desordenadas.
+- Continuación/paginación sin pérdida ni solapamiento, incluyendo la precisión mínima del timestamp.
+- Si el proveedor puede devolver velas parciales, abiertas o fuera de la ventana solicitada.
+
+La semántica de consulta debe ser independiente de la semántica del intervalo de una vela. El límite de una consulta selecciona registros; el intervalo de una vela describe un período de mercado. No se debe inferir uno del otro.
 
 ## Decisiones abiertas que requieren ADR
 
