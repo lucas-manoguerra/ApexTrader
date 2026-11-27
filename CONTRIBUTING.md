@@ -4,33 +4,47 @@
 
 Toda contribución debe preservar la separación de responsabilidades, la independencia del dominio, la seguridad de Rust y la capacidad de evolución del proyecto. Los cambios deben ser pequeños, verificables y coherentes con las decisiones registradas.
 
+La coordinación entre colaboradores sigue el protocolo de [trabajo en equipo](docs/development/team-collaboration.md). Ese documento define cómo reclamar tareas, evitar solapamientos, compartir contratos y mantener ramas independientes.
+
 ## Flujo de trabajo
 
-1. Actualizar la rama de trabajo desde `main`.
-2. Crear una rama descriptiva con prefijo `feat/`, `fix/`, `refactor/`, `perf/`, `docs/` o `chore/`.
-3. Definir el alcance, los contratos afectados y los riesgos.
-4. Implementar el cambio con pruebas apropiadas.
-5. Ejecutar los controles locales aplicables.
-6. Abrir un Pull Request con contexto, decisiones, pruebas y riesgos.
-7. Resolver observaciones y verificar nuevamente la CI antes de integrar.
+1. Consultar Issues y Pull Requests abiertos antes de comenzar. Buscar trabajo equivalente o en curso.
+2. Acordar una tarea con alcance, criterios de aceptación y archivos o módulos principales.
+3. Actualizar referencias remotas y crear una rama propia desde `main`, salvo dependencia explícita documentada entre PRs.
+4. Leer `AGENTS.md` y la documentación de las áreas afectadas.
+5. Inspeccionar implementación, consumidores, pruebas y contratos antes de editar.
+6. Implementar el cambio mínimo cohesivo sin modificar archivos ajenos a la tarea.
+7. Ejecutar controles locales aplicables y revisar el diff completo.
+8. Abrir un Pull Request con objetivo, alcance, pruebas, riesgos y dependencias.
+9. Atender revisión y mantener la rama sincronizada sin sobrescribir trabajo de otros.
+10. Integrar únicamente cuando se cumplan los criterios de integración vigentes del proyecto.
+
+## Coordinación obligatoria
+
+- Una tarea debe tener un responsable principal visible en su Issue o PR.
+- Antes de editar un archivo compartido, avisar en la Issue/PR y acordar quién integra el cambio.
+- No trabajar simultáneamente en el mismo contrato, módulo o conjunto de archivos sin coordinación explícita.
+- Si una tarea depende de otra PR, declararlo en la descripción y enlazarla; no copiar cambios manualmente ni abrir ramas divergentes con el mismo trabajo.
+- Si aparece una necesidad fuera del alcance, abrir una tarea separada o solicitar aprobación antes de ampliarlo.
+- No resolver conflictos eliminando cambios ajenos. Comparar ambas intenciones y coordinar con su autor.
+- No hacer push a ramas de otra persona ni reescribir su historial sin autorización.
+- No trabajar directamente sobre `main`.
 
 ## Controles obligatorios
 
 ```bash
 cargo fmt --all -- --check
-cargo check --workspace --all-targets
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo doc --workspace --no-deps
-python scripts/verify_no_code_comments.py
+cargo check --workspace --all-targets --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
+cargo doc --workspace --no-deps --locked
+bash scripts/verify_no_code_comments.sh
+bash scripts/verify_architecture.sh
+bash scripts/verify_lib_docs.sh
+bash scripts/audit_dependencies.sh
 ```
 
-Los scripts de arquitectura y dependencias deben ejecutarse en PowerShell 7:
-
-```powershell
-pwsh -File scripts/verify_architecture.ps1
-pwsh -File scripts/audit_dependencies.ps1
-```
+La auditoría de dependencias requiere `cargo-audit` y `cargo-deny`. Si una herramienta no está instalada o un control no puede ejecutarse en el sistema local, declararlo en el PR; nunca marcarlo como ejecutado.
 
 ## Estándares de Rust
 
