@@ -210,8 +210,8 @@ mod tests {
             .to_chart_data_point()
             .expect("punto temporal válido");
 
-        assert_eq!(point.time_point.open_time_ms, update.candle.open_time_ms);
-        assert_eq!(point.time_point.interval_ms, 60_000);
+        assert_eq!(point.time_point.open_time_ms(), update.candle.open_time_ms);
+        assert_eq!(point.time_point.interval_ms(), 60_000);
         assert_eq!(point.volume(), update.candle.volume);
     }
 
