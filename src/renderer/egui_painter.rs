@@ -3,11 +3,12 @@ use crate::domain::transforms::{self, ScreenPoint, screen_to_chart_point};
 use crate::domain::viewport::{PriceScaleType, Viewport};
 use crate::errors::RendererError;
 use crate::renderer::{
-    ChartGpuCallback, ChartRenderer, ChartScene, GpuVertex, RenderFrame, RenderLayer, build_geometry,
+    ChartGpuCallback, ChartRenderer, ChartScene, GpuVertex, RenderFrame, RenderLayer,
+    build_geometry,
 };
 use eframe::egui;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_CALLBACK_ID: AtomicU64 = AtomicU64::new(1);
 
