@@ -124,8 +124,8 @@ mod tests {
     fn market_candle_converts_positive_duration() {
         let candle = valid_market_candle(1000, 2000);
         let point = candle.to_chart_data_point().expect("intervalo válido");
-        assert_eq!(point.time_point.open_time_ms, 1000);
-        assert_eq!(point.time_point.close_time_ms, 2000);
-        assert_eq!(point.time_point.interval_ms, 1000);
+        assert_eq!(point.time_point.open_time_ms(), 1000);
+        assert_eq!(point.time_point.close_time_ms(), 2000);
+        assert_eq!(point.time_point.interval_ms(), 1000);
     }
 }
