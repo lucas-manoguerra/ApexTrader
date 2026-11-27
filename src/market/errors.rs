@@ -5,6 +5,9 @@ pub enum MarketError {
     #[error("símbolo inválido '{symbol}': {reason}")]
     InvalidSymbol { symbol: String, reason: String },
 
+    #[error("operación de mercado cancelada")]
+    Cancelled,
+
     #[error("error de red: {0}")]
     Network(String),
 
