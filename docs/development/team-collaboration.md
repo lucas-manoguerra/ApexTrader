@@ -15,6 +15,27 @@ Permitir que varias personas contribuyan en paralelo sin duplicar tareas, sobres
 
 No iniciar una segunda implementación de una tarea ya asignada sin hablar con su responsable. Si se descubre duplicación, detener la parte solapada y acordar cuál cambio continúa.
 
+## Gestión de hallazgos fuera del alcance
+
+Durante el análisis o la implementación pueden aparecer problemas y oportunidades que no pertenecen al objetivo de la PR actual. Para preservar PRs pequeñas y permitir que el equipo distribuya el trabajo:
+
+- Si el hallazgo no es necesario para que la PR actual sea correcta, segura y completa según sus criterios de aceptación, no implementarlo dentro de esa PR.
+- Buscar primero una Issue abierta equivalente. Si existe, añadir contexto y enlazarla en la PR actual; no crear duplicados.
+- Si no existe, abrir una Issue independiente con problema observado, impacto, evidencia reproducible, resultado esperado, criterios de aceptación y módulos o archivos probablemente afectados.
+- Añadir a la Issue una referencia a la PR donde se descubrió y explicar por qué quedó fuera de alcance.
+- No asignar automáticamente una Issue a otra persona. Dejarla disponible para priorización y asignación coordinada.
+- Si el hallazgo bloquea la corrección, la seguridad, una invariante o un criterio de aceptación de la PR actual, tratarlo como bloqueante y resolverlo antes de integrar.
+- Si no está claro si es bloqueante, detener la ampliación del cambio y acordar el alcance con el responsable de la PR.
+
+Clasificación recomendada para Issues:
+- **Bug:** comportamiento incorrecto o regresión independiente.
+- **Mejora:** capacidad o calidad adicional que no exige la PR actual.
+- **Deuda técnica:** costo de mantenimiento, acoplamiento o riesgo acumulado.
+- **Investigación:** pregunta técnica que requiere evidencia antes de decidir.
+- **Bloqueante:** defecto que impide completar correctamente la tarea actual; normalmente se enlaza a la PR y se resuelve dentro de su alcance o mediante dependencia explícita.
+
+La descripción de la Issue debe ser accionable, no una lista vaga de ideas. Si el alcance es grande, dividirlo en tareas pequeñas después de una investigación inicial.
+
 ## División del trabajo en paralelo
 
 Priorizar tareas que puedan integrarse de forma independiente: documentación, tests de un contrato estable, correcciones en módulos distintos o mejoras aisladas.
