@@ -28,13 +28,13 @@ impl ChartState {
             data_point.high(),
             data_point.low(),
             data_point.close(),
-            data_point.time_point.open_time_ms
+            data_point.time_point.open_time_ms()
         );
 
-        let timestamp_ms = data_point.time_point.open_time_ms;
+        let timestamp_ms = data_point.time_point.open_time_ms();
         match self
             .data_points
-            .binary_search_by_key(&timestamp_ms, |point| point.time_point.open_time_ms)
+            .binary_search_by_key(&timestamp_ms, |point| point.time_point.open_time_ms())
         {
             Ok(index) => {
                 let mut updated_point = data_point;
@@ -132,12 +132,12 @@ impl ChartState {
 
     fn rebuild_time_scale(&mut self) {
         self.data_points
-            .sort_by_key(|point| point.time_point.open_time_ms);
+            .sort_by_key(|point| point.time_point.open_time_ms());
 
         let mut unique_points: Vec<ChartDataPoint> = Vec::with_capacity(self.data_points.len());
         for point in self.data_points.drain(..) {
             if let Some(previous) = unique_points.last_mut()
-                && previous.time_point.open_time_ms == point.time_point.open_time_ms
+                && previous.time_point.open_time_ms() == point.time_point.open_time_ms()
             {
                 *previous = point;
                 continue;
@@ -149,7 +149,7 @@ impl ChartState {
         self.time_scale.rebuild(
             self.data_points
                 .iter()
-                .map(|point| point.time_point.open_time_ms),
+                .map(|point| point.time_point.open_time_ms()),
         );
         for (index, point) in self.data_points.iter_mut().enumerate() {
             point.logical_index = Some(index);
@@ -291,8 +291,8 @@ mod tests {
         assert!(!state.is_empty());
         assert_eq!(state.data_points()[0].open(), 100.0);
         assert_eq!(state.data_points()[1].close(), 106.0);
-        assert_eq!(state.data_points()[0].time_point.open_time_ms, 0);
-        assert_eq!(state.data_points()[1].time_point.open_time_ms, 60_000);
+        assert_eq!(state.data_points()[0].time_point.open_time_ms(), 0);
+        assert_eq!(state.data_points()[1].time_point.open_time_ms(), 60_000);
     }
     #[test]
     fn duplicate_timestamps_replace_the_existing_candle_without_duplicate_indices() {
@@ -363,9 +363,9 @@ mod tests {
             .unwrap();
 
         let points = state.data_points();
-        assert_eq!(points[0].time_point.open_time_ms, 0);
-        assert_eq!(points[1].time_point.open_time_ms, 60_000);
-        assert_eq!(points[2].time_point.open_time_ms, 120_000);
+        assert_eq!(points[0].time_point.open_time_ms(), 0);
+        assert_eq!(points[1].time_point.open_time_ms(), 60_000);
+        assert_eq!(points[2].time_point.open_time_ms(), 120_000);
         assert_eq!(
             points
                 .iter()
