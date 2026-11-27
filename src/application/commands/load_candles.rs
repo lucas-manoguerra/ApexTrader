@@ -51,6 +51,22 @@ impl LoadCandles {
         let mut last_open_time: Option<i64> = None;
 
         for (index, mc) in market_candles.iter().enumerate() {
+            if let Some(last) = last_open_time
+                && mc.open_time_ms <= last
+            {
+                rejected.push(IngestionRejection {
+                    index,
+                    open_time_ms: mc.open_time_ms,
+                    reason: format!(
+                        "orden cronológico invertido o duplicado: anterior={}, actual={}",
+                        last, mc.open_time_ms
+                    ),
+                });
+                continue;
+            }
+
+            last_open_time = Some(mc.open_time_ms);
+
             if mc.symbol != symbol {
                 rejected.push(IngestionRejection {
                     index,
@@ -76,25 +92,8 @@ impl LoadCandles {
                 continue;
             }
 
-            if let Some(last) = last_open_time
-                && mc.open_time_ms <= last
-            {
-                rejected.push(IngestionRejection {
-                    index,
-                    open_time_ms: mc.open_time_ms,
-                    reason: format!(
-                        "orden cronológico invocado o duplicado: anterior={}, actual={}",
-                        last, mc.open_time_ms
-                    ),
-                });
-                continue;
-            }
-
             match mc.to_chart_data_point() {
-                Ok(dp) => {
-                    last_open_time = Some(mc.open_time_ms);
-                    data_points.push(dp);
-                }
+                Ok(dp) => data_points.push(dp),
                 Err(e) => {
                     rejected.push(IngestionRejection {
                         index,
@@ -118,8 +117,41 @@ impl LoadCandles {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::market::candle::MarketCandle;
     use crate::market::mock::MockMarketDataProvider;
     use std::str::FromStr;
+
+    struct SequenceMarketDataProvider {
+        candles: Vec<MarketCandle>,
+    }
+
+    impl MarketDataProvider for SequenceMarketDataProvider {
+        fn name(&self) -> &str {
+            "sequence-provider"
+        }
+
+        fn fetch_candles(
+            &self,
+            _symbol: Symbol,
+            _from_ms: i64,
+            _to_ms: i64,
+        ) -> Result<Vec<MarketCandle>, MarketError> {
+            Ok(self.candles.clone())
+        }
+    }
+
+    fn market_candle(symbol: &Symbol, open_time_ms: i64) -> MarketCandle {
+        MarketCandle {
+            symbol: symbol.clone(),
+            open_time_ms,
+            open: 100.0,
+            high: 105.0,
+            low: 95.0,
+            close: 101.0,
+            volume: 10.0,
+            close_time_ms: open_time_ms + 60_000,
+        }
+    }
 
     #[test]
     fn load_candles_from_mock_provider() {
@@ -161,6 +193,36 @@ mod tests {
                 "puntos de datos ordenados por tiempo ascendente"
             );
         }
+    }
+
+    #[test]
+    fn invalid_candle_does_not_hide_a_later_out_of_order_timestamp() {
+        let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
+        let first = market_candle(&symbol, 0);
+        let mut invalid = market_candle(&symbol, 60_000);
+        invalid.high = 99.0;
+        let first_out_of_order = market_candle(&symbol, 30_000);
+        let second_out_of_order = market_candle(&symbol, 45_000);
+        let provider = SequenceMarketDataProvider {
+            candles: vec![first, invalid, first_out_of_order, second_out_of_order],
+        };
+
+        let result = LoadCandles::execute(&provider, symbol, 0, 60_000)
+            .expect("la ingestión debe informar rechazos sin abortar");
+
+        assert_eq!(result.data_points.len(), 1);
+        assert_eq!(result.rejected.len(), 3);
+        assert!(result.rejected[0].reason.contains("vela inválida"));
+        assert!(
+            result.rejected[1]
+                .reason
+                .contains("orden cronológico invertido")
+        );
+        assert!(
+            result.rejected[2]
+                .reason
+                .contains("orden cronológico invertido")
+        );
     }
 
     #[test]
