@@ -107,12 +107,20 @@ impl eframe::App for ApexTraderApp {
 
                 let current_scale_type = self.chart.viewport().price_scale_type();
                 let mut selected_scale_type = current_scale_type;
-                let points = self.chart.data_points();
-                let logarithmic_supported = points.iter().all(|point| point.low() > 0.0);
-                let percentage_base = points
-                    .first()
-                    .map(|point| point.close())
-                    .filter(|price| price.is_finite() && *price > 0.0);
+                let (logarithmic_supported, initial_percentage_base, latest_percentage_base) = {
+                    let points = self.chart.data_points();
+                    (
+                        points.iter().all(|point| point.low() > 0.0),
+                        points
+                            .first()
+                            .map(|point| point.close())
+                            .filter(|price| price.is_finite() && *price > 0.0),
+                        points
+                            .last()
+                            .map(|point| point.close())
+                            .filter(|price| price.is_finite() && *price > 0.0),
+                    )
+                };
 
                 egui::ComboBox::from_id_salt("price-scale-type")
                     .selected_text(selected_scale_type.label())
@@ -129,7 +137,7 @@ impl eframe::App for ApexTraderApp {
                                 "Logarítmica",
                             );
                         });
-                        ui.add_enabled_ui(percentage_base.is_some(), |ui| {
+                        ui.add_enabled_ui(initial_percentage_base.is_some(), |ui| {
                             ui.selectable_value(
                                 &mut selected_scale_type,
                                 PriceScaleType::Percentage,
@@ -140,11 +148,42 @@ impl eframe::App for ApexTraderApp {
                 if selected_scale_type != current_scale_type {
                     let viewport = self.chart.viewport_mut();
                     if selected_scale_type == PriceScaleType::Percentage
-                        && let Some(base) = percentage_base
+                        && let Some(base) = initial_percentage_base
                     {
                         let _ = viewport.set_price_scale_percentage_base(base);
                     }
                     let _ = viewport.set_price_scale_type(selected_scale_type);
+                }
+
+                if selected_scale_type == PriceScaleType::Percentage {
+                    let current_base = self.chart.viewport().price_scale_percentage_base();
+                    ui.horizontal(|ui| {
+                        if let Some(base) = current_base {
+                            ui.label(format!("Base porcentual: {base}"));
+                        }
+                        if let Some(base) = initial_percentage_base
+                            && ui
+                                .small_button("Inicio")
+                                .on_hover_text("Usar el cierre de la primera vela cargada como base porcentual")
+                                .clicked()
+                        {
+                            let _ = self
+                                .chart
+                                .viewport_mut()
+                                .set_price_scale_percentage_base(base);
+                        }
+                        if let Some(base) = latest_percentage_base
+                            && ui
+                                .small_button("Último cierre")
+                                .on_hover_text("Usar el cierre de la última vela cargada como base porcentual")
+                                .clicked()
+                        {
+                            let _ = self
+                                .chart
+                                .viewport_mut()
+                                .set_price_scale_percentage_base(base);
+                        }
+                    });
                 }
             });
 
