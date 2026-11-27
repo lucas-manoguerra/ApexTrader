@@ -251,18 +251,17 @@ jobs:
 
   architecture:
     name: Verify architecture boundaries
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Verify architecture
-        shell: pwsh
-        run: pwsh -File scripts/verify_architecture.ps1
+        run: bash scripts/verify_architecture.sh
 
   security:
     name: Security audit
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -295,26 +294,24 @@ jobs:
             ${{ runner.os }}-cargo-target-
 
       - name: Audit dependencies
-        shell: pwsh
-        run: pwsh -File scripts/audit_dependencies.ps1
+        run: bash scripts/audit_dependencies.sh
 
   lib-docs:
     name: Verify library docs referenced
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Verify library documentation references
-        shell: pwsh
-        run: pwsh -File scripts/verify_lib_docs.ps1
+        run: bash scripts/verify_lib_docs.sh
 
   comment-policy:
     name: Enforce comment-free code changes
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
       - name: Enforce comment-free code across the repository
-        run: python scripts/verify_no_code_comments.py
+        run: bash scripts/verify_no_code_comments.sh
