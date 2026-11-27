@@ -211,7 +211,11 @@ impl Viewport {
         }
 
         let scale_value = transforms::screen_y_to_price(
-            if self.price_scale_inverted { screen_height - screen_y } else { screen_y },
+            if self.price_scale_inverted {
+                screen_height - screen_y
+            } else {
+                screen_y
+            },
             screen_height,
             price_range,
             self.zoom_y,
