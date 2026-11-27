@@ -68,7 +68,7 @@ impl eframe::App for ApexTraderApp {
 
             ui.label(format!("Renderer: {}", self.renderer.name()));
             ui.checkbox(&mut self.follow_latest, "Seguir última vela");
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 let mut auto_scale = self.chart.viewport().price_scale_auto();
                 if ui.checkbox(&mut auto_scale, "Auto escala de precios").changed() {
                     self.chart.viewport_mut().set_price_scale_auto(auto_scale);
