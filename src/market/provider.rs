@@ -1,5 +1,5 @@
-use crate::market::candle::MarketCandle;
 use crate::market::cancellation::CancellationToken;
+use crate::market::candle::MarketCandle;
 use crate::market::errors::MarketError;
 use crate::market::symbol::Symbol;
 
@@ -13,11 +13,6 @@ pub trait MarketDataProvider: Send + Sync {
         to_ms: i64,
     ) -> Result<Vec<MarketCandle>, MarketError>;
 
-    /// Cancellation-aware entry point for workers.
-    ///
-    /// The default preserves compatibility but can only check before and
-    /// after the legacy call. Network providers must override it and use
-    /// finite I/O timeouts plus checks between bounded operations.
     fn fetch_candles_cancellable(
         &self,
         symbol: Symbol,
@@ -56,10 +51,6 @@ pub trait RealtimeMarketDataProvider: Send {
 
     fn next_update(&mut self) -> Result<RealtimeMarketUpdate, MarketError>;
 
-    /// Cancellation-aware entry point for workers.
-    ///
-    /// Providers with blocking reads must override this method and bound
-    /// those reads with finite timeouts so cancellation can be observed.
     fn next_update_cancellable(
         &mut self,
         cancellation: &CancellationToken,
