@@ -115,11 +115,9 @@ proptest! {
             .add_data_points(&points)
             .expect("ChartState debe aceptar puntos válidos");
 
+        let expected_timestamps: Vec<i64> = expected.keys().copied().collect();
         prop_assert_eq!(chart.len(), expected.len());
-        prop_assert_eq!(
-            chart.time_scale().timestamps(),
-            expected.keys().copied().collect::<Vec<_>>().as_slice()
-        );
+        prop_assert_eq!(chart.time_scale().timestamps(), expected_timestamps.as_slice());
 
         for (point, (timestamp, expected_close)) in
             chart.data_points().iter().zip(expected.iter())
