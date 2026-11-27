@@ -2,13 +2,13 @@
 
 ## Estado de la revisión
 
-**Resultado:** fundaciones sustancialmente alineadas con el alcance acordado; revisión de cierre todavía no exhaustiva. El PR debe permanecer abierto y en borrador hasta resolver las observaciones de preparación para revisión y obtener revisión humana.
+**Resultado:** fundaciones sustancialmente alineadas con el alcance acordado; revisión de cierre todavía no exhaustiva. La CI del head `36b1134d` está verde (19/19). El PR debe permanecer abierto y en borrador hasta resolver o aceptar explícitamente las observaciones restantes y obtener revisión humana.
 
 - PR: [#10](https://github.com/lucas-manoguerra/ApexTrader/pull/10)
 - Base: `main` (`b14d400d23fd45d090d3a58055bc0d077ce227cb`)
 - Head auditado: `7ee8a37877bcef8defa9e780469e39ffe142c754`
 - Diferencia reportada por GitHub: 292 commits, 108 archivos, 3664 adiciones y 2083 eliminaciones.
-- CI: ejecución [#45920252688](https://github.com/lucas-manoguerra/ApexTrader/actions/runs/45920252688), completada con **19/19 jobs exitosos**.
+- CI: ejecución [#45921206092](https://github.com/lucas-manoguerra/ApexTrader/actions/runs/45921206092), completada con **19/19 jobs exitosos**.
 
 Esta revisión combina inspección de los archivos de gobernanza, workflow CI, ADR principales, auditorías, manifiesto, bootstrap, módulos de presentación/rendering y comparación completa de nombres/estadísticas de archivos. No equivale a una revisión línea por línea de las 108 diferencias ni a una ejecución local de Cargo.
 
@@ -47,7 +47,7 @@ La CI acredita compilación y pruebas automatizadas en runners nativos. **No acr
 
 ### C-001 — Supresión global de código muerto
 
-**Estado:** remediación aplicada; validación en CI del head actual.
+**Estado:** remediado y validado en CI del head actual.
 
 **Severidad:** alta para calidad de ingeniería.  
 **Evidencia:** `src/lib.rs` ya no contiene `#![allow(dead_code)]`. La CI posterior detectó dos variantes de `LoadState` sin uso y dos funciones de prueba sin atributo `#[test]`. Se eliminaron las variantes `Idle` y `Loading` y se añadieron los atributos faltantes en `controller.rs` y `viewport.rs`.
@@ -68,16 +68,20 @@ El control no verifica la matriz completa de capas, ciclos internos ni dependenc
 ### C-003 — Dependencias directas candidatas a obsoletas
 
 **Severidad:** media.  
-**Evidencia:** `Cargo.toml` conserva `pollster`, `wgpu-types`, `raw-window-handle` y `winit`, aunque se retiró el renderer paralelo que justificaba parte de ellas. La limpieza intentada previamente se revirtió porque el lockfile no era reproducible con `--locked`.
+**Estado:** auditoría estática de consumidores completada; limpieza del manifiesto diferida por falta de un entorno Cargo disponible para regenerar y validar el lockfile.
 
-**Acción recomendada:** confirmar consumidores reales mediante compilación y análisis de dependencias; eliminar solo las dependencias demostrablemente innecesarias y regenerar `Cargo.lock` con Cargo. No editar el lockfile manualmente ni conservar una limpieza que no pase CI con `--locked`.
+**Evidencia:** se inspeccionaron los 61 archivos Rust del head actual. No se encontraron consumidores directos de `egui`, `pollster`, `wgpu`, `wgpu-types`, `raw-window-handle` ni `winit`. Los usos de egui y wgpu en el código activo se realizan mediante los reexports `eframe::egui` y `eframe::wgpu`. `bytemuck_derive` sí tiene uso directo (`Pod`/`Zeroable`); `bytemuck` también se usa en el callback WGPU. `Cargo.lock` conserva todas las dependencias como dependencias directas del paquete raíz.
+
+La inspección de fuentes identifica candidatos claros, pero no sustituye `cargo tree`, `cargo check` ni la regeneración real del lockfile. La CI ejecuta comandos con `--locked`, y no se dispone de Cargo local en este entorno para producir un lockfile reproducible.
+
+**Acción recomendada:** en un entorno con la versión fijada por `rust-toolchain.toml`, retirar las dependencias confirmadas como no usadas (`egui`, `pollster`, `wgpu`, `wgpu-types`, `raw-window-handle`, `winit`), regenerar `Cargo.lock` con Cargo y verificar el diff de resolución. Mantener `eframe` con feature `wgpu`; no retirar `bytemuck` ni `bytemuck_derive`. No editar el lockfile manualmente ni conservar una limpieza que no pase CI con `--locked`.
 
 ### C-004 — Descripción histórica del PR
 
 **Severidad:** media.  
-**Evidencia:** el cuerpo anterior del PR conserva referencias a heads antiguos, ejecuciones en cola y próximos pasos ya completados.
+**Estado:** remediado en la descripción actual del PR.
 
-**Acción recomendada:** sustituir el historial acumulativo por un resumen estable del alcance, decisiones, validación actual y limitaciones pendientes.
+**Evidencia:** el cuerpo del PR fue reemplazado por un resumen estable del alcance, decisiones, validación y limitaciones. Debe mantenerse sincronizado si cambia el head o la CI.
 
 ## 4. Trabajo que debe permanecer fuera del PR #10
 
@@ -104,9 +108,9 @@ Cada tema debe entrar en un PR propio con contrato, pruebas y criterios de acept
 - [x] Fallback histórico sintético implícito eliminado.
 - [x] Decisiones y limitaciones principales registradas en ADR/auditorías.
 - [x] Retirar la supresión global `dead_code`.
-- [x] Corregir los hallazgos concretos expuestos por Clippy; CI del head corregido pendiente.
-- [ ] Confirmar el destino de las dependencias directas candidatas a obsoletas.
-- [ ] Sincronizar el cuerpo del PR con el head y CI vigentes.
+- [x] Corregir los hallazgos concretos expuestos por Clippy; CI #45921206092 verde (19/19).
+- [x] Auditar estáticamente los consumidores de dependencias directas candidatas; limpieza del manifiesto/lockfile diferida hasta disponer de Cargo.
+- [x] Sincronizar el cuerpo del PR con el head y CI vigentes.
 - [ ] Completar revisión humana del diff y obtener aprobación requerida.
 - [ ] Mantener explícito que runtime GPU y distribución no están certificados.
 
@@ -114,4 +118,4 @@ Cada tema debe entrar en un PR propio con contrato, pruebas y criterios de acept
 
 El PR #10 está **funcionalmente validado por CI y alineado en lo esencial con su objetivo de fundaciones de ingeniería**. No debe ampliarse para resolver toda la deuda arquitectónica del producto.
 
-Antes de quitar el estado draft, conviene resolver C-001 o aceptar formalmente su aplazamiento, completar C-002/C-003 como alcance explícito de seguimiento, sincronizar la descripción y obtener una revisión completa del diff. No se recomienda mergear únicamente por tener CI verde.
+Antes de quitar el estado draft, conviene decidir si la limpieza reproducible de dependencias C-003 se realizará en este PR o en uno específico, y completar C-002 como seguimiento explícito. Se requiere revisión humana completa del diff. No se recomienda mergear únicamente por tener CI verde.
