@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 pub mod application;
 pub mod bootstrap;
 pub mod chart;
