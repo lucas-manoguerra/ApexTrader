@@ -1276,7 +1276,6 @@ mod price_scale_inversion_tests {
 
         assert!(!viewport.price_scale_inverted());
     }
-
 }
 
 #[cfg(test)]
@@ -1300,4 +1299,5 @@ mod percentage_scale_base_tests {
         assert!(viewport.price_scale_auto());
         assert_eq!(viewport.offset_y(), 0.0);
         assert_eq!(viewport.zoom_y(), viewport.auto_price_scale_zoom());
-    }}
+    }
+}
