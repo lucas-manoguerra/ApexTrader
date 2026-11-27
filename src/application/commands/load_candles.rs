@@ -62,7 +62,6 @@ impl LoadCandles {
                         last, mc.open_time_ms
                     ),
                 });
-                last_open_time = Some(mc.open_time_ms);
                 continue;
             }
 
@@ -202,19 +201,25 @@ mod tests {
         let first = market_candle(&symbol, 0);
         let mut invalid = market_candle(&symbol, 60_000);
         invalid.high = 99.0;
-        let out_of_order = market_candle(&symbol, 30_000);
+        let first_out_of_order = market_candle(&symbol, 30_000);
+        let second_out_of_order = market_candle(&symbol, 45_000);
         let provider = SequenceMarketDataProvider {
-            candles: vec![first, invalid, out_of_order],
+            candles: vec![first, invalid, first_out_of_order, second_out_of_order],
         };
 
         let result = LoadCandles::execute(&provider, symbol, 0, 60_000)
             .expect("la ingestión debe informar rechazos sin abortar");
 
         assert_eq!(result.data_points.len(), 1);
-        assert_eq!(result.rejected.len(), 2);
+        assert_eq!(result.rejected.len(), 3);
         assert!(result.rejected[0].reason.contains("vela inválida"));
         assert!(
             result.rejected[1]
+                .reason
+                .contains("orden cronológico invertido")
+        );
+        assert!(
+            result.rejected[2]
                 .reason
                 .contains("orden cronológico invertido")
         );
