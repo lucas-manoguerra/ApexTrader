@@ -230,8 +230,9 @@ fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<Price
     let max_visible = visible_center + half_range_visible;
     let target_ticks = ((height / 56.0).floor() as usize).clamp(4, 8);
     let pixels_per_unit = height / params.price_range * params.zoom_y;
+    let direction = if params.viewport_inverted { -1.0 } else { 1.0 };
     let y_for_scale_value =
-        |value: f64| top + height / 2.0 - (value - visible_center) * pixels_per_unit;
+        |value: f64| top + height / 2.0 - (value - visible_center) * pixels_per_unit * direction;
     let mut ticks = Vec::with_capacity(target_ticks + 2);
 
     match params.scale_type {
