@@ -168,6 +168,7 @@ struct PriceAxisParams {
     zoom_y: f64,
     minimum_tick: f64,
     scale_type: PriceScaleType,
+    inverted: bool,
     percentage_base: Option<f64>,
 }
 
@@ -230,7 +231,7 @@ fn price_axis_ticks(top: f64, bottom: f64, params: PriceAxisParams) -> Vec<Price
     let max_visible = visible_center + half_range_visible;
     let target_ticks = ((height / 56.0).floor() as usize).clamp(4, 8);
     let pixels_per_unit = height / params.price_range * params.zoom_y;
-    let direction = if params.viewport_inverted { -1.0 } else { 1.0 };
+    let direction = if params.inverted { -1.0 } else { 1.0 };
     let y_for_scale_value =
         |value: f64| top + height / 2.0 - (value - visible_center) * pixels_per_unit * direction;
     let mut ticks = Vec::with_capacity(target_ticks + 2);
@@ -637,7 +638,8 @@ fn draw_current_price_marker(
     };
     let relative_price = scale_value - params.center_price - params.offset_y * params.price_range;
     let pixels_per_unit = height / params.price_range * params.zoom_y;
-    let y = top + height / 2.0 - relative_price * pixels_per_unit;
+    let direction = if params.inverted { -1.0 } else { 1.0 };
+    let y = top + height / 2.0 - relative_price * pixels_per_unit * direction;
     if !y.is_finite() || y < top || y > layout.plot.bottom {
         return;
     }
@@ -815,6 +817,7 @@ impl ChartRenderer for EguiPainterChartRenderer {
             zoom_y: scene.viewport.zoom_y(),
             minimum_tick: scene.price_tick_size,
             scale_type: scene.viewport.price_scale_type(),
+            inverted: scene.viewport.price_scale_inverted(),
             percentage_base: scene.viewport.price_scale_percentage_base(),
         };
         let price_ticks = price_axis_ticks(top, bottom, price_params);
@@ -1034,6 +1037,7 @@ mod tests {
             zoom_y: 1.0,
             minimum_tick: 0.01,
             scale_type: PriceScaleType::Linear,
+            inverted: false,
             percentage_base: None,
         };
         let ticks = price_axis_ticks(100.0, 300.0, params);
@@ -1053,6 +1057,7 @@ mod tests {
             zoom_y: 1.0,
             minimum_tick: 0.01,
             scale_type: PriceScaleType::Logarithmic,
+            inverted: false,
             percentage_base: None,
         };
         let ticks = price_axis_ticks(0.0, 400.0, params);
@@ -1075,6 +1080,7 @@ mod tests {
             zoom_y: 1.0,
             minimum_tick: 0.01,
             scale_type: PriceScaleType::Percentage,
+            inverted: false,
             percentage_base: Some(100.0),
         };
         let ticks = price_axis_ticks(0.0, 400.0, params);
@@ -1195,6 +1201,7 @@ mod tests {
             zoom_y: 1.0,
             minimum_tick: 0.25,
             scale_type: PriceScaleType::Linear,
+            inverted: false,
             percentage_base: None,
         };
         let ticks = price_axis_ticks(0.0, 200.0, params);
