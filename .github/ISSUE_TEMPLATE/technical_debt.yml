@@ -1,0 +1,45 @@
+name: Technical debt / research
+description: Registrá deuda técnica, riesgos o una investigación necesaria.
+title: "chore: "
+labels:
+  - technical-debt
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Separá los hechos comprobados de las hipótesis. No hace falta conocer de antemano la solución. Revisá la [guía de contribución](https://github.com/lucas-manoguerra/ApexTrader/blob/main/CONTRIBUTING.md) y el [protocolo de trabajo en equipo](https://github.com/lucas-manoguerra/ApexTrader/blob/main/docs/development/team-collaboration.md).
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto y hechos comprobados
+      description: ¿Dónde aparece el problema? Incluí rutas, comportamiento actual y evidencia verificable.
+    validations:
+      required: true
+  - type: textarea
+    id: risk
+    attributes:
+      label: Riesgo o costo actual
+      description: Explicá el impacto conocido en corrección, seguridad, rendimiento, mantenimiento o evolución.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidencia disponible
+      description: Logs, mediciones, ejemplos, referencias o pasos para observar el problema.
+    validations:
+      required: false
+  - type: textarea
+    id: questions
+    attributes:
+      label: Preguntas abiertas e hipótesis
+      description: Separá las preguntas que deben responderse de las explicaciones que todavía no están verificadas.
+    validations:
+      required: false
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Resultado esperado
+      description: ¿Qué decisión, conclusión o cambio verificable debería producir esta tarea?
+    validations:
+      required: true
