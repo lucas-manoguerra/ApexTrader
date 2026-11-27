@@ -82,16 +82,18 @@ mod tests {
         let provider = MockMarketDataProvider::new(50_000.0);
         let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
 
-        let result =
-            LoadHistoricalData::execute(&mut chart, &provider, symbol, 0, 120_000)
-                .expect("carga histórica válida");
+        let result = LoadHistoricalData::execute(&mut chart, &provider, symbol, 0, 120_000)
+            .expect("carga histórica válida");
 
         assert_eq!(chart.len(), result.data_points.len());
         assert_eq!(
             chart.data_points()[0].time_point.open_time_ms(),
             result.data_points[0].time_point.open_time_ms()
         );
-        assert_eq!(chart.data_points()[0].close(), result.data_points[0].close());
+        assert_eq!(
+            chart.data_points()[0].close(),
+            result.data_points[0].close()
+        );
         assert!(result.is_clean());
     }
 
