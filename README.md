@@ -31,8 +31,8 @@ La arquitectura se describe en [docs/architecture/README.md](docs/architecture/R
 
 - Rust estable con soporte para Edition 2024.
 - Cargo y los componentes `rustfmt` y `clippy`.
-- PowerShell 7 para los scripts de verificación existentes.
-- Python 3 para los controles estáticos del repositorio.
+- Bash compatible con los scripts de mantenimiento.
+- Herramientas Rust de seguridad usadas por CI cuando se ejecuten auditorías.
 
 ## Ejecutar
 
@@ -46,16 +46,17 @@ Ejecutar antes de solicitar revisión:
 
 ```bash
 cargo fmt --all -- --check
-cargo check --workspace --all-targets
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cargo doc --workspace --no-deps
-python scripts/verify_no_code_comments.py
-pwsh -File scripts/verify_architecture.ps1
-pwsh -File scripts/audit_dependencies.ps1
+cargo check --workspace --all-targets --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
+cargo doc --workspace --no-deps --locked
+bash scripts/verify_no_code_comments.sh
+bash scripts/verify_architecture.sh
+bash scripts/verify_lib_docs.sh
+bash scripts/audit_dependencies.sh
 ```
 
-La CI es la autoridad final para los controles automatizados. Los comandos que dependan del sistema operativo deben ejecutarse en un entorno compatible.
+Los scripts de auditoría de dependencias requieren las herramientas que instala CI (`cargo-audit` y `cargo-deny`). Los comandos que dependan del sistema operativo deben ejecutarse en un entorno compatible. La CI es la autoridad final para los controles automatizados.
 
 ## Política de código
 
@@ -69,6 +70,7 @@ La política y su verificación están definidas en [docs/engineering/standards.
 - [Arquitectura](docs/architecture/README.md)
 - [Estándares de ingeniería](docs/engineering/standards.md)
 - [Flujo de desarrollo](docs/development/workflow.md)
+- [Trabajo en equipo](docs/development/team-collaboration.md)
 - [Calidad y validación](docs/quality/README.md)
 - [Seguridad](docs/security/README.md)
 - [Rendimiento](docs/performance/README.md)
@@ -78,7 +80,7 @@ La política y su verificación están definidas en [docs/engineering/standards.
 
 ## Contribuciones
 
-Toda modificación debe tener un alcance claro, respetar los límites arquitectónicos, incluir pruebas proporcionales al riesgo y superar los controles de calidad. Consultar [CONTRIBUTING.md](CONTRIBUTING.md) y [AGENTS.md](AGENTS.md) antes de trabajar.
+Toda modificación debe tener un alcance claro, respetar los límites arquitectónicos, incluir pruebas proporcionales al riesgo y superar los controles de calidad. Consultar [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md) y el [protocolo de trabajo en equipo](docs/development/team-collaboration.md) antes de trabajar.
 
 ## Licencia
 
