@@ -39,7 +39,7 @@ impl ChartGpuResources {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("apex-trader-chart-pipeline-layout"),
             bind_group_layouts: &[],
-            push_constant_ranges: &[],
+            immediate_size: 0,
         });
         const ATTRIBUTES: [wgpu::VertexAttribute; 2] =
             wgpu::vertex_attr_array![0 => Float32x2, 1 => Unorm8x4];
@@ -50,11 +50,11 @@ impl ChartGpuResources {
                 module: &shader,
                 entry_point: Some("vs_main"),
                 compilation_options: Default::default(),
-                buffers: &[wgpu::VertexBufferLayout {
+                buffers: &[Some(wgpu::VertexBufferLayout {
                     array_stride: size_of::<GpuVertex>() as u64,
                     step_mode: wgpu::VertexStepMode::Vertex,
                     attributes: &ATTRIBUTES,
-                }],
+                })],
             },
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
