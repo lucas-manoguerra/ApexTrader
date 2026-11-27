@@ -1335,6 +1335,7 @@ mod tests {
     #[test]
     fn empty_scene_clears_previously_cached_shapes() {
         let mut renderer = EguiPainterChartRenderer {
+            callback_id: 0,
             cached_series_layer: RenderLayer::default(),
             cached_series_shapes: vec![egui::Shape::Noop],
             cached_gpu_vertices: Arc::from([]),
