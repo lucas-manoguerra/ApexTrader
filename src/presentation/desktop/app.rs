@@ -30,10 +30,6 @@ const MOCK_REALTIME_TICK_INTERVAL: Duration = Duration::from_millis(250);
 
 #[derive(Debug, Clone, PartialEq)]
 enum LoadState {
-    Idle,
-
-    Loading,
-
     Loaded { count: usize },
 
     Error(String),
