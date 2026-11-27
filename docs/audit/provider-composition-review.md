@@ -102,6 +102,28 @@ Este flujo no obliga a crear un módulo por cada caja ni a extraer crates. Los l
 
 Cada paso debe ser acotado, conservar el comportamiento observable y contar con tests. No combinar esta refactorización con cambios numéricos financieros ni con una reorganización masiva del árbol.
 
+
+## Remediación incremental aplicada
+
+En el HEAD posterior a esta auditoría se aplicó un primer paso de composición:
+
+- `bootstrap::desktop::run` construye el proveedor histórico de simulación y la factory del proveedor realtime.
+- `ApexTraderApp::new` recibe ambos como dependencias inyectadas.
+- La recarga de símbolo reutiliza el proveedor histórico inyectado y la factory realtime inyectada.
+- `presentation::desktop::app` ya no importa ni instancia `MockMarketDataProvider` ni `MockRealtimeMarketDataProvider`; tampoco contiene configuración específica de esos mocks.
+- Los parámetros específicos de simulación (precio base, intervalo, volumen y ticks por vela) están concentrados en bootstrap.
+- El backend WGPU permanece seleccionado explícitamente en bootstrap.
+
+Este paso mueve la construcción de adapters concretos al composition root, pero **no completa todavía** la separación de capas:
+
+- Presentation aún depende de los traits definidos en `market::provider` y del modelo `MarketCandle`.
+- Presentation conserva la política de rango histórico por defecto y la coordinación de carga/realtime.
+- El último punto de `ChartState` todavía se reconstruye como `MarketCandle` para inicializar realtime; esto mantiene el riesgo de perder lifecycle/provenance identificado en la auditoría realtime.
+- La factory realtime es un contrato de inyección transitorio declarado junto a la aplicación desktop, no el puerto definitivo de Application.
+- Solo existe composición Simulation; no se anuncia ni se simula un modo Connected.
+
+La CI debe validar el cambio antes de continuar. No se considera esta extracción una solución al ownership de histórico/realtime ni a la continuidad de serie.
+
 ## Criterios de salida
 
 - Presentation no importa ni construye proveedores concretos.
