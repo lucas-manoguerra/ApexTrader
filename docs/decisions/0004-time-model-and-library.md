@@ -39,11 +39,23 @@ Chrono ofrece `DateTime`, tipos civiles sin zona, offsets, parsing y formatting.
 
 Jiff separa instantes absolutos (`Timestamp`), fechas/horas civiles y valores zonificados. Proporciona aritmética consciente de zonas horarias y DST, resolución explícita de tiempos civiles ambiguos e integración con la base IANA del sistema. En Windows puede incorporar una copia de la base IANA al binario; en Unix suele utilizar la base instalada del sistema.
 
-Jiff prioriza APIs difíciles de usar incorrectamente y rendimiento razonable, no el máximo rendimiento en todos los escenarios. La versión 1.0 es reciente y su ecosistema es menos antiguo que el de Chrono o time; debe considerarse el coste de adopción, compatibilidad y mantenimiento.
+Jiff prioriza APIs difíciles de usar incorrectamente y rendimiento razonable, no el máximo rendimiento en todos los escenarios. La consulta de documentación realizada el 2026-11-26 identifica Jiff 1.0.3. Su versión 1.0 declara compromiso de compatibilidad dentro de 1.x y MSRV Rust 1.85. En Unix normalmente utiliza la base IANA del sistema; en Windows empaqueta una copia de la base IANA en el binario mediante la configuración de plataforma predeterminada. La actualización de esa copia depende de actualizar la dependencia y recompilar.
+
+## Evaluación comparativa actualizada
+
+Consulta documental realizada el 2026-11-26. Las versiones indicadas son referencias del momento de evaluación, no restricciones de Cargo:
+
+| Biblioteca | Referencia consultada | Zonas IANA | Consideraciones relevantes |
+|---|---|---|---|
+| Jiff | 1.0.3 | Integración propia con tzdb; base del sistema en Unix y bundle de plataforma en Windows | API explícita para instantes, fechas civiles y valores zonificados; MSRV 1.85 declarado para 1.0; dual MIT/UNLICENSE; bundle Windows requiere actualizar dependencia para recibir nuevas reglas IANA |
+| time | 0.3.55 | No incluye por sí sola una base IANA; `time-tz` es una integración externa | API modular y compatible con `std`; MSRV evoluciona con las versiones estables recientes; dual MIT/Apache-2.0 |
+| Chrono | 0.4.45 | No incluye tzdb por defecto; `chrono-tz` aporta zonas IANA | API madura y conocida; tipos para fechas ambiguas/inválidas; dual MIT/Apache-2.0; tzdb y política de actualización quedan asociados a la integración elegida |
+
+La evaluación documental favorece provisionalmente Jiff para el caso de uso de calendario zonificado, pero no demuestra todavía compatibilidad del binario, coste de compilación, tamaño final ni comportamiento operativo de actualización en los tres sistemas. Esos puntos requieren una prueba de integración reproducible. `time` y Chrono permanecen como alternativas, no se descartan por popularidad ni por una comparación superficial de versiones.
 
 ## Decisión propuesta
 
-Adoptar un modelo temporal híbrido y **evaluar Jiff como biblioteca de calendario y zonas horarias**, sin incorporarla todavía como dependencia hasta implementar el primer caso real que la necesite y validar la matriz multiplataforma.
+Adoptar un modelo temporal híbrido y **mantener Jiff como candidata preferida para calendario y zonas horarias**, sin incorporarla todavía como dependencia hasta implementar el primer caso real que la necesite y validar la matriz multiplataforma.
 
 1. Los timestamps de mercado conservan una representación canónica de epoch con unidad explícita. En el estado actual se mantiene `i64` en milisegundos Unix para compatibilidad con proveedores y estructuras del chart.
 2. Las operaciones de orden, comparación, búsqueda, indexación e interpolación de la escala temporal operan sobre enteros y no convierten timestamps a objetos de fecha.
@@ -68,7 +80,8 @@ Adoptar un modelo temporal híbrido y **evaluar Jiff como biblioteca de calendar
 
 ### Costes y riesgos
 
-- Jiff es una dependencia nueva y relativamente reciente; se deben validar MSRV, dependencias transitivas, licencia, seguridad, tamaño del binario y compatibilidad con Windows/macOS/Linux antes de adoptarla.
+- Jiff 1.x declara estabilidad semántica, pero se deben validar MSRV efectivo, dependencias transitivas, licencia, seguridad, tamaño del binario y compatibilidad con Windows/macOS/Linux antes de adoptarla.
+- En Windows, el bundle IANA implica que la actualización de reglas horarias depende del ciclo de actualización y recompilación de la aplicación; en Unix, el uso de tzdb del sistema delega su actualización en el entorno operativo.
 - El bundle de tzdb puede incrementar el tamaño del ejecutable en Windows y requiere actualizar la dependencia para incorporar cambios de la base horaria.
 - Las zonas horarias y calendarios de mercado requieren versionado y trazabilidad; la biblioteca no aporta reglas comerciales de cada venue.
 - El modelo actual en milisegundos puede no representar proveedores con precisión inferior al milisegundo; la unidad y precisión canónica deben revisarse al incorporar proveedores reales.
@@ -96,6 +109,12 @@ Revisar la selección si Jiff no satisface los requisitos de MSRV, tamaño, lice
 ## Referencias
 
 - [Jiff — documentación](https://docs.rs/jiff/latest/jiff/)
+- [Jiff — changelog y compromiso 1.x](https://docs.rs/jiff/latest/jiff/_documentation/changelog/index.html)
+- [Jiff — plataformas y política de tzdb](https://docs.rs/jiff/latest/jiff/_documentation/platform/index.html)
+- [time — documentación y política MSRV](https://docs.rs/time/latest/time/)
+- [time-tz — integración IANA](https://docs.rs/time-tz/latest/time_tz/)
+- [Chrono — documentación](https://docs.rs/chrono/latest/chrono/)
+- [chrono-tz — integración IANA](https://docs.rs/chrono-tz/latest/chrono_tz/)
 - [Jiff — soporte de plataformas y zonas horarias](https://docs.rs/jiff/latest/jiff/_documentation/platform/index.html)
 - [Jiff — comparación con otras bibliotecas](https://docs.rs/jiff/latest/jiff/_documentation/comparison/index.html)
 - [time — documentación](https://docs.rs/time/latest/time/)
