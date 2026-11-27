@@ -767,7 +767,7 @@ impl ChartRenderer for EguiPainterChartRenderer {
             self.cached_series_layer = RenderLayer::default();
             self.cached_series_shapes.clear();
             self.cached_gpu_vertices = Arc::from([]);
-            self.series_cache_valid = true;
+            self.series_cache_valid = false;
             return Ok(());
         }
 
@@ -1363,6 +1363,10 @@ mod tests {
         output.textures_delta.clear();
 
         assert!(renderer.cached_series_shapes.is_empty());
-        assert!(renderer.series_cache_valid);
+        assert!(!renderer.series_cache_valid);
+        assert!(should_rebuild_series(
+            renderer.series_cache_valid,
+            InvalidationReason::CursorOnly
+        ));
     }
 }
