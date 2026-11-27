@@ -22,6 +22,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tracing;
 
+const DEFAULT_INTERVAL_MS: i64 = 60_000;
+const DEFAULT_HISTORY_CANDLES: i64 = 200;
 const REALTIME_POLL_INTERVAL: Duration = Duration::from_millis(250);
 
 pub(crate) type RealtimeProviderFactory = Arc<
@@ -188,8 +190,8 @@ impl eframe::App for ApexTraderApp {
                     match Symbol::from_str(&self.symbol_input) {
                         Ok(symbol) => {
                             self.price_tick_size = price_tick_size_for_symbol(&symbol);
-                            let to_ms = latest_closed_candle_open_time(60_000);
-                            let from_ms = to_ms.saturating_sub(199 * 60_000);
+                            let to_ms = latest_closed_candle_open_time(DEFAULT_INTERVAL_MS);
+                            let from_ms = to_ms.saturating_sub((DEFAULT_HISTORY_CANDLES - 1) * DEFAULT_INTERVAL_MS);
                             self.load_state = load_symbol_into_chart(
                                 &mut self.chart,
                                 self.market_data_provider.as_ref(),
@@ -200,6 +202,7 @@ impl eframe::App for ApexTraderApp {
                             self.realtime_provider = create_realtime_provider(
                                 &self.chart,
                                 symbol,
+                                &self.realtime_provider_factory,
                             );
                             self.next_realtime_tick = Instant::now() + REALTIME_POLL_INTERVAL;
                             self.fit_content_pending = true;
@@ -574,7 +577,7 @@ fn create_realtime_provider(
         .open_time_ms()
         .checked_add(last_point.time_point.interval_ms())?;
     let last_candle = MarketCandle {
-        symbol: symbol.clone(),
+        symbol,
         open_time_ms: last_point.time_point.open_time_ms(),
         open: last_point.open(),
         high: last_point.high(),
@@ -583,11 +586,10 @@ fn create_realtime_provider(
         volume: last_point.volume(),
         close_time_ms,
     };
-    last_candle.symbol = symbol;
     match factory(last_candle) {
-        Ok(provider) => Some(Box::new(provider)),
+        Ok(provider) => Some(provider),
         Err(error) => {
-            tracing::warn!("No se pudo iniciar el mock realtime: {error}");
+            tracing::warn!("No se pudo iniciar el proveedor realtime: {error}");
             None
         }
     }
