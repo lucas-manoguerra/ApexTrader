@@ -565,10 +565,10 @@ fn create_realtime_provider(
     let close_time_ms = last_point
         .time_point
         .open_time_ms
-        .checked_add(last_point.time_point.interval_ms)?;
+        .checked_add(last_point.time_point.interval_ms())?;
     let last_candle = MarketCandle {
         symbol: symbol.clone(),
-        open_time_ms: last_point.time_point.open_time_ms,
+        open_time_ms: last_point.time_point.open_time_ms(),
         open: last_point.open(),
         high: last_point.high(),
         low: last_point.low(),
@@ -577,7 +577,7 @@ fn create_realtime_provider(
         close_time_ms,
     };
     let seed_provider = MockMarketDataProvider::new(last_point.close())
-        .with_interval_ms(last_point.time_point.interval_ms)
+        .with_interval_ms(last_point.time_point.interval_ms())
         .with_base_volume(base_volume);
     match MockRealtimeMarketDataProvider::from_last_candle(
         last_candle,
