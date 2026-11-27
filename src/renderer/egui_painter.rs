@@ -122,7 +122,9 @@ fn decimal_places_for_increment(increment: f64) -> usize {
     for decimals in 0_i32..=12 {
         let scale = 10.0_f64.powi(decimals);
         let scaled = increment * scale;
-        if scaled.is_finite() && (scaled - scaled.round()).abs() <= f64::EPSILON * scaled.abs().max(1.0) * 8.0 {
+        if scaled.is_finite()
+            && (scaled - scaled.round()).abs() <= f64::EPSILON * scaled.abs().max(1.0) * 8.0
+        {
             return decimals as usize;
         }
     }
