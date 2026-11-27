@@ -101,7 +101,7 @@ impl ChartGpuCallback {
         }
 
         let mut vertices = Vec::with_capacity(geometry.vertices.len());
-        for triangle in geometry.vertices.chunks_exact(3) {
+        for triangle in geometry.vertices.as_chunks::<3>().0 {
             let converted = triangle
                 .iter()
                 .map(|vertex| {
@@ -262,12 +262,16 @@ mod tests {
                     position: [100.0, 50.0],
                     color: RenderColor::rgba(4, 5, 6, 255),
                 },
+                RenderVertex {
+                    position: [50.0, 25.0],
+                    color: RenderColor::rgba(7, 8, 9, 255),
+                },
             ],
         };
 
         let vertices = ChartGpuCallback::vertices_from_geometry(&geometry, [100.0, 50.0]);
 
-        assert_eq!(vertices.len(), 2);
+        assert_eq!(vertices.len(), 3);
         assert_eq!(vertices[0].position, [-1.0, 1.0]);
         assert_eq!(vertices[1].position, [1.0, -1.0]);
         assert_eq!(vertices[0].color, [1, 2, 3, 255]);
@@ -339,12 +343,15 @@ mod tests {
                     position: [10.0, 10.0],
                     color: RenderColor::RED,
                 },
+                RenderVertex {
+                    position: [20.0, 20.0],
+                    color: RenderColor::RED,
+                },
             ],
         };
 
         let vertices = ChartGpuCallback::vertices_from_geometry(&geometry, [100.0, 50.0]);
 
-        assert_eq!(vertices.len(), 1);
-        assert!(vertices[0].position.iter().all(|value| value.is_finite()));
+        assert!(vertices.is_empty());
     }
 }
