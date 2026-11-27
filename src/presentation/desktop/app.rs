@@ -564,7 +564,7 @@ fn create_realtime_provider(
     let last_point = chart.data_points().last()?;
     let close_time_ms = last_point
         .time_point
-        .open_time_ms
+        .open_time_ms()
         .checked_add(last_point.time_point.interval_ms())?;
     let last_candle = MarketCandle {
         symbol: symbol.clone(),
