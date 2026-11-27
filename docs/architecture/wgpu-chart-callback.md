@@ -25,7 +25,7 @@ Use egui_wgpu::Callback::new_paint_callback with CallbackTrait.
 
 The neutral geometry layer emits triangle-list vertices for candle bodies, wicks and volume bars. Vertices use chart-local coordinates; the backend converts them to clip-space using the callback viewport. Geometry is grouped into as few buffers/draw calls as practical.
 
-Persistent vertex buffers grow to the next required capacity and never shrink during ordinary frames. Buffer writes occur only when the immutable geometry snapshot changes. Cursor-only changes do not invalidate series geometry.
+Persistent vertex buffers grow to the next required capacity and never shrink during ordinary frames. Capacity normally grows to the next power of two; if that rounded capacity exceeds the device limit while the exact required size still fits, allocation uses the exact required size. Geometry is rejected only when its actual required size exceeds the device limit. Buffer writes occur only when the immutable geometry snapshot changes. Cursor-only changes do not invalidate series geometry.
 
 ## Resource lifecycle
 
