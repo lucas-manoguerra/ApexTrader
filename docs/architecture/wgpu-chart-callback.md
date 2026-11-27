@@ -17,7 +17,7 @@ Use egui_wgpu::Callback::new_paint_callback with CallbackTrait.
 
 - prepare is the only callback stage that may create/update chart GPU resources.
 - paint only binds the prepared pipeline/buffers and issues draw commands.
-- GPU resources live in eframe's RenderState.renderer.callback_resources type map, not in per-frame callback objects. A stable callback identity selects an independent resource set so multiple chart instances cannot overwrite one another's vertex buffers.
+- GPU resources live in eframe's RenderState.renderer.callback_resources type map, not in per-frame callback objects. A stable callback identity selects an independent resource set so multiple chart instances cannot overwrite one another's vertex buffers. Each renderer owns a lifecycle token; callback resources keep only a weak reference to it, and prepare prunes entries whose renderer has been dropped. This bounds retained callback resources to currently live chart renderers (plus entries awaiting the next callback prepare pass).
 - Callback values own an immutable, bounded geometry snapshot. They do not borrow application/domain state.
 - Callback rectangles use egui logical points. The callback viewport maps clip-space vertices to the logical chart rectangle; egui's scissor limits drawing to the plot and volume panels.
 
@@ -29,7 +29,7 @@ Persistent vertex buffers grow to the next required capacity and never shrink du
 
 ## Resource lifecycle
 
-The callback lazily creates chart pipeline resources during its first prepare call, using the device and target format captured from eframe's wgpu_render_state. Buffers and the last immutable geometry snapshot live in CallbackResources. eframe remains the sole owner of device and surface. If a device/renderer is recreated, its callback resource map is recreated and the next prepare call rebuilds chart resources. The chart backend never creates an Instance, Adapter, Device, Queue, Surface, or native window.
+The callback lazily creates chart pipeline resources during its first prepare call, using the device and target format captured from eframe's wgpu_render_state. If the target texture format changes, the chart pipeline and buffer resource set is recreated for that format. Failed vertex-count or buffer-size validation clears the drawable vertex count so stale geometry cannot be submitted. Buffers and the last immutable geometry snapshot live in CallbackResources. eframe remains the sole owner of device and surface. If a device/renderer is recreated, its callback resource map is recreated and the next prepare call rebuilds chart resources. The chart backend never creates an Instance, Adapter, Device, Queue, Surface, or native window.
 
 ## Validation
 
