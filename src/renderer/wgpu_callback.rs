@@ -27,6 +27,19 @@ fn retain_live_resources<T>(resources: &mut HashMap<u64, T>, owner: impl Fn(&T) 
     resources.retain(|_, resource| owner(resource).upgrade().is_some());
 }
 
+fn buffer_capacity(required_bytes: u64, max_buffer_size: u64) -> Option<u64> {
+    if required_bytes == 0 || required_bytes > max_buffer_size {
+        return None;
+    }
+
+    Some(
+        required_bytes
+            .checked_next_power_of_two()
+            .filter(|capacity| *capacity <= max_buffer_size)
+            .unwrap_or(required_bytes),
+    )
+}
+
 struct ChartGpuResources {
     pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
@@ -213,7 +226,9 @@ impl CallbackTrait for ChartGpuCallback {
             resources.last_vertices = Some(self.vertices.clone());
             return Vec::new();
         };
-        let Some(required_capacity) = required_bytes.checked_next_power_of_two() else {
+        let Some(required_capacity) =
+            buffer_capacity(required_bytes, device.limits().max_buffer_size)
+        else {
             resources.vertex_count = 0;
             resources.last_vertices = Some(self.vertices.clone());
             return Vec::new();
@@ -270,6 +285,21 @@ impl CallbackTrait for ChartGpuCallback {
 mod tests {
     use super::*;
     use crate::renderer::{RenderColor, RenderVertex};
+
+    #[test]
+    fn buffer_capacity_uses_power_of_two_when_within_device_limit() {
+        assert_eq!(buffer_capacity(100, 128), Some(128));
+    }
+
+    #[test]
+    fn buffer_capacity_uses_exact_size_when_growth_exceeds_device_limit() {
+        assert_eq!(buffer_capacity(100, 120), Some(100));
+    }
+
+    #[test]
+    fn buffer_capacity_rejects_sizes_above_device_limit() {
+        assert_eq!(buffer_capacity(121, 120), None);
+    }
 
     #[test]
     fn retired_chart_owners_release_their_gpu_resource_entries() {
