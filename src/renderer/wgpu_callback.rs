@@ -233,12 +233,6 @@ impl CallbackTrait for ChartGpuCallback {
             resources.last_vertices = Some(self.vertices.clone());
             return Vec::new();
         };
-        if required_capacity > device.limits().max_buffer_size {
-            resources.vertex_count = 0;
-            resources.last_vertices = Some(self.vertices.clone());
-            return Vec::new();
-        }
-
         if required_capacity > resources.vertex_capacity {
             resources.vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("apex-trader-chart-vertices"),
