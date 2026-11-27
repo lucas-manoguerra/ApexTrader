@@ -70,6 +70,8 @@ For each logical key:
 
 The current use case rejects duplicates and descending timestamps while iterating provider output. It cannot distinguish harmless retransmission from conflicting data and reports both with one reason. This is a defensive check, not a normalization strategy.
 
+A second, later boundary currently applies a different policy: `ChartState::add_data_points` sorts points and retains the last point for a repeated open timestamp, while `ChartState::add_data_point` replaces an existing point at that timestamp. The current presentation history path first uses `LoadCandles` and then passes its accepted points to `ChartState`, but these chart APIs remain callable by other ingestion paths. They must not become the authority for provider duplicate resolution. The target flow must resolve identity and conflicts before chart projection and provide the chart with an already validated sequence.
+
 ## Pagination and continuity
 
 Pagination belongs to the provider adapter. The adapter must guarantee that concatenating pages for one logical query does not silently omit or duplicate records.
