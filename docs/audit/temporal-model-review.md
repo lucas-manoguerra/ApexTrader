@@ -78,6 +78,26 @@ La decisión de biblioteca sigue abierta según ADR-0004. Jiff es la candidata p
 
 **Dirección:** definir contratos de adaptador por proveedor y normalizar a un intervalo interno explícito. Documentar precisión, epoch, unidad, timestamp de evento y semántica de los límites de consulta. Añadir fixtures de paginación sin solapamiento ni pérdida.
 
+### TM-007 — El tipo temporal de chart admite duración cero aunque la vela de mercado la rechaza
+
+**Severidad:** media; requiere decisión semántica antes de endurecer el constructor.
+
+**Evidencia:** `TimePoint::new` rechaza `close_time_ms < open_time_ms`, por lo que acepta apertura y cierre iguales si `interval_ms` es positivo. En cambio, `MarketCandle::is_valid` y `to_chart_data_point` exigen `close_time_ms - open_time_ms > 0`.
+
+**Riesgo:** la misma estructura de chart puede construirse con una duración temporal que el adaptador de velas de mercado considera inválida. Un consumidor podría asumir que todo `TimePoint` representa una vela con span positivo.
+
+**Dirección:** decidir si `TimePoint` representa exclusivamente el intervalo de una vela o un punto/evento temporal más general. Si representa una vela, exigir span positivo y añadir pruebas de igualdad; si es general, separar los tipos y nombrar las invariantes para que el consumidor no infiera una duración que no existe.
+
+### TM-008 — Los rangos de selección de TimeScale son inclusivos, pero el contrato no lo declara
+
+**Severidad:** media.
+
+**Evidencia:** `TimeScale::indices_in_time_range` selecciona timestamps con `time >= start_time_ms` y `time <= end_time_ms`; las pruebas confirman que un rango `[t, t]` incluye el timestamp `t`. Por separado, `MarketDataProvider::fetch_candles` acepta `from_ms` y `to_ms` sin declarar la inclusión de los extremos.
+
+**Riesgo:** los consumidores pueden asumir que el rango de consulta del proveedor comparte la semántica inclusiva de la selección local. Al paginar o unir backfills, esa suposición puede duplicar o perder eventos.
+
+**Dirección:** documentar cada contrato por separado. Mantener la semántica inclusiva de selección de `TimeScale` mientras sus consumidores la requieran; no trasladarla automáticamente a la API del proveedor. La normalización debe ocurrir en el adaptador de cada fuente con fixtures de frontera.
+
 ## Responsabilidades temporales propuestas
 
 | Responsabilidad | Tipo de solución |
