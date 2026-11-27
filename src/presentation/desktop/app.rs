@@ -43,6 +43,7 @@ pub(crate) struct ApexTraderApp {
     input_handler: InputHandler,
     load_state: LoadState,
     symbol_input: String,
+    active_symbol: Symbol,
     price_tick_size: f64,
     prev_viewport: Option<Viewport>,
     prev_crosshair_pos: Option<ScreenPoint>,
@@ -231,6 +232,7 @@ impl eframe::App for ApexTraderApp {
                 if recargar {
                     match Symbol::from_str(&self.symbol_input) {
                         Ok(symbol) => {
+                            self.active_symbol = symbol.clone();
                             self.price_tick_size = price_tick_size_for_symbol(&symbol);
                             let to_ms = latest_closed_candle_open_time(DEFAULT_INTERVAL_MS);
                             let from_ms = to_ms.saturating_sub(
@@ -445,28 +447,32 @@ impl ApexTraderApp {
                 self.next_realtime_tick = now + REALTIME_POLL_INTERVAL;
                 match provider.next_update() {
                     Ok(update) => {
-                        let candle_closed = update.is_closed;
-                        match update.candle.to_chart_data_point() {
-                            Ok(point) => {
-                                let previous_count = self.chart.len();
-                                if let Err(error) = self.chart.add_data_point(point) {
-                                    tracing::error!(
-                                        "No se pudo aplicar la actualización realtime: {error}"
-                                    );
-                                } else {
-                                    self.follow_latest_pending |= self.chart.len() > previous_count;
-                                    if candle_closed {
-                                        tracing::debug!(
-                                            "Mock realtime cerró vela {} en {} ms",
-                                            update.candle.symbol,
-                                            update.candle.open_time_ms
+                        if let Err(error) = update.validate_symbol(&self.active_symbol) {
+                            tracing::error!("Se descartó una actualización realtime: {error}");
+                        } else {
+                            let candle_closed = update.is_closed;
+                            match update.candle.to_chart_data_point() {
+                                Ok(point) => {
+                                    let previous_count = self.chart.len();
+                                    if let Err(error) = self.chart.add_data_point(point) {
+                                        tracing::error!(
+                                            "No se pudo aplicar la actualización realtime: {error}"
                                         );
+                                    } else {
+                                        self.follow_latest_pending |= self.chart.len() > previous_count;
+                                        if candle_closed {
+                                            tracing::debug!(
+                                                "Mock realtime cerró vela {} en {} ms",
+                                                update.candle.symbol,
+                                                update.candle.open_time_ms
+                                            );
+                                        }
                                     }
                                 }
+                                Err(error) => tracing::error!(
+                                    "El mock realtime generó un punto inválido: {error}"
+                                ),
                             }
-                            Err(error) => tracing::error!(
-                                "El mock realtime generó un punto inválido: {error}"
-                            ),
                         }
                     }
                     Err(error) => tracing::error!("Error en mock realtime: {error}"),
@@ -549,6 +555,7 @@ impl ApexTraderApp {
             from_ms,
             to_ms,
         );
+        let active_symbol = symbol.clone();
         let realtime_provider =
             create_realtime_provider(&chart, symbol, &realtime_provider_factory);
 
@@ -565,6 +572,7 @@ impl ApexTraderApp {
             input_handler: InputHandler::new(),
             load_state,
             symbol_input: "BTC/USDT".to_string(),
+            active_symbol,
             price_tick_size,
             prev_viewport: None,
             prev_crosshair_pos: None,
