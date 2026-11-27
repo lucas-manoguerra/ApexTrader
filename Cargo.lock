@@ -103,12 +103,16 @@ dependencies = [
  "bytemuck_derive",
  "eframe",
  "egui",
+ "pollster",
  "proptest",
+ "raw-window-handle",
  "rust_decimal",
  "thiserror 2.0.21",
  "tracing",
  "tracing-subscriber",
  "wgpu",
+ "wgpu-types",
+ "winit",
 ]
 
 [[package]]
