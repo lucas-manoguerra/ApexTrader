@@ -1,4 +1,4 @@
-use crate::application::commands::load_candles::LoadCandles;
+use crate::application::commands::load_historical_data::LoadHistoricalData;
 use crate::chart::layout::ChartLayout;
 use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::domain::chart_state::ChartState;
@@ -598,7 +598,7 @@ fn load_symbol_into_chart(
     from_ms: i64,
     to_ms: i64,
 ) -> LoadState {
-    match LoadCandles::execute(provider, symbol.clone(), from_ms, to_ms) {
+    match LoadHistoricalData::execute(chart, provider, symbol.clone(), from_ms, to_ms) {
         Ok(result) => {
             if !result.is_clean() {
                 tracing::warn!(
@@ -612,10 +612,6 @@ fn load_symbol_into_chart(
                 }
             }
 
-            chart.clear();
-            if let Err(e) = chart.add_data_points(&result.data_points) {
-                tracing::error!("No se pudieron agregar los datos al chart: {}", e);
-            }
             refresh_price_scale_type_for_data(chart);
             tracing::info!(
                 "ChartState inicializado con {} puntos de datos del mercado ({})",
@@ -636,8 +632,6 @@ fn load_symbol_into_chart(
         }
         Err(e) => {
             tracing::error!("No se pudieron cargar datos de mercado: {e}");
-            chart.clear();
-
             tracing::warn!(
                 "ChartState vaciado: no se publicarán datos sintéticos tras un fallo de carga"
             );
