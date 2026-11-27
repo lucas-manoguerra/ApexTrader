@@ -653,6 +653,7 @@ mod tests {
         assert_eq!(viewport, initial);
     }
 
+    #[test]
     fn vertical_scroll_zooms_time_axis_around_the_pointer() {
         let mut viewport = make_viewport();
         let mut controller = InteractionController::new(1920.0, 1080.0);
