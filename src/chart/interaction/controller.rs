@@ -274,12 +274,18 @@ impl InteractionController {
                 } else {
                     -1.0
                 };
+                let scale_direction = if viewport.price_scale_inverted() {
+                    -1.0
+                } else {
+                    1.0
+                };
                 next.set_offset_x(anchor_offset_x + delta_x / spacing);
                 if !next.price_scale_locked() && delta_y != 0.0 {
                     next.set_price_scale_auto(false);
                     next.set_offset_y(
                         anchor_offset_y
-                            + vertical_direction * delta_y / (self.screen_height * anchor_zoom_y),
+                            + vertical_direction * scale_direction * delta_y
+                                / (self.screen_height * anchor_zoom_y),
                     );
                 }
                 next.clamp_pan_to_candles(candle_count, self.screen_width);

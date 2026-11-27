@@ -230,8 +230,13 @@ fn build_series_layer(scene: &ChartScene<'_>, layout: &ChartLayout) -> RenderLay
         };
         let relative_price =
             scale_value - scene.center_price - scene.viewport.offset_y() * scene.price_range;
-        (layout.plot.top + layout.plot.height() / 2.0 - relative_price * price_pixels_per_unit)
-            as f32
+        let direction = if scene.viewport.price_scale_inverted() {
+            -1.0
+        } else {
+            1.0
+        };
+        (layout.plot.top + layout.plot.height() / 2.0
+            - relative_price * price_pixels_per_unit * direction) as f32
     };
 
     let mut layer = RenderLayer {

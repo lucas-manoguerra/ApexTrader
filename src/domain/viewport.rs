@@ -98,6 +98,7 @@ pub struct Viewport {
     price_scale_top_margin: f64,
     price_scale_bottom_margin: f64,
     price_scale_locked: bool,
+    price_scale_inverted: bool,
 }
 
 impl Viewport {
@@ -119,6 +120,7 @@ impl Viewport {
             price_scale_top_margin: DEFAULT_PRICE_SCALE_MARGIN,
             price_scale_bottom_margin: DEFAULT_PRICE_SCALE_MARGIN,
             price_scale_locked: false,
+            price_scale_inverted: false,
         }
     }
 
@@ -209,7 +211,11 @@ impl Viewport {
         }
 
         let scale_value = transforms::screen_y_to_price(
-            screen_y,
+            if self.price_scale_inverted {
+                screen_height - screen_y
+            } else {
+                screen_y
+            },
             screen_height,
             price_range,
             self.zoom_y,
@@ -271,6 +277,14 @@ impl Viewport {
 
     pub fn set_price_scale_locked(&mut self, locked: bool) {
         self.price_scale_locked = locked;
+    }
+
+    pub fn price_scale_inverted(&self) -> bool {
+        self.price_scale_inverted
+    }
+
+    pub fn set_price_scale_inverted(&mut self, inverted: bool) {
+        self.price_scale_inverted = inverted;
     }
 
     pub fn price_scale_reference(&self) -> (f64, f64) {
@@ -522,8 +536,10 @@ impl Viewport {
 
         self.offset_x += (cursor_from_center_x / transforms::CANDLE_SPACING_BASE)
             * (1.0 / new_zoom_x - 1.0 / self.zoom_x);
-        self.offset_y +=
-            (cursor_from_center_y / screen_height) * (1.0 / new_zoom_y - 1.0 / self.zoom_y);
+        let vertical_direction = if self.price_scale_inverted { -1.0 } else { 1.0 };
+        self.offset_y += vertical_direction
+            * (cursor_from_center_y / screen_height)
+            * (1.0 / new_zoom_y - 1.0 / self.zoom_y);
         self.zoom_x = new_zoom_x;
         self.zoom_y = new_zoom_y;
 
@@ -544,7 +560,8 @@ impl Viewport {
         }
 
         self.offset_x += dx / self.candle_spacing();
-        self.offset_y -= dy / (screen_height * self.zoom_y);
+        let vertical_direction = if self.price_scale_inverted { 1.0 } else { -1.0 };
+        self.offset_y += vertical_direction * dy / (screen_height * self.zoom_y);
 
         tracing::trace!(
             "Pan: offset=({:.2}, {:.2}), zoom=({:.2}, {:.2})",
@@ -633,6 +650,7 @@ impl Viewport {
         self.price_scale_type = PriceScaleType::Linear;
         self.price_scale_percentage_base = None;
         self.price_scale_locked = false;
+        self.price_scale_inverted = false;
         tracing::debug!("Viewport restablecido a valores por defecto");
     }
 
@@ -762,7 +780,8 @@ impl Viewport {
 
         let pixels_per_unit = screen_height / range_value * self.zoom_y;
         let relative_price = price_scale_value - center_scale_value - self.offset_y * range_value;
-        center_y - relative_price * pixels_per_unit
+        let direction = if self.price_scale_inverted { -1.0 } else { 1.0 };
+        center_y - relative_price * pixels_per_unit * direction
     }
 
     pub fn screen_y_to_price(
@@ -800,7 +819,8 @@ impl Viewport {
             return center_price;
         };
         let pixels_per_unit = screen_height / range_value * self.zoom_y;
-        let relative_price = (center_y - screen_y) / pixels_per_unit;
+        let direction = if self.price_scale_inverted { -1.0 } else { 1.0 };
+        let relative_price = (center_y - screen_y) / (pixels_per_unit * direction);
         let scale_value = center_scale_value + self.offset_y * range_value + relative_price;
         let Some(price_value) = self.scale_value_to_price(scale_value) else {
             return center_price;
@@ -1212,5 +1232,48 @@ mod tests {
         assert!(!viewport.fit_content(0, 1_000.0));
         assert!(!viewport.fit_content(10, f64::NAN));
         assert_eq!(viewport, before);
+    }
+}
+
+#[cfg(test)]
+mod price_scale_inversion_tests {
+    use super::*;
+
+    #[test]
+    fn inverted_scale_reverses_screen_price_mapping() {
+        let mut viewport = Viewport::new();
+        assert!(viewport.update_auto_price_scale(90.0, 110.0));
+        let (range, center) = viewport.price_scale_reference();
+
+        let normal_top = viewport
+            .screen_y_to_price_value(0.0, 200.0, range, center)
+            .expect("precio superior válido");
+        let normal_bottom = viewport
+            .screen_y_to_price_value(200.0, 200.0, range, center)
+            .expect("precio inferior válido");
+
+        viewport.set_price_scale_inverted(true);
+
+        let inverted_top = viewport
+            .screen_y_to_price_value(0.0, 200.0, range, center)
+            .expect("precio superior invertido válido");
+        let inverted_bottom = viewport
+            .screen_y_to_price_value(200.0, 200.0, range, center)
+            .expect("precio inferior invertido válido");
+
+        assert!(normal_top > normal_bottom);
+        assert!(inverted_top < inverted_bottom);
+        assert!((normal_top - inverted_bottom).abs() < 1e-10);
+        assert!((normal_bottom - inverted_top).abs() < 1e-10);
+    }
+
+    #[test]
+    fn reset_restores_normal_price_scale_orientation() {
+        let mut viewport = Viewport::new();
+        viewport.set_price_scale_inverted(true);
+
+        viewport.reset();
+
+        assert!(!viewport.price_scale_inverted());
     }
 }

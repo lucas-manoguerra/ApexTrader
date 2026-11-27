@@ -78,6 +78,11 @@ impl eframe::App for ApexTraderApp {
                     self.chart.viewport_mut().set_price_scale_locked(locked);
                 }
 
+                let mut inverted = self.chart.viewport().price_scale_inverted();
+                if ui.checkbox(&mut inverted, "Invertir escala de precios").changed() {
+                    self.chart.viewport_mut().set_price_scale_inverted(inverted);
+                }
+
                 let current_mode = self.chart.viewport().price_scale_mode();
                 let mut selected_mode = current_mode;
                 egui::ComboBox::from_id_salt("price-scale-auto-mode")
