@@ -17,7 +17,7 @@ Use egui_wgpu::Callback::new_paint_callback with CallbackTrait.
 
 - prepare is the only callback stage that may create/update chart GPU resources.
 - paint only binds the prepared pipeline/buffers and issues draw commands.
-- GPU resources live in eframe's RenderState.renderer.callback_resources type map, not in per-frame callback objects.
+- GPU resources live in eframe's RenderState.renderer.callback_resources type map, not in per-frame callback objects. A stable callback identity selects an independent resource set so multiple chart instances cannot overwrite one another's vertex buffers.
 - Callback values own an immutable, bounded geometry snapshot. They do not borrow application/domain state.
 - Callback rectangles use egui logical points. The callback viewport maps clip-space vertices to the logical chart rectangle; egui's scissor limits drawing to the plot and volume panels.
 
@@ -44,7 +44,7 @@ The callback lazily creates chart pipeline resources during its first prepare ca
 - The callback draws candle wicks, bodies and volume bars from the neutral triangle-list geometry.
 - Vertex positions are converted from chart-local logical points to clip-space using the chart rectangle dimensions.
 - The pipeline uses a WGSL vertex/fragment shader and the eframe target format.
-- The vertex buffer is persistent, grows only when the required capacity exceeds its current capacity, and is written only when the immutable geometry snapshot changes.
+- Each chart callback has an independent persistent vertex buffer and pipeline resource set keyed by stable callback identity. Buffers grow only when required capacity exceeds current capacity, and are written only when the immutable geometry snapshot changes.
 - The callback's prepare stage creates resources lazily and uploads changed vertices. The paint stage only binds the pipeline/buffer and issues one draw call.
 - Axes, labels, panel surfaces and crosshair overlays remain egui presentation responsibilities.
 - A Painter series path remains for test/headless construction where no WGPU target format is supplied; this path does not select Glow.
