@@ -253,7 +253,7 @@ impl eframe::App for ApexTraderApp {
                         }
                         Err(e) => {
                             self.realtime_provider = None;
-                            self.load_state = LoadState::Error(format!("Símbolo inválido: {e}"));
+                            self.load_state = reject_invalid_symbol(&mut self.chart, e);
                         }
                     }
                 }
@@ -684,6 +684,11 @@ fn load_symbol_into_chart(
     }
 }
 
+fn reject_invalid_symbol(chart: &mut ChartState, error: MarketError) -> LoadState {
+    chart.clear();
+    LoadState::Error(format!("Símbolo inválido: {error}"))
+}
+
 fn configure_fonts(ctx: &egui::Context) {
     let mut font_defs = egui::FontDefinitions::default();
 
@@ -877,6 +882,24 @@ mod load_failure_tests {
         ) -> Result<Vec<MarketCandle>, MarketError> {
             Err(MarketError::Network("provider unavailable".to_string()))
         }
+    }
+
+    #[test]
+    fn invalid_symbol_clears_the_previous_market_series() {
+        let mut chart = ChartState::new();
+        let candle = crate::domain::candle::Candle::new(100.0, 105.0, 99.0, 103.0, 1_000.0)
+            .expect("vela válida");
+        let time = crate::domain::chart::time_point::TimePoint::new(0, 60_000, 60_000)
+            .expect("intervalo válido");
+        chart
+            .add_data_point(ChartDataPoint::new(candle, time))
+            .expect("punto válido");
+
+        let error = Symbol::from_str("BTCUSDT").expect_err("símbolo inválido");
+        let state = reject_invalid_symbol(&mut chart, error);
+
+        assert!(matches!(state, LoadState::Error(message) if message.starts_with("Símbolo inválido:")));
+        assert!(chart.is_empty());
     }
 
     #[test]
