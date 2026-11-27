@@ -7,13 +7,14 @@ use crate::renderer::{
     build_geometry,
 };
 use eframe::egui;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 static NEXT_CALLBACK_ID: AtomicU64 = AtomicU64::new(1);
 
 pub struct EguiPainterChartRenderer {
     callback_id: u64,
+    resource_owner: Arc<()>,
     cached_series_layer: RenderLayer,
     cached_series_shapes: Vec<egui::Shape>,
     cached_gpu_vertices: Arc<[GpuVertex]>,
@@ -25,6 +26,7 @@ impl EguiPainterChartRenderer {
     pub fn new() -> Self {
         Self {
             callback_id: NEXT_CALLBACK_ID.fetch_add(1, Ordering::Relaxed),
+            resource_owner: Arc::new(()),
             cached_series_layer: RenderLayer::default(),
             cached_series_shapes: Vec::new(),
             cached_gpu_vertices: Arc::from([]),
@@ -854,6 +856,7 @@ impl ChartRenderer for EguiPainterChartRenderer {
                     rect,
                     self.cached_gpu_vertices.clone(),
                     target_format,
+                    Arc::downgrade(&self.resource_owner),
                 ));
             }
         } else {
@@ -1336,6 +1339,7 @@ mod tests {
     fn empty_scene_clears_previously_cached_shapes() {
         let mut renderer = EguiPainterChartRenderer {
             callback_id: 0,
+            resource_owner: Arc::new(()),
             cached_series_layer: RenderLayer::default(),
             cached_series_shapes: vec![egui::Shape::Noop],
             cached_gpu_vertices: Arc::from([]),
