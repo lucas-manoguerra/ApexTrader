@@ -108,6 +108,7 @@ if ($path =~ /\.(?:toml|ps1|py|sh|yml|yaml)\z/) {
     my $number = 0;
     for my $text (split /\n/, $source, -1) {
         $number++;
+        next if $number == 1 && $text =~ /^#!/;
         my $quote = '';
         for (my $i = 0; $i < length $text; $i++) {
             my $character = substr($text, $i, 1);
