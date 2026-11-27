@@ -24,7 +24,10 @@ mod tests {
             .get(&egui::FontFamily::Monospace)
             .expect("familia monoespaciada");
 
-        assert_eq!(proportional.first().map(String::as_str), Some("Ubuntu-Light"));
+        assert_eq!(
+            proportional.first().map(String::as_str),
+            Some("Ubuntu-Light")
+        );
         assert_eq!(monospace.first().map(String::as_str), Some("Hack"));
     }
 }
