@@ -581,6 +581,7 @@ mod realtime_tests {
     use crate::market::candle::MarketCandle;
     use crate::market::symbol::Symbol;
     use std::str::FromStr;
+    use std::sync::atomic::Ordering;
 
     fn update(open_time_ms: i64, is_closed: bool, close: f64) -> RealtimeMarketUpdate {
         RealtimeMarketUpdate {
