@@ -326,6 +326,7 @@ fn sleep_cancellable(duration: Duration, cancellation: &CancellationToken) -> bo
 
 #[derive(Debug)]
 pub struct RealtimeBatch {
+    pub session_id: u64,
     pub updates: Vec<RealtimeMarketUpdate>,
     pub latest_error: Option<MarketError>,
 }
@@ -452,6 +453,7 @@ impl RealtimeMailbox {
         let latest_error = queue.latest_error.take();
         wake.notify_all();
         RealtimeBatch {
+            session_id: 0,
             updates,
             latest_error,
         }
@@ -465,6 +467,7 @@ impl RealtimeMailbox {
     }
 }
 pub struct RealtimeWorker {
+    session_id: u64,
     cancellation: CancellationToken,
     mailbox: RealtimeMailbox,
     thread: Option<JoinHandle<()>>,
@@ -485,6 +488,19 @@ impl RealtimeWorker {
     }
 
     pub fn spawn_with_factory<Initialize>(
+        initialize: Initialize,
+        interval: Duration,
+        capacity: usize,
+    ) -> Self
+    where
+        Initialize:
+            FnMut() -> Result<Box<dyn RealtimeMarketDataProvider>, MarketError> + Send + 'static,
+    {
+        Self::spawn_with_session_factory(0, initialize, interval, capacity)
+    }
+
+    pub fn spawn_with_session_factory<Initialize>(
+        session_id: u64,
         mut initialize: Initialize,
         interval: Duration,
         capacity: usize,
@@ -549,6 +565,7 @@ impl RealtimeWorker {
             .expect("failed to spawn realtime worker");
 
         Self {
+            session_id,
             cancellation,
             mailbox,
             thread: Some(thread),
@@ -556,7 +573,9 @@ impl RealtimeWorker {
     }
 
     pub fn drain(&self) -> RealtimeBatch {
-        self.mailbox.drain()
+        let mut batch = self.mailbox.drain();
+        batch.session_id = self.session_id;
+        batch
     }
 
     fn request_shutdown(&mut self) -> Option<JoinHandle<()>> {
@@ -786,7 +805,8 @@ mod realtime_tests {
         let attempts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let factory_attempts = Arc::clone(&attempts);
         let (ready_tx, ready_rx) = mpsc::channel();
-        let worker = RealtimeWorker::spawn_with_factory(
+        let worker = RealtimeWorker::spawn_with_session_factory(
+            42,
             move || {
                 let attempt = factory_attempts.fetch_add(1, Ordering::SeqCst);
                 if attempt == 0 {
@@ -806,7 +826,16 @@ mod realtime_tests {
             .recv_timeout(Duration::from_secs(1))
             .expect("provider factory should be retried until initialization succeeds");
         assert!(attempts.load(Ordering::SeqCst) >= 2);
-        assert!(worker.drain().updates.len() <= 1);
+        let deadline = std::time::Instant::now() + Duration::from_secs(1);
+        let batch = loop {
+            let batch = worker.drain();
+            if !batch.updates.is_empty() || std::time::Instant::now() >= deadline {
+                break batch;
+            }
+            thread::sleep(Duration::from_millis(1));
+        };
+        assert_eq!(batch.session_id, 42);
+        assert_eq!(batch.updates.len(), 1);
     }
 
     #[test]
