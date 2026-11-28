@@ -7,12 +7,6 @@ struct WorkerState<Request> {
     active: Option<CancellationToken>,
     shutdown: bool,
 }
-
-/// A single-threaded worker that keeps only the newest pending request.
-///
-/// A new request cooperatively cancels the active operation and replaces any
-/// request that has not started yet. Results carry whatever generation/identity
-/// the caller puts in its response and must still be checked by the consumer.
 pub struct LatestRequestWorker<Request, Response> {
     state: Arc<(Mutex<WorkerState<Request>>, Condvar)>,
     results: mpsc::Receiver<Response>,
@@ -92,9 +86,6 @@ where
             thread: Some(thread),
         }
     }
-
-    /// Queue the newest request, replacing a pending request and cancelling
-    /// the active request. The worker thread never shares UI-owned state.
     pub fn request(&self, request: Request) -> bool {
         let (lock, wake) = &*self.state;
         let mut state = lock.lock().expect("market worker mutex poisoned");
@@ -125,9 +116,6 @@ where
     pub fn drain(&self) -> Vec<Response> {
         self.results.try_iter().collect()
     }
-
-    /// Request cooperative shutdown. The JoinHandle is detached so a provider
-    /// that violates the cancellation contract cannot freeze the UI on drop.
     pub fn shutdown(&mut self) {
         let (lock, wake) = &*self.state;
         let mut state = lock.lock().expect("market worker mutex poisoned");
@@ -143,7 +131,15 @@ where
 
 impl<Request, Response> Drop for LatestRequestWorker<Request, Response> {
     fn drop(&mut self) {
-        self.shutdown();
+        let (lock, wake) = &*self.state;
+        let mut state = lock.lock().expect("market worker mutex poisoned");
+        state.shutdown = true;
+        state.pending = None;
+        if let Some(active) = &state.active {
+            active.cancel();
+        }
+        wake.notify_all();
+        self.thread.take();
     }
 }
 
@@ -245,9 +241,6 @@ struct RealtimeQueue {
     latest_error: Option<MarketError>,
     closed: bool,
 }
-
-/// Bounded realtime mailbox. Open-candle updates are coalesced by candle
-/// identity; closed candles are never evicted to make room for newer updates.
 #[derive(Clone)]
 pub struct RealtimeMailbox {
     inner: Arc<(Mutex<RealtimeQueue>, Condvar)>,
@@ -310,7 +303,6 @@ impl RealtimeMailbox {
             if let Some(open_position) = queue.updates.iter().position(|item| !item.is_closed) {
                 queue.updates.remove(open_position);
             } else {
-                // The bounded queue contains only closed candles. Preserve them.
                 return true;
             }
         }
@@ -348,9 +340,6 @@ impl RealtimeMailbox {
         wake.notify_all();
     }
 }
-
-/// Polls a realtime provider away from the UI thread and publishes into a
-/// bounded mailbox. Closed candles apply backpressure; open candles coalesce.
 pub struct RealtimeWorker {
     cancellation: CancellationToken,
     mailbox: RealtimeMailbox,
