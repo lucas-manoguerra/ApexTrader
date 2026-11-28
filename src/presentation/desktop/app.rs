@@ -1,4 +1,4 @@
-use crate::application::commands::load_historical_data::LoadHistoricalData;
+use crate::application::commands::load_candles::{LoadCandles, LoadCandlesResult};
 use crate::chart::layout::ChartLayout;
 use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::domain::chart_state::ChartState;
@@ -9,6 +9,7 @@ use crate::domain::viewport::{PriceScaleMode, PriceScaleType, Viewport};
 use crate::market::candle::MarketCandle;
 use crate::market::errors::MarketError;
 use crate::market::provider::{MarketDataProvider, RealtimeMarketDataProvider};
+use crate::market::workers::LatestRequestWorker;
 use crate::market::symbol::Symbol;
 use crate::presentation::input::egui::{self as input_egui, InputHandler};
 use crate::renderer::{
@@ -34,7 +35,21 @@ pub(crate) type RealtimeProviderFactory = Arc<
 enum LoadState {
     Loaded { count: usize },
 
+    Loading,
     Error(String),
+}
+
+struct HistoricalRequest {
+    generation_id: u64,
+    symbol: Symbol,
+    from_ms: i64,
+    to_ms: i64,
+}
+
+struct HistoricalResponse {
+    generation_id: u64,
+    symbol: Symbol,
+    result: Result<LoadCandlesResult, MarketError>,
 }
 
 pub(crate) struct ApexTraderApp {
@@ -49,7 +64,8 @@ pub(crate) struct ApexTraderApp {
     prev_crosshair_pos: Option<ScreenPoint>,
     prev_data_revision: u64,
     fit_content_pending: bool,
-    market_data_provider: Box<dyn MarketDataProvider>,
+    historical_worker: LatestRequestWorker<HistoricalRequest, HistoricalResponse>,
+    generation_id: u64,
     realtime_provider_factory: RealtimeProviderFactory,
     realtime_provider: Option<Box<dyn RealtimeMarketDataProvider>>,
     follow_latest: bool,
@@ -60,6 +76,7 @@ pub(crate) struct ApexTraderApp {
 
 impl eframe::App for ApexTraderApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.advance_historical();
         self.advance_realtime(ui.ctx());
 
         egui::CentralPanel::default().show(ui, |ui| {
@@ -233,27 +250,25 @@ impl eframe::App for ApexTraderApp {
                     match Symbol::from_str(&self.symbol_input) {
                         Ok(symbol) => {
                             self.active_symbol = symbol.clone();
+                            self.generation_id = self.generation_id.wrapping_add(1);
                             self.price_tick_size = price_tick_size_for_symbol(&symbol);
                             let to_ms = latest_closed_candle_open_time(DEFAULT_INTERVAL_MS);
                             let from_ms = to_ms.saturating_sub(
                                 (DEFAULT_HISTORY_CANDLES - 1) * DEFAULT_INTERVAL_MS,
                             );
-                            self.load_state = load_symbol_into_chart(
-                                &mut self.chart,
-                                self.market_data_provider.as_ref(),
-                                symbol.clone(),
+                            self.chart.clear();
+                            self.load_state = LoadState::Loading;
+                            self.realtime_provider = None;
+                            self.historical_worker.request(HistoricalRequest {
+                                generation_id: self.generation_id,
+                                symbol,
                                 from_ms,
                                 to_ms,
-                            );
-                            self.realtime_provider = create_realtime_provider(
-                                &self.chart,
-                                symbol,
-                                &self.realtime_provider_factory,
-                            );
-                            self.next_realtime_tick = Instant::now() + REALTIME_POLL_INTERVAL;
+                            });
                             self.fit_content_pending = true;
                         }
                         Err(e) => {
+                            self.generation_id = self.generation_id.wrapping_add(1);
                             self.realtime_provider = None;
                             self.load_state = reject_invalid_symbol(&mut self.chart, e);
                         }
@@ -440,6 +455,61 @@ impl eframe::App for ApexTraderApp {
 }
 
 impl ApexTraderApp {
+    fn advance_historical(&mut self) {
+        for response in self.historical_worker.drain() {
+            if response.generation_id != self.generation_id || response.symbol != self.active_symbol {
+                continue;
+            }
+
+            match response.result {
+                Ok(result) => {
+                    if !result.is_clean() {
+                        tracing::warn!(
+                            "Ingestión con {} rechazado(s) de {} punto(s) recibido(s) para {}",
+                            result.rejected.len(),
+                            result.total_received(),
+                            result.symbol
+                        );
+                        for rejection in &result.rejected {
+                            tracing::warn!(
+                                "  índice {} ({} ms): {}",
+                                rejection.index,
+                                rejection.open_time_ms,
+                                rejection.reason
+                            );
+                        }
+                    }
+
+                    self.chart.clear();
+                    match self.chart.add_data_points(&result.data_points) {
+                        Ok(()) => {
+                            refresh_price_scale_type_for_data(&mut self.chart);
+                            self.load_state = LoadState::Loaded { count: self.chart.len() };
+                            self.realtime_provider = create_realtime_provider(
+                                &self.chart,
+                                response.symbol,
+                                &self.realtime_provider_factory,
+                            );
+                            self.next_realtime_tick = Instant::now() + REALTIME_POLL_INTERVAL;
+                            self.fit_content_pending = true;
+                        }
+                        Err(error) => {
+                            self.chart.clear();
+                            self.realtime_provider = None;
+                            self.load_state = LoadState::Error(error.to_string());
+                        }
+                    }
+                }
+                Err(error) => {
+                    self.chart.clear();
+                    self.realtime_provider = None;
+                    self.load_state = LoadState::Error(error.to_string());
+                    tracing::error!("No se pudieron cargar datos de mercado: {error}");
+                }
+            }
+        }
+    }
+
     fn advance_realtime(&mut self, ctx: &egui::Context) {
         let now = Instant::now();
         if let Some(provider) = self.realtime_provider.as_mut() {
@@ -549,16 +619,32 @@ impl ApexTraderApp {
         let to_ms = latest_closed_candle_open_time(DEFAULT_INTERVAL_MS);
         let from_ms = to_ms.saturating_sub((DEFAULT_HISTORY_CANDLES - 1) * DEFAULT_INTERVAL_MS);
 
-        let load_state = load_symbol_into_chart(
-            &mut chart,
-            market_data_provider.as_ref(),
-            symbol.clone(),
+        let market_data_provider: Arc<dyn MarketDataProvider> = Arc::from(market_data_provider);
+        let worker_provider = Arc::clone(&market_data_provider);
+        let historical_worker = LatestRequestWorker::spawn(move |request: HistoricalRequest, cancellation| {
+            let result = LoadCandles::execute_cancellable(
+                worker_provider.as_ref(),
+                request.symbol.clone(),
+                request.from_ms,
+                request.to_ms,
+                &cancellation,
+            );
+            HistoricalResponse {
+                generation_id: request.generation_id,
+                symbol: request.symbol,
+                result,
+            }
+        });
+        let active_symbol = symbol.clone();
+        let generation_id = 1;
+        historical_worker.request(HistoricalRequest {
+            generation_id,
+            symbol,
             from_ms,
             to_ms,
-        );
-        let active_symbol = symbol.clone();
-        let realtime_provider =
-            create_realtime_provider(&chart, symbol, &realtime_provider_factory);
+        });
+        let load_state = LoadState::Loading;
+        let realtime_provider = None;
 
         let renderer = create_renderer(
             cc.wgpu_render_state
@@ -579,7 +665,8 @@ impl ApexTraderApp {
             prev_crosshair_pos: None,
             prev_data_revision: data_revision,
             fit_content_pending: true,
-            market_data_provider,
+            historical_worker,
+            generation_id,
             realtime_provider_factory,
             realtime_provider,
             follow_latest: true,
