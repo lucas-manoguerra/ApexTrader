@@ -359,10 +359,23 @@ pub struct RealtimeWorker {
 
 impl RealtimeWorker {
     pub fn spawn(
-        mut provider: Box<dyn RealtimeMarketDataProvider>,
+        provider: Box<dyn RealtimeMarketDataProvider>,
         interval: Duration,
         capacity: usize,
     ) -> Self {
+        Self::spawn_with_factory(move || Ok(provider), interval, capacity)
+    }
+
+    pub fn spawn_with_factory<Initialize>(
+        initialize: Initialize,
+        interval: Duration,
+        capacity: usize,
+    ) -> Self
+    where
+        Initialize: FnOnce() -> Result<Box<dyn RealtimeMarketDataProvider>, MarketError>
+            + Send
+            + 'static,
+    {
         let cancellation = CancellationToken::new();
         let worker_cancellation = cancellation.clone();
         let mailbox = RealtimeMailbox::new(capacity);
@@ -371,6 +384,14 @@ impl RealtimeWorker {
         let thread = thread::Builder::new()
             .name("apextrader-realtime-worker".to_owned())
             .spawn(move || {
+                let mut provider = match initialize() {
+                    Ok(provider) => provider,
+                    Err(error) => {
+                        worker_mailbox.publish_error(error);
+                        return;
+                    }
+                };
+
                 while !worker_cancellation.is_cancelled() {
                     match provider.next_update_cancellable(&worker_cancellation) {
                         Ok(update) => {
