@@ -886,7 +886,8 @@ mod realtime_tests {
                 } else {
                     Ok(Box::new(WorkingProvider {
                         sent: Some(reconnected_tx.clone()),
-                    }) as Box<dyn RealtimeMarketDataProvider>)
+                    })
+                        as Box<dyn RealtimeMarketDataProvider>)
                 }
             },
             Duration::from_millis(5),
@@ -899,8 +900,12 @@ mod realtime_tests {
         assert!(attempts.load(Ordering::SeqCst) >= 2);
 
         let deadline = std::time::Instant::now() + Duration::from_secs(1);
+        let mut latest_error = None;
         let batch = loop {
             let batch = worker.drain();
+            if batch.latest_error.is_some() {
+                latest_error = batch.latest_error;
+            }
             if !batch.updates.is_empty() || std::time::Instant::now() >= deadline {
                 break batch;
             }
@@ -910,7 +915,7 @@ mod realtime_tests {
         assert_eq!(batch.updates.len(), 1);
         assert_eq!(batch.updates[0].candle.close, 102.0);
         assert_eq!(
-            batch.latest_error,
+            latest_error,
             Some(MarketError::Network("poll connection lost".to_owned()))
         );
     }
