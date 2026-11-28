@@ -72,9 +72,7 @@ where
                             Err(mpsc::TrySendError::Full(response)) => {
                                 let shutting_down = {
                                     let (lock, _) = &*worker_state;
-                                    lock.lock()
-                                        .expect("market worker mutex poisoned")
-                                        .shutdown
+                                    lock.lock().expect("market worker mutex poisoned").shutdown
                                 };
                                 if shutting_down {
                                     return;
