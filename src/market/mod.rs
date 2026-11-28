@@ -5,3 +5,4 @@ pub mod mock;
 pub mod mock_realtime;
 pub mod provider;
 pub mod symbol;
+pub mod workers;

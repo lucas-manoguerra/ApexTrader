@@ -1,4 +1,5 @@
 use crate::domain::chart::chart_data::ChartDataPoint;
+use crate::market::cancellation::CancellationToken;
 use crate::market::errors::MarketError;
 use crate::market::provider::MarketDataProvider;
 use crate::market::symbol::Symbol;
@@ -38,13 +39,24 @@ impl LoadCandles {
         from_ms: i64,
         to_ms: i64,
     ) -> Result<LoadCandlesResult, MarketError> {
+        Self::execute_cancellable(provider, symbol, from_ms, to_ms, &CancellationToken::new())
+    }
+
+    pub fn execute_cancellable(
+        provider: &dyn MarketDataProvider,
+        symbol: Symbol,
+        from_ms: i64,
+        to_ms: i64,
+        cancellation: &CancellationToken,
+    ) -> Result<LoadCandlesResult, MarketError> {
         if from_ms > to_ms {
             return Err(MarketError::InvalidResponse(format!(
                 "rango invertido: from_ms ({from_ms}) > to_ms ({to_ms})"
             )));
         }
 
-        let market_candles = provider.fetch_candles(symbol.clone(), from_ms, to_ms)?;
+        let market_candles =
+            provider.fetch_candles_cancellable(symbol.clone(), from_ms, to_ms, cancellation)?;
 
         let mut data_points = Vec::with_capacity(market_candles.len());
         let mut rejected = Vec::new();
