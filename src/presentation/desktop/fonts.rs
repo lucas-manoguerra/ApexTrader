@@ -10,6 +10,14 @@ mod tests {
 
     const REQUIRED_GLYPHS: &str = "áéíóúñÑ¿¡%+-/0123456789";
 
+    fn configured_context() -> egui::Context {
+        let context = egui::Context::default();
+        configure(&context);
+        // egui initializes its font atlas on the first frame.
+        context.run(Default::default(), |_| {});
+        context
+    }
+
     #[test]
     fn bundled_font_definitions_cover_proportional_and_monospace_families() {
         let definitions = egui::FontDefinitions::default();
@@ -35,8 +43,7 @@ mod tests {
 
     #[test]
     fn configured_context_contains_required_spanish_and_market_glyphs() {
-        let context = egui::Context::default();
-        configure(&context);
+        let context = configured_context();
 
         let proportional = egui::FontId::proportional(14.0);
         let monospace = egui::FontId::monospace(14.0);
@@ -54,10 +61,9 @@ mod tests {
 
     #[test]
     fn configure_installs_the_expected_font_definitions_on_the_context() {
-        let context = egui::Context::default();
-        configure(&context);
-
+        let context = configured_context();
         let expected = egui::FontDefinitions::default();
+
         context.fonts(|fonts| {
             assert_eq!(fonts.definitions(), &expected);
         });
