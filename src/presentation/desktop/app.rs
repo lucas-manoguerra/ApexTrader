@@ -15,7 +15,7 @@ use crate::market::errors::MarketError;
 use crate::market::gap_recovery::{HistoricalGap, detect_gap};
 use crate::market::provider::{MarketDataProvider, RealtimeMarketDataProvider};
 use crate::market::symbol::Symbol;
-use crate::market::workers::{LatestRequestWorker, RealtimeWorker};
+use crate::market::workers::{LatestRequestWorker, RealtimeConnectionState, RealtimeWorker};
 use crate::presentation::input::egui::{self as input_egui, InputHandler};
 use crate::renderer::{
     ChartRenderer, ChartScene, InvalidationMask, InvalidationReason, create_renderer,
@@ -76,6 +76,7 @@ pub(crate) struct ApexTraderApp {
     generation_id: u64,
     realtime_provider_factory: RealtimeProviderFactory,
     realtime_provider: Option<RealtimeWorker>,
+    realtime_connection_state: Option<RealtimeConnectionState>,
     realtime_error: Option<String>,
     follow_latest: bool,
     follow_latest_pending: bool,
@@ -270,6 +271,7 @@ impl eframe::App for ApexTraderApp {
                             self.chart.clear();
                             self.load_state = LoadState::Loading;
                             self.realtime_provider = None;
+                            self.realtime_connection_state = None;
                             self.realtime_error = None;
                             self.pending_gap = None;
                             self.historical_worker.request(HistoricalRequest {
@@ -284,6 +286,7 @@ impl eframe::App for ApexTraderApp {
                             self.generation_id = self.generation_id.wrapping_add(1);
                             self.historical_worker.cancel();
                             self.realtime_provider = None;
+                            self.realtime_connection_state = None;
                             self.realtime_error = None;
                             self.pending_gap = None;
                             self.load_state = reject_invalid_symbol(&mut self.chart, e);
@@ -459,7 +462,9 @@ impl eframe::App for ApexTraderApp {
                 ui.small(format!(
                     "Carga: {:?} | Realtime: {} | Puntos: {}",
                     self.load_state,
-                    if self.realtime_provider.is_some() { "activo" } else { "inactivo" },
+                    self.realtime_connection_state
+                        .map(RealtimeConnectionState::label)
+                        .unwrap_or("inactivo"),
                     points.len()
                 ));
                 if let Some(error) = &self.realtime_error {
@@ -573,6 +578,9 @@ impl ApexTraderApp {
             let batch = provider.drain();
             if !is_current_realtime_session(batch.session_id, self.generation_id) {
                 return;
+            }
+            if let Some(status) = batch.statuses.last().copied() {
+                self.realtime_connection_state = Some(status);
             }
             if let Some(error) = batch.latest_error {
                 self.realtime_error = Some(error.to_string());
@@ -748,6 +756,7 @@ impl ApexTraderApp {
             generation_id,
             realtime_provider_factory,
             realtime_provider,
+            realtime_connection_state: None,
             realtime_error: None,
             follow_latest: true,
             follow_latest_pending: false,

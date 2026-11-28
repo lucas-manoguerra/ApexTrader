@@ -324,17 +324,39 @@ fn sleep_cancellable(duration: Duration, cancellation: &CancellationToken) -> bo
     false
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RealtimeConnectionState {
+    Connecting,
+    Connected,
+    Reconnecting,
+    Disconnected,
+}
+
+impl RealtimeConnectionState {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Connecting => "conectando",
+            Self::Connected => "conectado",
+            Self::Reconnecting => "reconectando",
+            Self::Disconnected => "desconectado",
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct RealtimeBatch {
     pub session_id: u64,
     pub updates: Vec<RealtimeMarketUpdate>,
     pub latest_error: Option<MarketError>,
+    pub statuses: Vec<RealtimeConnectionState>,
 }
 
 struct RealtimeQueue {
     updates: VecDeque<RealtimeMarketUpdate>,
     closed_keys: VecDeque<(crate::market::symbol::Symbol, i64)>,
     latest_error: Option<MarketError>,
+    statuses: VecDeque<RealtimeConnectionState>,
+    connection_state: Option<RealtimeConnectionState>,
     closed: bool,
 }
 #[derive(Clone)]
@@ -352,6 +374,8 @@ impl RealtimeMailbox {
                     updates: VecDeque::new(),
                     closed_keys: VecDeque::new(),
                     latest_error: None,
+                    statuses: VecDeque::new(),
+                    connection_state: None,
                     closed: false,
                 }),
                 Condvar::new(),
@@ -446,16 +470,30 @@ impl RealtimeMailbox {
         }
     }
 
+    fn publish_status(&self, status: RealtimeConnectionState) {
+        let (lock, wake) = &*self.inner;
+        let mut queue = lock.lock().expect("realtime mailbox mutex poisoned");
+        if (!queue.closed || status == RealtimeConnectionState::Disconnected)
+            && queue.connection_state != Some(status)
+        {
+            queue.connection_state = Some(status);
+            queue.statuses.push_back(status);
+            wake.notify_all();
+        }
+    }
+
     pub fn drain(&self) -> RealtimeBatch {
         let (lock, wake) = &*self.inner;
         let mut queue = lock.lock().expect("realtime mailbox mutex poisoned");
         let updates = queue.updates.drain(..).collect();
         let latest_error = queue.latest_error.take();
+        let statuses = queue.statuses.drain(..).collect();
         wake.notify_all();
         RealtimeBatch {
             session_id: 0,
             updates,
             latest_error,
+            statuses,
         }
     }
 
@@ -519,14 +557,22 @@ impl RealtimeWorker {
             .spawn(move || {
                 let mut consecutive_errors = 0_u32;
                 let mut provider = None;
+                let mut has_connected = false;
 
                 while !worker_cancellation.is_cancelled() {
                     if provider.is_none() {
+                        worker_mailbox.publish_status(if has_connected {
+                            RealtimeConnectionState::Reconnecting
+                        } else {
+                            RealtimeConnectionState::Connecting
+                        });
                         match initialize() {
                             Ok(initialized) => provider = Some(initialized),
                             Err(MarketError::Cancelled) => break,
                             Err(error) => {
                                 worker_mailbox.publish_error(error);
+                                worker_mailbox
+                                    .publish_status(RealtimeConnectionState::Reconnecting);
                                 consecutive_errors = consecutive_errors.saturating_add(1);
                                 if !sleep_cancellable(
                                     retry_delay(interval, consecutive_errors),
@@ -546,6 +592,8 @@ impl RealtimeWorker {
                     match result {
                         Ok(update) => {
                             consecutive_errors = 0;
+                            has_connected = true;
+                            worker_mailbox.publish_status(RealtimeConnectionState::Connected);
                             if !worker_mailbox.publish(update, &worker_cancellation)
                                 || !sleep_cancellable(interval, &worker_cancellation)
                             {
@@ -555,6 +603,7 @@ impl RealtimeWorker {
                         Err(MarketError::Cancelled) => break,
                         Err(error) => {
                             worker_mailbox.publish_error(error);
+                            worker_mailbox.publish_status(RealtimeConnectionState::Reconnecting);
                             provider = None;
                             consecutive_errors = consecutive_errors.saturating_add(1);
                             if !sleep_cancellable(
@@ -566,6 +615,7 @@ impl RealtimeWorker {
                         }
                     }
                 }
+                worker_mailbox.publish_status(RealtimeConnectionState::Disconnected);
             })
             .expect("failed to spawn realtime worker");
 
@@ -958,6 +1008,79 @@ mod realtime_tests {
         let batch = mailbox.drain();
         assert_eq!(batch.updates.len(), 1);
         assert_eq!(batch.updates[0].candle.close, 199.0);
+    }
+
+ 
+    #[test]
+    fn realtime_worker_publishes_connection_lifecycle_transitions() {
+        struct WorkingProvider;
+
+        impl RealtimeMarketDataProvider for WorkingProvider {
+            fn name(&self) -> &str {
+                "lifecycle-test-provider"
+            }
+
+            fn next_update(&mut self) -> Result<RealtimeMarketUpdate, MarketError> {
+                Ok(update(0, false, 101.0))
+            }
+        }
+
+        let attempts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let factory_attempts = Arc::clone(&attempts);
+        let mut worker = RealtimeWorker::spawn_with_session_factory(
+            91,
+            move || {
+                if factory_attempts.fetch_add(1, Ordering::SeqCst) == 0 {
+                    Err(MarketError::Network("initial connection failed".into()))
+                } else {
+                    Ok(Box::new(WorkingProvider) as Box<dyn RealtimeMarketDataProvider>)
+                }
+            },
+            Duration::from_millis(5),
+            4,
+        );
+
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        let mut observed = Vec::new();
+        while std::time::Instant::now() < deadline
+            && !observed.contains(&RealtimeConnectionState::Connected)
+        {
+            let batch = worker.drain();
+            assert_eq!(batch.session_id, 91);
+            observed.extend(batch.statuses);
+            thread::sleep(Duration::from_millis(1));
+        }
+
+        assert!(observed.contains(&RealtimeConnectionState::Connecting));
+        assert!(observed.contains(&RealtimeConnectionState::Reconnecting));
+        assert!(observed.contains(&RealtimeConnectionState::Connected));
+
+        worker.shutdown();
+        let final_batch = worker.drain();
+        assert_eq!(final_batch.session_id, 91);
+        assert!(
+            final_batch
+                .statuses
+                .contains(&RealtimeConnectionState::Disconnected)
+        );
+    }
+
+    #[test]
+    fn mailbox_preserves_order_of_connection_status_events() {
+        let mailbox = RealtimeMailbox::new(2);
+        mailbox.publish_status(RealtimeConnectionState::Connecting);
+        mailbox.publish_status(RealtimeConnectionState::Reconnecting);
+        mailbox.publish_status(RealtimeConnectionState::Connected);
+
+        let batch = mailbox.drain();
+        assert_eq!(
+            batch.statuses,
+            vec![
+                RealtimeConnectionState::Connecting,
+                RealtimeConnectionState::Reconnecting,
+                RealtimeConnectionState::Connected,
+            ]
+        );
     }
 
     #[test]
