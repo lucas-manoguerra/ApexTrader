@@ -324,7 +324,6 @@ fn sleep_cancellable(duration: Duration, cancellation: &CancellationToken) -> bo
     false
 }
 
-#[derive(Debug)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RealtimeConnectionState {
     Connecting,
@@ -656,6 +655,26 @@ mod realtime_tests {
             },
             is_closed,
         }
+    }
+
+    #[test]
+    fn mailbox_preserves_ordered_connection_state_transitions_without_duplicates() {
+        let mailbox = RealtimeMailbox::new(2);
+        mailbox.publish_state(RealtimeConnectionState::Connecting);
+        mailbox.publish_state(RealtimeConnectionState::Connecting);
+        mailbox.publish_state(RealtimeConnectionState::Connected);
+        mailbox.publish_state(RealtimeConnectionState::Reconnecting);
+        mailbox.publish_state(RealtimeConnectionState::Connected);
+        mailbox.publish_state(RealtimeConnectionState::Disconnected);
+
+        let batch = mailbox.drain();
+        assert_eq!(batch.state_changes, vec![
+            RealtimeConnectionState::Connecting,
+            RealtimeConnectionState::Connected,
+            RealtimeConnectionState::Reconnecting,
+            RealtimeConnectionState::Connected,
+            RealtimeConnectionState::Disconnected,
+        ]);
     }
 
     #[test]
