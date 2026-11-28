@@ -619,7 +619,7 @@ impl ApexTraderApp {
     ) -> Self {
         super::fonts::configure(&cc.egui_ctx);
 
-        let mut chart = ChartState::new();
+        let chart = ChartState::new();
 
         let symbol = Symbol::from_str("BTC/USDT").expect("símbolo válido");
         let price_tick_size = price_tick_size_for_symbol(&symbol);
