@@ -4,7 +4,9 @@ use crate::application::commands::load_historical_data::LoadHistoricalData;
 use crate::chart::layout::ChartLayout;
 use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::domain::chart_state::ChartState;
+#[cfg(test)]
 use crate::domain::price::Price;
+#[cfg(test)]
 use crate::domain::price_range::PriceRange;
 use crate::domain::transforms::ScreenPoint;
 use crate::domain::viewport::{PriceScaleMode, PriceScaleType, Viewport};
@@ -18,7 +20,9 @@ use crate::renderer::{
     ChartRenderer, ChartScene, InvalidationMask, InvalidationReason, create_renderer,
 };
 use eframe::egui;
+#[cfg(test)]
 use rust_decimal::Decimal;
+#[cfg(test)]
 use rust_decimal::prelude::FromPrimitive;
 use std::str::FromStr;
 use std::sync::Arc;
