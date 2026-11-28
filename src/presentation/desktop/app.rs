@@ -1,4 +1,4 @@
-use crate::application::commands::load_candles::LoadCandles;
+use crate::application::commands::load_candles::{LoadCandles, LoadCandlesResult};
 use crate::application::commands::load_historical_data::LoadHistoricalData;
 use crate::chart::layout::ChartLayout;
 use crate::domain::chart::chart_data::ChartDataPoint;
@@ -10,7 +10,7 @@ use crate::domain::viewport::{PriceScaleMode, PriceScaleType, Viewport};
 use crate::market::candle::MarketCandle;
 use crate::market::errors::MarketError;
 use crate::market::provider::{MarketDataProvider, RealtimeMarketDataProvider};
-use crate::market::workers::LatestRequestWorker;
+use crate::market::workers::{LatestRequestWorker, RealtimeWorker};
 use crate::market::symbol::Symbol;
 use crate::presentation::input::egui::{self as input_egui, InputHandler};
 use crate::renderer::{
@@ -68,16 +68,18 @@ pub(crate) struct ApexTraderApp {
     historical_worker: LatestRequestWorker<HistoricalRequest, HistoricalResponse>,
     generation_id: u64,
     realtime_provider_factory: RealtimeProviderFactory,
-    realtime_provider: Option<Box<dyn RealtimeMarketDataProvider>>,
+    realtime_provider: Option<RealtimeWorker>,
     follow_latest: bool,
     follow_latest_pending: bool,
-    next_realtime_tick: Instant,
     prev_rect: Option<egui::Rect>,
 }
 
 impl eframe::App for ApexTraderApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.advance_historical();
+        if matches!(self.load_state, LoadState::Loading) {
+            ui.ctx().request_repaint_after(Duration::from_millis(50));
+        }
         self.advance_realtime(ui.ctx());
 
         egui::CentralPanel::default().show(ui, |ui| {
@@ -490,8 +492,10 @@ impl ApexTraderApp {
                                 &self.chart,
                                 response.symbol,
                                 &self.realtime_provider_factory,
-                            );
-                            self.next_realtime_tick = Instant::now() + REALTIME_POLL_INTERVAL;
+                            )
+                            .map(|provider| {
+                                RealtimeWorker::spawn(provider, REALTIME_POLL_INTERVAL, 64)
+                            });
                             self.fit_content_pending = true;
                         }
                         Err(error) => {
@@ -513,48 +517,37 @@ impl ApexTraderApp {
 
     fn advance_realtime(&mut self, ctx: &egui::Context) {
         let now = Instant::now();
-        if let Some(provider) = self.realtime_provider.as_mut() {
-            if now >= self.next_realtime_tick {
-                self.next_realtime_tick = now + REALTIME_POLL_INTERVAL;
-                match provider.next_update() {
-                    Ok(update) => {
-                        if let Err(error) = update.validate_symbol(&self.active_symbol) {
-                            tracing::error!("Se descartó una actualización realtime: {error}");
+        if let Some(provider) = self.realtime_provider.as_ref() {
+            let batch = provider.drain();
+            if let Some(error) = batch.latest_error {
+                tracing::error!("Error en proveedor realtime: {error}");
+            }
+            for update in batch.updates {
+                if let Err(error) = update.validate_symbol(&self.active_symbol) {
+                    tracing::error!("Se descartó una actualización realtime: {error}");
+                    continue;
+                }
+                let candle_closed = update.is_closed;
+                match update.candle.to_chart_data_point() {
+                    Ok(point) => {
+                        let previous_count = self.chart.len();
+                        if let Err(error) = self.chart.add_data_point(point) {
+                            tracing::error!("No se pudo aplicar la actualización realtime: {error}");
                         } else {
-                            let candle_closed = update.is_closed;
-                            match update.candle.to_chart_data_point() {
-                                Ok(point) => {
-                                    let previous_count = self.chart.len();
-                                    if let Err(error) = self.chart.add_data_point(point) {
-                                        tracing::error!(
-                                            "No se pudo aplicar la actualización realtime: {error}"
-                                        );
-                                    } else {
-                                        self.follow_latest_pending |=
-                                            self.chart.len() > previous_count;
-                                        if candle_closed {
-                                            tracing::debug!(
-                                                "Mock realtime cerró vela {} en {} ms",
-                                                update.candle.symbol,
-                                                update.candle.open_time_ms
-                                            );
-                                        }
-                                    }
-                                }
-                                Err(error) => tracing::error!(
-                                    "El mock realtime generó un punto inválido: {error}"
-                                ),
+                            self.follow_latest_pending |= self.chart.len() > previous_count;
+                            if candle_closed {
+                                tracing::debug!(
+                                    "Realtime cerró vela {} en {} ms",
+                                    update.candle.symbol,
+                                    update.candle.open_time_ms
+                                );
                             }
                         }
                     }
-                    Err(error) => tracing::error!("Error en mock realtime: {error}"),
+                    Err(error) => tracing::error!("Actualización realtime inválida: {error}"),
                 }
             }
-
-            ctx.request_repaint_after(
-                self.next_realtime_tick
-                    .saturating_duration_since(Instant::now()),
-            );
+            ctx.request_repaint_after(REALTIME_POLL_INTERVAL);
         }
     }
 
@@ -645,7 +638,7 @@ impl ApexTraderApp {
             to_ms,
         });
         let load_state = LoadState::Loading;
-        let realtime_provider = None;
+        let realtime_provider: Option<RealtimeWorker> = None;
 
         let renderer = create_renderer(
             cc.wgpu_render_state
@@ -672,7 +665,6 @@ impl ApexTraderApp {
             realtime_provider,
             follow_latest: true,
             follow_latest_pending: false,
-            next_realtime_tick: Instant::now() + REALTIME_POLL_INTERVAL,
             prev_rect: None,
         }
     }
