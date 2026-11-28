@@ -21,7 +21,7 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing;
 
 const DEFAULT_INTERVAL_MS: i64 = 60_000;
@@ -516,7 +516,6 @@ impl ApexTraderApp {
     }
 
     fn advance_realtime(&mut self, ctx: &egui::Context) {
-        let now = Instant::now();
         if let Some(provider) = self.realtime_provider.as_ref() {
             let batch = provider.drain();
             if let Some(error) = batch.latest_error {
