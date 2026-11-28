@@ -498,14 +498,11 @@ impl ApexTraderApp {
                             self.load_state = LoadState::Loaded {
                                 count: self.chart.len(),
                             };
-                            self.realtime_provider = create_realtime_provider(
+                            self.realtime_provider = create_realtime_worker(
                                 &self.chart,
                                 response.symbol,
                                 &self.realtime_provider_factory,
-                            )
-                            .map(|provider| {
-                                RealtimeWorker::spawn(provider, REALTIME_POLL_INTERVAL, 64)
-                            });
+                            );
                             self.fit_content_pending = true;
                         }
                         Err(error) => {
@@ -713,11 +710,11 @@ fn latest_closed_candle_open_time(interval_ms: i64) -> i64 {
     current_open.saturating_sub(interval_ms)
 }
 
-fn create_realtime_provider(
+fn create_realtime_worker(
     chart: &ChartState,
     symbol: Symbol,
     factory: &RealtimeProviderFactory,
-) -> Option<Box<dyn RealtimeMarketDataProvider>> {
+) -> Option<RealtimeWorker> {
     let last_point = chart.data_points().last()?;
     let close_time_ms = last_point
         .time_point
@@ -733,13 +730,12 @@ fn create_realtime_provider(
         volume: last_point.volume(),
         close_time_ms,
     };
-    match factory(last_candle) {
-        Ok(provider) => Some(provider),
-        Err(error) => {
-            tracing::warn!("No se pudo iniciar el proveedor realtime: {error}");
-            None
-        }
-    }
+    let factory = Arc::clone(factory);
+    Some(RealtimeWorker::spawn_with_factory(
+        move || factory(last_candle),
+        REALTIME_POLL_INTERVAL,
+        64,
+    ))
 }
 fn load_symbol_into_chart(
     chart: &mut ChartState,
