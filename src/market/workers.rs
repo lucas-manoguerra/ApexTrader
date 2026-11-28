@@ -445,7 +445,7 @@ impl RealtimeWorker {
     pub fn shutdown(&mut self) {
         self.cancellation.cancel();
         self.mailbox.close();
-        self.thread.take();
+        drop(self.thread.take());
     }
 }
 
@@ -517,10 +517,8 @@ mod realtime_tests {
         let (done_tx, done_rx) = mpsc::channel();
         let worker = thread::spawn(move || {
             let _ = started_tx.send(());
-            let result = worker_mailbox.publish(
-                update(60_000, true, 102.0),
-                &worker_cancellation,
-            );
+            let result =
+                worker_mailbox.publish(update(60_000, true, 102.0), &worker_cancellation);
             let _ = done_tx.send(result);
         });
 
@@ -531,10 +529,7 @@ mod realtime_tests {
 
         let first_batch = mailbox.drain();
         assert_eq!(first_batch.updates.len(), 1);
-        assert_eq!(
-            done_rx.recv_timeout(Duration::from_secs(1)),
-            Ok(true)
-        );
+        assert_eq!(done_rx.recv_timeout(Duration::from_secs(1)), Ok(true));
         worker.join().expect("publisher thread joined");
 
         let second_batch = mailbox.drain();
