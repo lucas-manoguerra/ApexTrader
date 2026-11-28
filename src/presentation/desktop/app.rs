@@ -1,4 +1,5 @@
-use crate::application::commands::load_candles::{LoadCandles, LoadCandlesResult};
+use crate::application::commands::load_candles::LoadCandles;
+use crate::application::commands::load_historical_data::LoadHistoricalData;
 use crate::chart::layout::ChartLayout;
 use crate::domain::chart::chart_data::ChartDataPoint;
 use crate::domain::chart_state::ChartState;
