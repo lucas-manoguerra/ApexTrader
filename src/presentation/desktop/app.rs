@@ -12,6 +12,7 @@ use crate::domain::transforms::ScreenPoint;
 use crate::domain::viewport::{PriceScaleMode, PriceScaleType, Viewport};
 use crate::market::candle::MarketCandle;
 use crate::market::errors::MarketError;
+use crate::market::gap_recovery::{HistoricalGap, detect_gap};
 use crate::market::provider::{MarketDataProvider, RealtimeMarketDataProvider};
 use crate::market::symbol::Symbol;
 use crate::market::workers::{LatestRequestWorker, RealtimeWorker};
@@ -71,6 +72,8 @@ pub(crate) struct ApexTraderApp {
     prev_data_revision: u64,
     fit_content_pending: bool,
     historical_worker: LatestRequestWorker<HistoricalRequest, HistoricalResponse>,
+    market_data_provider: Arc<dyn MarketDataProvider>,
+    pending_gap: Option<HistoricalGap>,
     generation_id: u64,
     realtime_provider_factory: RealtimeProviderFactory,
     realtime_provider: Option<RealtimeWorker>,
@@ -269,6 +272,7 @@ impl eframe::App for ApexTraderApp {
                             self.load_state = LoadState::Loading;
                             self.realtime_provider = None;
                             self.realtime_error = None;
+                            self.pending_gap = None;
                             self.historical_worker.request(HistoricalRequest {
                                 generation_id: self.generation_id,
                                 symbol,
@@ -282,6 +286,7 @@ impl eframe::App for ApexTraderApp {
                             self.historical_worker.cancel();
                             self.realtime_provider = None;
                             self.realtime_error = None;
+                            self.pending_gap = None;
                             self.load_state = reject_invalid_symbol(&mut self.chart, e);
                         }
                     }
@@ -509,31 +514,48 @@ impl ApexTraderApp {
                         }
                     }
 
-                    self.chart.clear();
-                    match self.chart.add_data_points(&result.data_points) {
+                    let initial_load = self.chart.is_empty();
+                    let add_result = if initial_load {
+                        self.chart.clear();
+                        self.chart.add_data_points(&result.data_points)
+                    } else {
+                        self.chart.add_data_points(&result.data_points)
+                    };
+                    self.pending_gap = None;
+                    match add_result {
                         Ok(()) => {
                             refresh_price_scale_type_for_data(&mut self.chart);
                             self.load_state = LoadState::Loaded {
                                 count: self.chart.len(),
                             };
-                            self.realtime_provider = create_realtime_worker(
-                                &self.chart,
-                                response.symbol,
-                                &self.realtime_provider_factory,
-                            );
-                            self.fit_content_pending = true;
+                            if initial_load {
+                                self.realtime_provider = create_realtime_worker(
+                                    &self.chart,
+                                    response.symbol,
+                                    &self.realtime_provider_factory,
+                                );
+                                self.fit_content_pending = true;
+                            }
                         }
                         Err(error) => {
-                            self.chart.clear();
-                            self.realtime_provider = None;
-                            self.load_state = LoadState::Error(error.to_string());
+                            if initial_load {
+                                self.chart.clear();
+                                self.realtime_provider = None;
+                                self.load_state = LoadState::Error(error.to_string());
+                            } else {
+                                self.realtime_error = Some(format!("No se pudo reconciliar histórico: {error}"));
+                            }
                         }
                     }
                 }
                 Err(error) => {
-                    self.chart.clear();
-                    self.realtime_provider = None;
-                    self.load_state = LoadState::Error(error.to_string());
+                    self.pending_gap = None;
+                    if self.chart.is_empty() {
+                        self.realtime_provider = None;
+                        self.load_state = LoadState::Error(error.to_string());
+                    } else {
+                        self.realtime_error = Some(format!("Falló la recuperación histórica: {error}"));
+                    }
                     tracing::error!("No se pudieron cargar datos de mercado: {error}");
                 }
             }
@@ -554,6 +576,29 @@ impl ApexTraderApp {
                 if let Err(error) = update.validate_symbol(&self.active_symbol) {
                     tracing::error!("Se descartó una actualización realtime: {error}");
                     continue;
+                }
+                if self.pending_gap.is_none()
+                    && let Some(last_point) = self.chart.data_points().last()
+                    && let Some(gap) = detect_gap(
+                        last_point.time_point.open_time_ms(),
+                        update.candle.open_time_ms,
+                        DEFAULT_INTERVAL_MS,
+                    )
+                {
+                    if self.historical_worker.request(HistoricalRequest {
+                        generation_id: self.generation_id,
+                        symbol: self.active_symbol.clone(),
+                        from_ms: gap.from_ms,
+                        to_ms: gap.to_ms,
+                    }) {
+                        tracing::warn!(
+                            "Detectado gap histórico para {}: {}..={} ms",
+                            self.active_symbol,
+                            gap.from_ms,
+                            gap.to_ms
+                        );
+                        self.pending_gap = Some(gap);
+                    }
                 }
                 let candle_closed = update.is_closed;
                 match update.candle.to_chart_data_point() {
@@ -691,6 +736,8 @@ impl ApexTraderApp {
             prev_data_revision: data_revision,
             fit_content_pending: true,
             historical_worker,
+            market_data_provider,
+            pending_gap: None,
             generation_id,
             realtime_provider_factory,
             realtime_provider,
