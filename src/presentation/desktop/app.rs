@@ -15,9 +15,7 @@ use crate::market::errors::MarketError;
 use crate::market::gap_recovery::{HistoricalGap, detect_gap};
 use crate::market::provider::{MarketDataProvider, RealtimeMarketDataProvider};
 use crate::market::symbol::Symbol;
-use crate::market::workers::{
-    LatestRequestWorker, RealtimeConnectionState, RealtimeWorker,
-};
+use crate::market::workers::{LatestRequestWorker, RealtimeConnectionState, RealtimeWorker};
 use crate::presentation::input::egui::{self as input_egui, InputHandler};
 use crate::renderer::{
     ChartRenderer, ChartScene, InvalidationMask, InvalidationReason, create_renderer,
