@@ -1,17 +1,10 @@
-//! Deterministic planning for historical candle-gap recovery.
 
-/// Inclusive range of candle open timestamps that are missing between two
-/// observed candles.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HistoricalGap {
     pub from_ms: i64,
     pub to_ms: i64,
 }
 
-/// Finds the missing candle-open range between two observations.
-///
-/// Returns no range when observations are contiguous, overlap, are out of
-/// order, or cannot form a valid inclusive range. The interval must be positive.
 pub fn detect_gap(
     previous_open_ms: i64,
     next_open_ms: i64,
