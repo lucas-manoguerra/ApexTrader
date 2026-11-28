@@ -805,7 +805,8 @@ mod realtime_tests {
         let attempts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let factory_attempts = Arc::clone(&attempts);
         let (ready_tx, ready_rx) = mpsc::channel();
-        let worker = RealtimeWorker::spawn_with_factory(
+        let worker = RealtimeWorker::spawn_with_session_factory(
+            42,
             move || {
                 let attempt = factory_attempts.fetch_add(1, Ordering::SeqCst);
                 if attempt == 0 {
@@ -825,7 +826,16 @@ mod realtime_tests {
             .recv_timeout(Duration::from_secs(1))
             .expect("provider factory should be retried until initialization succeeds");
         assert!(attempts.load(Ordering::SeqCst) >= 2);
-        assert!(worker.drain().updates.len() <= 1);
+        let deadline = std::time::Instant::now() + Duration::from_secs(1);
+        let batch = loop {
+            let batch = worker.drain();
+            if !batch.updates.is_empty() || std::time::Instant::now() >= deadline {
+                break batch;
+            }
+            thread::sleep(Duration::from_millis(1));
+        };
+        assert_eq!(batch.session_id, 42);
+        assert_eq!(batch.updates.len(), 1);
     }
 
     #[test]
