@@ -480,13 +480,13 @@ impl RealtimeWorker {
     }
 
     pub fn spawn_with_factory<Initialize>(
-        initialize: Initialize,
+        mut initialize: Initialize,
         interval: Duration,
         capacity: usize,
     ) -> Self
     where
         Initialize:
-            FnOnce() -> Result<Box<dyn RealtimeMarketDataProvider>, MarketError> + Send + 'static,
+            FnMut() -> Result<Box<dyn RealtimeMarketDataProvider>, MarketError> + Send + 'static,
     {
         let cancellation = CancellationToken::new();
         let worker_cancellation = cancellation.clone();
@@ -496,15 +496,29 @@ impl RealtimeWorker {
         let thread = thread::Builder::new()
             .name("apextrader-realtime-worker".to_owned())
             .spawn(move || {
-                let mut provider = match initialize() {
-                    Ok(provider) => provider,
-                    Err(error) => {
-                        worker_mailbox.publish_error(error);
+                let mut consecutive_errors = 0_u32;
+                let mut provider = loop {
+                    if worker_cancellation.is_cancelled() {
                         return;
+                    }
+                    match initialize() {
+                        Ok(provider) => {
+                            consecutive_errors = 0;
+                            break provider;
+                        }
+                        Err(error) => {
+                            worker_mailbox.publish_error(error);
+                            consecutive_errors = consecutive_errors.saturating_add(1);
+                            if !sleep_cancellable(
+                                retry_delay(interval, consecutive_errors),
+                                &worker_cancellation,
+                            ) {
+                                return;
+                            }
+                        }
                     }
                 };
 
-                let mut consecutive_errors = 0_u32;
                 while !worker_cancellation.is_cancelled() {
                     let delay = match provider.next_update_cancellable(&worker_cancellation) {
                         Ok(update) => {
@@ -742,6 +756,49 @@ mod realtime_tests {
         finished_rx
             .recv_timeout(Duration::from_secs(1))
             .expect("provider operation eventually finishes");
+    }
+
+    #[test]
+    fn provider_factory_retries_after_initialization_failure() {
+        struct OneShotProvider {
+            sent: Option<mpsc::Sender<()>>,
+        }
+
+        impl RealtimeMarketDataProvider for OneShotProvider {
+            fn name(&self) -> &str {
+                "one-shot-test-provider"
+            }
+
+            fn next_update(&mut self) -> Result<RealtimeMarketUpdate, MarketError> {
+                if let Some(sent) = self.sent.take() {
+                    let _ = sent.send(());
+                }
+                Ok(update(0, false, 101.0))
+            }
+        }
+
+        let attempts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let factory_attempts = Arc::clone(&attempts);
+        let (ready_tx, ready_rx) = mpsc::channel();
+        let worker = RealtimeWorker::spawn_with_factory(
+            move || {
+                let attempt = factory_attempts.fetch_add(1, Ordering::SeqCst);
+                if attempt == 0 {
+                    return Err(MarketError::Network("temporary initialization failure".into()));
+                }
+                Ok(Box::new(OneShotProvider {
+                    sent: Some(ready_tx.clone()),
+                }) as Box<dyn RealtimeMarketDataProvider>)
+            },
+            Duration::from_millis(5),
+            2,
+        );
+
+        ready_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("provider factory should be retried until initialization succeeds");
+        assert!(attempts.load(Ordering::SeqCst) >= 2);
+        assert!(worker.drain().updates.len() <= 1);
     }
 
     #[test]
