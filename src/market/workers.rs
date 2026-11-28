@@ -308,7 +308,8 @@ const CANCELLATION_SLEEP_SLICE: Duration = Duration::from_millis(20);
 fn retry_delay(base: Duration, consecutive_errors: u32) -> Duration {
     let exponent = consecutive_errors.saturating_sub(1).min(16);
     let multiplier = 1_u32 << exponent;
-    base.saturating_mul(multiplier).min(MAX_REALTIME_RETRY_DELAY)
+    base.saturating_mul(multiplier)
+        .min(MAX_REALTIME_RETRY_DELAY)
 }
 
 fn sleep_cancellable(duration: Duration, cancellation: &CancellationToken) -> bool {
@@ -598,7 +599,10 @@ mod realtime_tests {
         let base = Duration::from_millis(250);
         let failures_before_success = 5;
         let failures_after_success = 0;
-        assert_eq!(retry_delay(base, failures_before_success), Duration::from_secs(4));
+        assert_eq!(
+            retry_delay(base, failures_before_success),
+            Duration::from_secs(4)
+        );
         assert_eq!(retry_delay(base, failures_after_success + 1), base);
     }
 
