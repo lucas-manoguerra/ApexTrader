@@ -131,6 +131,9 @@ where
     pub fn drain(&self) -> Vec<Response> {
         self.results.try_iter().collect()
     }
+}
+
+impl<Request, Response> LatestRequestWorker<Request, Response> {
     fn request_shutdown(&mut self) -> Option<JoinHandle<()>> {
         let (lock, wake) = &*self.state;
         let mut state = lock.lock().expect("market worker mutex poisoned");
