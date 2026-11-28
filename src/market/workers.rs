@@ -55,26 +55,29 @@ where
 
                     let (request, cancellation) = request;
                     let response = execute(request, cancellation.clone());
-                    let mut pending_response = Some(response);
-                    while let Some(response) = pending_response.take() {
-                        if cancellation.is_cancelled() {
-                            break;
+                    let publish_response = {
+                        let (lock, _) = &*worker_state;
+                        let mut state = lock.lock().expect("market worker mutex poisoned");
+                        let publish_response = !state.shutdown && !cancellation.is_cancelled();
+                        state.active = None;
+                        if state.shutdown {
+                            return;
                         }
-                        match result_tx.try_send(response) {
-                            Ok(()) => break,
-                            Err(mpsc::TrySendError::Full(response)) => {
-                                pending_response = Some(response);
-                                thread::sleep(Duration::from_millis(5));
-                            }
-                            Err(mpsc::TrySendError::Disconnected(_)) => return,
-                        }
-                    }
+                        publish_response
+                    };
 
-                    let (lock, _) = &*worker_state;
-                    let mut state = lock.lock().expect("market worker mutex poisoned");
-                    state.active = None;
-                    if state.shutdown {
-                        return;
+                    if publish_response {
+                        let mut pending_response = Some(response);
+                        while let Some(response) = pending_response.take() {
+                            match result_tx.try_send(response) {
+                                Ok(()) => break,
+                                Err(mpsc::TrySendError::Full(response)) => {
+                                    pending_response = Some(response);
+                                    thread::sleep(Duration::from_millis(5));
+                                }
+                                Err(mpsc::TrySendError::Disconnected(_)) => return,
+                            }
+                        }
                     }
                 }
             })
