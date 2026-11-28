@@ -94,6 +94,15 @@ where
         true
     }
 
+    pub fn cancel(&self) {
+        let (lock, _) = &*self.state;
+        let mut state = lock.lock().expect("market worker mutex poisoned");
+        state.pending = None;
+        if let Some(active) = &state.active {
+            active.cancel();
+        }
+    }
+
     pub fn try_recv(&self) -> Result<Response, mpsc::TryRecvError> {
         self.results.try_recv()
     }
