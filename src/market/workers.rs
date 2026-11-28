@@ -139,7 +139,7 @@ impl<Request, Response> Drop for LatestRequestWorker<Request, Response> {
             active.cancel();
         }
         wake.notify_all();
-        self.thread.take();
+        drop(self.thread.take());
     }
 }
 
@@ -503,6 +503,43 @@ mod realtime_tests {
         let batch = mailbox.drain();
         assert_eq!(batch.updates.len(), 2);
         assert!(batch.updates.iter().all(|item| item.is_closed));
+    }
+
+    #[test]
+    fn closed_updates_wait_for_capacity_instead_of_being_dropped() {
+        let mailbox = RealtimeMailbox::new(1);
+        let cancellation = CancellationToken::new();
+        assert!(mailbox.publish(update(0, true, 101.0), &cancellation));
+
+        let worker_mailbox = mailbox.clone();
+        let worker_cancellation = cancellation.clone();
+        let (started_tx, started_rx) = mpsc::channel();
+        let (done_tx, done_rx) = mpsc::channel();
+        let worker = thread::spawn(move || {
+            let _ = started_tx.send(());
+            let result = worker_mailbox.publish(
+                update(60_000, true, 102.0),
+                &worker_cancellation,
+            );
+            let _ = done_tx.send(result);
+        });
+
+        started_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("publisher started");
+        assert!(done_rx.recv_timeout(Duration::from_millis(30)).is_err());
+
+        let first_batch = mailbox.drain();
+        assert_eq!(first_batch.updates.len(), 1);
+        assert_eq!(
+            done_rx.recv_timeout(Duration::from_secs(1)),
+            Ok(true)
+        );
+        worker.join().expect("publisher thread joined");
+
+        let second_batch = mailbox.drain();
+        assert_eq!(second_batch.updates.len(), 1);
+        assert_eq!(second_batch.updates[0].candle.open_time_ms, 60_000);
     }
 
     #[test]
