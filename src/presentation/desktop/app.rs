@@ -540,7 +540,7 @@ impl ApexTraderApp {
         market_data_provider: Box<dyn MarketDataProvider>,
         realtime_provider_factory: RealtimeProviderFactory,
     ) -> Self {
-        configure_fonts(&cc.egui_ctx);
+        super::fonts::configure(&cc.egui_ctx);
 
         let mut chart = ChartState::new();
 
@@ -696,43 +696,6 @@ fn load_symbol_into_chart(
 fn reject_invalid_symbol(chart: &mut ChartState, error: MarketError) -> LoadState {
     chart.clear();
     LoadState::Error(format!("Símbolo inválido: {error}"))
-}
-
-fn configure_fonts(ctx: &egui::Context) {
-    let mut font_defs = egui::FontDefinitions::default();
-
-    let windows_font_paths = [
-        r"C:\Windows\Fonts\segui.ttf",
-        r"C:\Windows\Fonts\segoeui.ttf",
-        r"C:\Windows\Fonts\segoeuib.ttf",
-        r"C:\Windows\Fonts\arial.ttf",
-        r"C:\Windows\Fonts\tahoma.ttf",
-        r"C:\Windows\Fonts\times.ttf",
-    ];
-
-    let mut loaded_system_font = false;
-
-    for path in windows_font_paths {
-        if let Ok(font_data) = std::fs::read(path) {
-            font_defs.font_data.insert(
-                "system_font".to_owned(),
-                egui::FontData::from_owned(font_data).into(),
-            );
-
-            if let Some(family) = font_defs.families.get_mut(&egui::FontFamily::Proportional) {
-                family.insert(0, "system_font".to_owned());
-            }
-
-            loaded_system_font = true;
-            break;
-        }
-    }
-
-    if !loaded_system_font {
-        font_defs = egui::FontDefinitions::default();
-    }
-
-    ctx.set_fonts(font_defs);
 }
 
 fn refresh_price_scale_type_for_data(chart: &mut ChartState) {
