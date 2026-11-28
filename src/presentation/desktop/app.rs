@@ -1002,7 +1002,6 @@ mod load_failure_tests {
     }
 }
 
-
 #[cfg(test)]
 mod historical_response_tests {
     use super::*;
