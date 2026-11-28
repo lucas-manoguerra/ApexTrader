@@ -300,9 +300,7 @@ impl RealtimeMailbox {
                     || queued.candle.symbol != closed_symbol
                     || queued.candle.open_time_ms != closed_time
             });
-            queue
-                .closed_keys
-                .push_back((closed_symbol, closed_time));
+            queue.closed_keys.push_back((closed_symbol, closed_time));
             while queue.closed_keys.len() > self.capacity.saturating_mul(2) {
                 drop(queue.closed_keys.pop_front());
             }
@@ -517,8 +515,7 @@ mod realtime_tests {
         let (done_tx, done_rx) = mpsc::channel();
         let worker = thread::spawn(move || {
             let _ = started_tx.send(());
-            let result =
-                worker_mailbox.publish(update(60_000, true, 102.0), &worker_cancellation);
+            let result = worker_mailbox.publish(update(60_000, true, 102.0), &worker_cancellation);
             let _ = done_tx.send(result);
         });
 
