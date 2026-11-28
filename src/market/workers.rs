@@ -903,8 +903,8 @@ mod realtime_tests {
         let mut latest_error = None;
         let batch = loop {
             let batch = worker.drain();
-            if batch.latest_error.is_some() {
-                latest_error = batch.latest_error;
+            if let Some(error) = &batch.latest_error {
+                latest_error = Some(error.clone());
             }
             if !batch.updates.is_empty() || std::time::Instant::now() >= deadline {
                 break batch;
