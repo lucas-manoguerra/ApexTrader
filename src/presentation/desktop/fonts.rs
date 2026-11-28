@@ -13,7 +13,7 @@ mod tests {
     fn configured_context() -> egui::Context {
         let context = egui::Context::default();
         configure(&context);
-        // egui initializes its font atlas on the first frame.
+        // egui initializes its font atlas during the first frame.
         context.run(Default::default(), |_| {});
         context
     }
