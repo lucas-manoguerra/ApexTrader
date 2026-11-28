@@ -13,7 +13,8 @@ mod tests {
     fn configured_context() -> egui::Context {
         let context = egui::Context::default();
         configure(&context);
-        context.run_ui(Default::default(), |_| {});
+        let mut output = context.run_ui(Default::default(), |_| {});
+        output.textures_delta.clear();
         context
     }
 
