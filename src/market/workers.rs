@@ -131,7 +131,9 @@ mod tests {
 
     #[test]
     fn a_new_request_cancels_the_active_request() {
-        let worker = LatestRequestWorker::spawn(|request: u32, cancellation| {
+        let (started_tx, started_rx) = mpsc::channel();
+        let worker = LatestRequestWorker::spawn(move |request: u32, cancellation| {
+            let _ = started_tx.send(request);
             for _ in 0..100 {
                 if cancellation.is_cancelled() {
                     return (request, true);
@@ -142,7 +144,7 @@ mod tests {
         });
 
         assert!(worker.request(1));
-        thread::sleep(Duration::from_millis(5));
+        assert_eq!(started_rx.recv_timeout(Duration::from_secs(1)), Ok(1));
         assert!(worker.request(2));
 
         let deadline = std::time::Instant::now() + Duration::from_secs(2);
@@ -160,28 +162,33 @@ mod tests {
     fn pending_requests_are_coalesced_to_the_latest() {
         let executions = Arc::new(AtomicUsize::new(0));
         let observed = Arc::clone(&executions);
+        let (started_tx, started_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
         let worker = LatestRequestWorker::spawn(move |request: u32, _| {
             observed.fetch_add(1, Ordering::SeqCst);
+            if request == 10 {
+                let _ = started_tx.send(());
+                let _ = release_rx.recv();
+            }
             request
         });
 
-        // The worker may start immediately, so gate it before submitting the
-        // burst and assert only the latest queued request is eventually run.
-        let _ = worker.request(10);
-        let _ = worker.request(11);
-        let _ = worker.request(12);
+        assert!(worker.request(10));
+        started_rx.recv_timeout(Duration::from_secs(1)).expect("first request started");
+        assert!(worker.request(11));
+        assert!(worker.request(12));
+        release_tx.send(()).expect("release worker");
 
         let deadline = std::time::Instant::now() + Duration::from_secs(2);
-        let mut found_latest = false;
-        while std::time::Instant::now() < deadline {
-            if worker.drain().contains(&12) {
-                found_latest = true;
-                break;
-            }
+        let mut responses = Vec::new();
+        while std::time::Instant::now() < deadline && !responses.contains(&12) {
+            responses.extend(worker.drain());
             thread::sleep(Duration::from_millis(2));
         }
-        assert!(found_latest);
-        assert!(executions.load(Ordering::SeqCst) >= 1);
+        assert!(responses.contains(&10));
+        assert!(responses.contains(&12));
+        assert!(!responses.contains(&11));
+        assert_eq!(executions.load(Ordering::SeqCst), 2);
     }
 
     #[test]
