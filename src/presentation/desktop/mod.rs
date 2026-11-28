@@ -1,2 +1,2 @@
-mod fonts;
 pub mod app;
+mod fonts;
