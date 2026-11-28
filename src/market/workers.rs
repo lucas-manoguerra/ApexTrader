@@ -191,3 +191,249 @@ mod tests {
         assert!(!worker.request(1));
     }
 }
+
+use crate::market::errors::MarketError;
+use crate::market::provider::{RealtimeMarketDataProvider, RealtimeMarketUpdate};
+use std::collections::VecDeque;
+use std::time::Duration;
+
+#[derive(Debug)]
+pub struct RealtimeBatch {
+    pub updates: Vec<RealtimeMarketUpdate>,
+    pub latest_error: Option<MarketError>,
+}
+
+struct RealtimeQueue {
+    updates: VecDeque<RealtimeMarketUpdate>,
+    latest_error: Option<MarketError>,
+    closed: bool,
+}
+
+/// Bounded realtime mailbox. Open-candle updates are coalesced by candle
+/// identity; closed candles are never evicted to make room for newer updates.
+#[derive(Clone)]
+pub struct RealtimeMailbox {
+    inner: Arc<(Mutex<RealtimeQueue>, Condvar)>,
+    capacity: usize,
+}
+
+impl RealtimeMailbox {
+    pub fn new(capacity: usize) -> Self {
+        assert!(capacity > 0, "realtime mailbox capacity must be positive");
+        Self {
+            inner: Arc::new((
+                Mutex::new(RealtimeQueue {
+                    updates: VecDeque::new(),
+                    latest_error: None,
+                    closed: false,
+                }),
+                Condvar::new(),
+            )),
+            capacity,
+        }
+    }
+
+    fn publish(&self, update: RealtimeMarketUpdate, cancellation: &CancellationToken) -> bool {
+        let (lock, wake) = &*self.inner;
+        let mut queue = lock.lock().expect("realtime mailbox mutex poisoned");
+
+        if update.is_closed {
+            while queue.updates.len() >= self.capacity && !queue.closed && !cancellation.is_cancelled() {
+                let (next, _) = wake
+                    .wait_timeout(queue, Duration::from_millis(20))
+                    .expect("realtime mailbox mutex poisoned");
+                queue = next;
+            }
+            if queue.closed || cancellation.is_cancelled() {
+                return false;
+            }
+            queue.updates.push_back(update);
+            wake.notify_all();
+            return true;
+        }
+
+        if queue.closed || cancellation.is_cancelled() {
+            return false;
+        }
+
+        if let Some(existing) = queue.updates.iter_mut().find(|existing| {
+            !existing.is_closed
+                && existing.candle.symbol == update.candle.symbol
+                && existing.candle.open_time_ms == update.candle.open_time_ms
+        }) {
+            *existing = update;
+            wake.notify_all();
+            return true;
+        }
+
+        if queue.updates.len() >= self.capacity {
+            if let Some(open_position) = queue.updates.iter().position(|item| !item.is_closed) {
+                queue.updates.remove(open_position);
+            } else {
+                // The bounded queue contains only closed candles. Preserve them.
+                return true;
+            }
+        }
+
+        queue.updates.push_back(update);
+        wake.notify_all();
+        true
+    }
+
+    fn publish_error(&self, error: MarketError) {
+        let (lock, wake) = &*self.inner;
+        let mut queue = lock.lock().expect("realtime mailbox mutex poisoned");
+        if !queue.closed {
+            queue.latest_error = Some(error);
+            wake.notify_all();
+        }
+    }
+
+    pub fn drain(&self) -> RealtimeBatch {
+        let (lock, wake) = &*self.inner;
+        let mut queue = lock.lock().expect("realtime mailbox mutex poisoned");
+        let updates = queue.updates.drain(..).collect();
+        let latest_error = queue.latest_error.take();
+        wake.notify_all();
+        RealtimeBatch {
+            updates,
+            latest_error,
+        }
+    }
+
+    fn close(&self) {
+        let (lock, wake) = &*self.inner;
+        let mut queue = lock.lock().expect("realtime mailbox mutex poisoned");
+        queue.closed = true;
+        wake.notify_all();
+    }
+}
+
+/// Polls a realtime provider away from the UI thread and publishes into a
+/// bounded mailbox. Closed candles apply backpressure; open candles coalesce.
+pub struct RealtimeWorker {
+    cancellation: CancellationToken,
+    mailbox: RealtimeMailbox,
+    thread: Option<JoinHandle<()>>,
+}
+
+impl RealtimeWorker {
+    pub fn spawn(
+        mut provider: Box<dyn RealtimeMarketDataProvider>,
+        interval: Duration,
+        capacity: usize,
+    ) -> Self {
+        let cancellation = CancellationToken::new();
+        let worker_cancellation = cancellation.clone();
+        let mailbox = RealtimeMailbox::new(capacity);
+        let worker_mailbox = mailbox.clone();
+
+        let thread = thread::Builder::new()
+            .name("apextrader-realtime-worker".to_owned())
+            .spawn(move || {
+                while !worker_cancellation.is_cancelled() {
+                    match provider.next_update_cancellable(&worker_cancellation) {
+                        Ok(update) => {
+                            if !worker_mailbox.publish(update, &worker_cancellation) {
+                                break;
+                            }
+                        }
+                        Err(MarketError::Cancelled) => break,
+                        Err(error) => worker_mailbox.publish_error(error),
+                    }
+
+                    if worker_cancellation.is_cancelled() {
+                        break;
+                    }
+                    thread::sleep(interval);
+                }
+            })
+            .expect("failed to spawn realtime worker");
+
+        Self {
+            cancellation,
+            mailbox,
+            thread: Some(thread),
+        }
+    }
+
+    pub fn drain(&self) -> RealtimeBatch {
+        self.mailbox.drain()
+    }
+
+    pub fn shutdown(&mut self) {
+        self.cancellation.cancel();
+        self.mailbox.close();
+        self.thread.take();
+    }
+}
+
+impl Drop for RealtimeWorker {
+    fn drop(&mut self) {
+        self.shutdown();
+    }
+}
+
+#[cfg(test)]
+mod realtime_tests {
+    use super::*;
+    use crate::market::candle::MarketCandle;
+    use crate::market::symbol::Symbol;
+    use std::str::FromStr;
+
+    fn update(open_time_ms: i64, is_closed: bool, close: f64) -> RealtimeMarketUpdate {
+        RealtimeMarketUpdate {
+            candle: MarketCandle {
+                symbol: Symbol::from_str("BTC/USDT").expect("valid symbol"),
+                open_time_ms,
+                open: 100.0,
+                high: 105.0,
+                low: 95.0,
+                close,
+                volume: 10.0,
+                close_time_ms: open_time_ms + 60_000,
+            },
+            is_closed,
+        }
+    }
+
+    #[test]
+    fn open_candle_updates_are_coalesced_by_identity() {
+        let mailbox = RealtimeMailbox::new(2);
+        let cancellation = CancellationToken::new();
+
+        assert!(mailbox.publish(update(0, false, 101.0), &cancellation));
+        assert!(mailbox.publish(update(0, false, 102.0), &cancellation));
+
+        let batch = mailbox.drain();
+        assert_eq!(batch.updates.len(), 1);
+        assert_eq!(batch.updates[0].candle.close, 102.0);
+    }
+
+    #[test]
+    fn open_updates_never_evict_closed_candles() {
+        let mailbox = RealtimeMailbox::new(2);
+        let cancellation = CancellationToken::new();
+
+        assert!(mailbox.publish(update(0, true, 101.0), &cancellation));
+        assert!(mailbox.publish(update(60_000, true, 102.0), &cancellation));
+        assert!(mailbox.publish(update(120_000, false, 103.0), &cancellation));
+
+        let batch = mailbox.drain();
+        assert_eq!(batch.updates.len(), 2);
+        assert!(batch.updates.iter().all(|item| item.is_closed));
+    }
+
+    #[test]
+    fn mailbox_reports_the_latest_provider_error() {
+        let mailbox = RealtimeMailbox::new(2);
+        mailbox.publish_error(MarketError::Network("first".to_owned()));
+        mailbox.publish_error(MarketError::Network("latest".to_owned()));
+
+        let batch = mailbox.drain();
+        assert_eq!(
+            batch.latest_error,
+            Some(MarketError::Network("latest".to_owned()))
+        );
+    }
+}
