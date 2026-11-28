@@ -39,13 +39,7 @@ impl LoadCandles {
         from_ms: i64,
         to_ms: i64,
     ) -> Result<LoadCandlesResult, MarketError> {
-        Self::execute_cancellable(
-            provider,
-            symbol,
-            from_ms,
-            to_ms,
-            &CancellationToken::new(),
-        )
+        Self::execute_cancellable(provider, symbol, from_ms, to_ms, &CancellationToken::new())
     }
 
     pub fn execute_cancellable(
@@ -61,12 +55,8 @@ impl LoadCandles {
             )));
         }
 
-        let market_candles = provider.fetch_candles_cancellable(
-            symbol.clone(),
-            from_ms,
-            to_ms,
-            cancellation,
-        )?;
+        let market_candles =
+            provider.fetch_candles_cancellable(symbol.clone(), from_ms, to_ms, cancellation)?;
 
         let mut data_points = Vec::with_capacity(market_candles.len());
         let mut rejected = Vec::new();
