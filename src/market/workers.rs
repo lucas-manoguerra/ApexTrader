@@ -270,6 +270,16 @@ impl RealtimeMailbox {
         let mut queue = lock.lock().expect("realtime mailbox mutex poisoned");
 
         if update.is_closed {
+            if let Some(existing) = queue.updates.iter_mut().find(|existing| {
+                existing.is_closed
+                    && existing.candle.symbol == update.candle.symbol
+                    && existing.candle.open_time_ms == update.candle.open_time_ms
+            }) {
+                *existing = update;
+                wake.notify_all();
+                return true;
+            }
+
             while queue.updates.len() >= self.capacity
                 && !queue.closed
                 && !cancellation.is_cancelled()
@@ -294,7 +304,7 @@ impl RealtimeMailbox {
                 .closed_keys
                 .push_back((closed_symbol, closed_time));
             while queue.closed_keys.len() > self.capacity.saturating_mul(2) {
-                queue.closed_keys.pop_front();
+                drop(queue.closed_keys.pop_front());
             }
             queue.updates.push_back(update);
             wake.notify_all();
