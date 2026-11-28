@@ -125,7 +125,7 @@ where
             active.cancel();
         }
         wake.notify_all();
-        self.thread.take();
+        drop(self.thread.take());
     }
 }
 
@@ -238,6 +238,7 @@ pub struct RealtimeBatch {
 
 struct RealtimeQueue {
     updates: VecDeque<RealtimeMarketUpdate>,
+    closed_keys: VecDeque<(crate::market::symbol::Symbol, i64)>,
     latest_error: Option<MarketError>,
     closed: bool,
 }
@@ -254,6 +255,7 @@ impl RealtimeMailbox {
             inner: Arc::new((
                 Mutex::new(RealtimeQueue {
                     updates: VecDeque::new(),
+                    closed_keys: VecDeque::new(),
                     latest_error: None,
                     closed: false,
                 }),
@@ -280,6 +282,20 @@ impl RealtimeMailbox {
             if queue.closed || cancellation.is_cancelled() {
                 return false;
             }
+
+            let closed_symbol = update.candle.symbol.clone();
+            let closed_time = update.candle.open_time_ms;
+            queue.updates.retain(|queued| {
+                queued.is_closed
+                    || queued.candle.symbol != closed_symbol
+                    || queued.candle.open_time_ms != closed_time
+            });
+            queue
+                .closed_keys
+                .push_back((closed_symbol, closed_time));
+            while queue.closed_keys.len() > self.capacity.saturating_mul(2) {
+                queue.closed_keys.pop_front();
+            }
             queue.updates.push_back(update);
             wake.notify_all();
             return true;
@@ -287,6 +303,12 @@ impl RealtimeMailbox {
 
         if queue.closed || cancellation.is_cancelled() {
             return false;
+        }
+
+        if queue.closed_keys.iter().any(|(symbol, time)| {
+            *symbol == update.candle.symbol && *time == update.candle.open_time_ms
+        }) {
+            return true;
         }
 
         if let Some(existing) = queue.updates.iter_mut().find(|existing| {
@@ -301,7 +323,7 @@ impl RealtimeMailbox {
 
         if queue.updates.len() >= self.capacity {
             if let Some(open_position) = queue.updates.iter().position(|item| !item.is_closed) {
-                queue.updates.remove(open_position);
+                drop(queue.updates.remove(open_position));
             } else {
                 return true;
             }
@@ -471,6 +493,20 @@ mod realtime_tests {
         let batch = mailbox.drain();
         assert_eq!(batch.updates.len(), 2);
         assert!(batch.updates.iter().all(|item| item.is_closed));
+    }
+
+    #[test]
+    fn late_open_update_cannot_reopen_a_closed_candle() {
+        let mailbox = RealtimeMailbox::new(2);
+        let cancellation = CancellationToken::new();
+
+        assert!(mailbox.publish(update(0, true, 101.0), &cancellation));
+        let closed = mailbox.drain();
+        assert_eq!(closed.updates.len(), 1);
+        assert!(closed.updates[0].is_closed);
+
+        assert!(mailbox.publish(update(0, false, 99.0), &cancellation));
+        assert!(mailbox.drain().updates.is_empty());
     }
 
     #[test]
