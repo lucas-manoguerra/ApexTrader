@@ -542,7 +542,8 @@ impl ApexTraderApp {
                                 self.realtime_provider = None;
                                 self.load_state = LoadState::Error(error.to_string());
                             } else {
-                                self.realtime_error = Some(format!("No se pudo reconciliar histórico: {error}"));
+                                self.realtime_error =
+                                    Some(format!("No se pudo reconciliar histórico: {error}"));
                             }
                         }
                     }
@@ -553,7 +554,8 @@ impl ApexTraderApp {
                         self.realtime_provider = None;
                         self.load_state = LoadState::Error(error.to_string());
                     } else {
-                        self.realtime_error = Some(format!("Falló la recuperación histórica: {error}"));
+                        self.realtime_error =
+                            Some(format!("Falló la recuperación histórica: {error}"));
                     }
                     tracing::error!("No se pudieron cargar datos de mercado: {error}");
                 }
