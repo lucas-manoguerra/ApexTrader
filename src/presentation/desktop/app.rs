@@ -469,11 +469,24 @@ impl eframe::App for ApexTraderApp {
     }
 }
 
+fn is_current_historical_response(
+    response_generation_id: u64,
+    response_symbol: &Symbol,
+    current_generation_id: u64,
+    current_symbol: &Symbol,
+) -> bool {
+    response_generation_id == current_generation_id && response_symbol == current_symbol
+}
+
 impl ApexTraderApp {
     fn advance_historical(&mut self) {
         for response in self.historical_worker.drain() {
-            if response.generation_id != self.generation_id || response.symbol != self.active_symbol
-            {
+            if !is_current_historical_response(
+                response.generation_id,
+                &response.symbol,
+                self.generation_id,
+                &self.active_symbol,
+            ) {
                 continue;
             }
 
@@ -986,5 +999,20 @@ mod load_failure_tests {
 
         assert!(matches!(state, LoadState::Error(_)));
         assert!(chart.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod historical_response_tests {
+    use super::*;
+
+    #[test]
+    fn historical_response_is_accepted_only_for_current_generation_and_symbol() {
+        let btc = Symbol::from_str("BTC/USDT").expect("valid symbol");
+        let eth = Symbol::from_str("ETH/USDT").expect("valid symbol");
+
+        assert!(is_current_historical_response(7, &btc, 7, &btc));
+        assert!(!is_current_historical_response(6, &btc, 7, &btc));
+        assert!(!is_current_historical_response(7, &btc, 7, &eth));
     }
 }
