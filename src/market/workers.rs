@@ -372,9 +372,8 @@ impl RealtimeWorker {
         capacity: usize,
     ) -> Self
     where
-        Initialize: FnOnce() -> Result<Box<dyn RealtimeMarketDataProvider>, MarketError>
-            + Send
-            + 'static,
+        Initialize:
+            FnOnce() -> Result<Box<dyn RealtimeMarketDataProvider>, MarketError> + Send + 'static,
     {
         let cancellation = CancellationToken::new();
         let worker_cancellation = cancellation.clone();
