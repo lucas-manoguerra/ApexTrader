@@ -1,3 +1,11 @@
+fn join_in_background(thread: JoinHandle<()>) {
+    let _ = thread::Builder::new()
+        .name("apextrader-worker-reaper".to_owned())
+        .spawn(move || {
+            let _ = thread.join();
+        });
+}
+
 use crate::market::cancellation::CancellationToken;
 use std::sync::{Arc, Condvar, Mutex, mpsc};
 use std::thread::{self, JoinHandle};
@@ -123,7 +131,7 @@ where
     pub fn drain(&self) -> Vec<Response> {
         self.results.try_iter().collect()
     }
-    pub fn shutdown(&mut self) {
+    fn request_shutdown(&mut self) -> Option<JoinHandle<()>> {
         let (lock, wake) = &*self.state;
         let mut state = lock.lock().expect("market worker mutex poisoned");
         state.shutdown = true;
@@ -134,7 +142,11 @@ where
         wake.notify_all();
         let thread = self.thread.take();
         drop(state);
-        if let Some(thread) = thread {
+        thread
+    }
+
+    pub fn shutdown(&mut self) {
+        if let Some(thread) = self.request_shutdown() {
             let _ = thread.join();
         }
     }
@@ -142,18 +154,8 @@ where
 
 impl<Request, Response> Drop for LatestRequestWorker<Request, Response> {
     fn drop(&mut self) {
-        let (lock, wake) = &*self.state;
-        let mut state = lock.lock().expect("market worker mutex poisoned");
-        state.shutdown = true;
-        state.pending = None;
-        if let Some(active) = &state.active {
-            active.cancel();
-        }
-        wake.notify_all();
-        let thread = self.thread.take();
-        drop(state);
-        if let Some(thread) = thread {
-            let _ = thread.join();
+        if let Some(thread) = self.request_shutdown() {
+            join_in_background(thread);
         }
     }
 }
@@ -248,6 +250,40 @@ mod tests {
             .recv_timeout(Duration::from_secs(1))
             .expect("request started");
         drop(worker);
+    }
+
+    #[test]
+    fn dropping_worker_does_not_block_on_a_non_cooperative_operation() {
+        let (started_tx, started_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let (finished_tx, finished_rx) = mpsc::channel();
+        let worker = LatestRequestWorker::spawn(move |request: u32, _| {
+            let _ = started_tx.send(());
+            let _ = release_rx.recv();
+            let _ = finished_tx.send(());
+            request
+        });
+
+        assert!(worker.request(1));
+        started_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("request started");
+
+        let (drop_done_tx, drop_done_rx) = mpsc::channel();
+        thread::spawn(move || {
+            drop(worker);
+            let _ = drop_done_tx.send(());
+        });
+
+        drop_done_rx
+            .recv_timeout(Duration::from_millis(100))
+            .expect("dropping the worker must not wait for provider I/O");
+        assert!(finished_rx.try_recv().is_err());
+
+        release_tx.send(()).expect("release provider operation");
+        finished_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("worker eventually finishes");
     }
 
     #[test]
@@ -473,10 +509,14 @@ impl RealtimeWorker {
         self.mailbox.drain()
     }
 
-    pub fn shutdown(&mut self) {
+    fn request_shutdown(&mut self) -> Option<JoinHandle<()>> {
         self.cancellation.cancel();
         self.mailbox.close();
-        if let Some(thread) = self.thread.take() {
+        self.thread.take()
+    }
+
+    pub fn shutdown(&mut self) {
+        if let Some(thread) = self.request_shutdown() {
             let _ = thread.join();
         }
     }
@@ -484,7 +524,9 @@ impl RealtimeWorker {
 
 impl Drop for RealtimeWorker {
     fn drop(&mut self) {
-        self.shutdown();
+        if let Some(thread) = self.request_shutdown() {
+            join_in_background(thread);
+        }
     }
 }
 
