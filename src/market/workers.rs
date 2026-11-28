@@ -41,32 +41,34 @@ where
 
         let thread = thread::Builder::new()
             .name("apextrader-market-worker".to_owned())
-            .spawn(move || loop {
-                let request = {
-                    let (lock, wake) = &*worker_state;
+            .spawn(move || {
+                loop {
+                    let request = {
+                        let (lock, wake) = &*worker_state;
+                        let mut state = lock.lock().expect("market worker mutex poisoned");
+                        while state.pending.is_none() && !state.shutdown {
+                            state = wake.wait(state).expect("market worker mutex poisoned");
+                        }
+                        if state.shutdown {
+                            return;
+                        }
+
+                        let request = state.pending.take().expect("pending request checked");
+                        let cancellation = CancellationToken::new();
+                        state.active = Some(cancellation.clone());
+                        (request, cancellation)
+                    };
+
+                    let (request, cancellation) = request;
+                    let response = execute(request, cancellation.clone());
+                    let _ = result_tx.send(response);
+
+                    let (lock, _) = &*worker_state;
                     let mut state = lock.lock().expect("market worker mutex poisoned");
-                    while state.pending.is_none() && !state.shutdown {
-                        state = wake.wait(state).expect("market worker mutex poisoned");
-                    }
+                    state.active = None;
                     if state.shutdown {
                         return;
                     }
-
-                    let request = state.pending.take().expect("pending request checked");
-                    let cancellation = CancellationToken::new();
-                    state.active = Some(cancellation.clone());
-                    (request, cancellation)
-                };
-
-                let (request, cancellation) = request;
-                let response = execute(request, cancellation.clone());
-                let _ = result_tx.send(response);
-
-                let (lock, _) = &*worker_state;
-                let mut state = lock.lock().expect("market worker mutex poisoned");
-                state.active = None;
-                if state.shutdown {
-                    return;
                 }
             })
             .expect("failed to spawn market worker");
@@ -163,7 +165,11 @@ mod tests {
             thread::sleep(Duration::from_millis(2));
         }
 
-        assert!(responses.iter().any(|(id, cancelled)| *id == 1 && *cancelled));
+        assert!(
+            responses
+                .iter()
+                .any(|(id, cancelled)| *id == 1 && *cancelled)
+        );
         assert!(responses.iter().any(|(id, _)| *id == 2));
     }
 
@@ -183,7 +189,9 @@ mod tests {
         });
 
         assert!(worker.request(10));
-        started_rx.recv_timeout(Duration::from_secs(1)).expect("first request started");
+        started_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("first request started");
         assert!(worker.request(11));
         assert!(worker.request(12));
         release_tx.send(()).expect("release worker");
@@ -254,7 +262,10 @@ impl RealtimeMailbox {
         let mut queue = lock.lock().expect("realtime mailbox mutex poisoned");
 
         if update.is_closed {
-            while queue.updates.len() >= self.capacity && !queue.closed && !cancellation.is_cancelled() {
+            while queue.updates.len() >= self.capacity
+                && !queue.closed
+                && !cancellation.is_cancelled()
+            {
                 let (next, _) = wake
                     .wait_timeout(queue, Duration::from_millis(20))
                     .expect("realtime mailbox mutex poisoned");
