@@ -476,7 +476,12 @@ impl RealtimeWorker {
         interval: Duration,
         capacity: usize,
     ) -> Self {
-        Self::spawn_with_factory(move || Ok(provider), interval, capacity)
+        let mut provider = Some(provider);
+        Self::spawn_with_factory(
+            move || provider.take().ok_or(MarketError::Cancelled),
+            interval,
+            capacity,
+        )
     }
 
     pub fn spawn_with_factory<Initialize>(
@@ -785,7 +790,9 @@ mod realtime_tests {
             move || {
                 let attempt = factory_attempts.fetch_add(1, Ordering::SeqCst);
                 if attempt == 0 {
-                    return Err(MarketError::Network("temporary initialization failure".into()));
+                    return Err(MarketError::Network(
+                        "temporary initialization failure".into(),
+                    ));
                 }
                 Ok(Box::new(OneShotProvider {
                     sent: Some(ready_tx.clone()),
