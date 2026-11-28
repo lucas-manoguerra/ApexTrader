@@ -125,7 +125,11 @@ where
             active.cancel();
         }
         wake.notify_all();
-        drop(self.thread.take());
+        let thread = self.thread.take();
+        drop(state);
+        if let Some(thread) = thread {
+            let _ = thread.join();
+        }
     }
 }
 
@@ -139,7 +143,11 @@ impl<Request, Response> Drop for LatestRequestWorker<Request, Response> {
             active.cancel();
         }
         wake.notify_all();
-        drop(self.thread.take());
+        let thread = self.thread.take();
+        drop(state);
+        if let Some(thread) = thread {
+            let _ = thread.join();
+        }
     }
 }
 
@@ -443,7 +451,9 @@ impl RealtimeWorker {
     pub fn shutdown(&mut self) {
         self.cancellation.cancel();
         self.mailbox.close();
-        drop(self.thread.take());
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
     }
 }
 
