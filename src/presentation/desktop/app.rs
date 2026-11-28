@@ -482,6 +482,10 @@ fn is_current_historical_response(
     response_generation_id == current_generation_id && response_symbol == current_symbol
 }
 
+fn is_current_realtime_session(response_session_id: u64, current_session_id: u64) -> bool {
+    response_session_id == current_session_id
+}
+
 impl ApexTraderApp {
     fn advance_historical(&mut self) {
         for response in self.historical_worker.drain() {
@@ -531,6 +535,7 @@ impl ApexTraderApp {
                                 self.realtime_provider = create_realtime_worker(
                                     &self.chart,
                                     response.symbol,
+                                    response.generation_id,
                                     &self.realtime_provider_factory,
                                 );
                                 self.fit_content_pending = true;
@@ -566,6 +571,9 @@ impl ApexTraderApp {
     fn advance_realtime(&mut self, ctx: &egui::Context) {
         if let Some(provider) = self.realtime_provider.as_ref() {
             let batch = provider.drain();
+            if !is_current_realtime_session(batch.session_id, self.generation_id) {
+                return;
+            }
             if let Some(error) = batch.latest_error {
                 self.realtime_error = Some(error.to_string());
                 tracing::error!("Error en proveedor realtime: {error}");
@@ -777,6 +785,7 @@ fn latest_closed_candle_open_time(interval_ms: i64) -> i64 {
 fn create_realtime_worker(
     chart: &ChartState,
     symbol: Symbol,
+    session_id: u64,
     factory: &RealtimeProviderFactory,
 ) -> Option<RealtimeWorker> {
     let last_point = chart.data_points().last()?;
@@ -795,7 +804,8 @@ fn create_realtime_worker(
         close_time_ms,
     };
     let factory = Arc::clone(factory);
-    Some(RealtimeWorker::spawn_with_factory(
+    Some(RealtimeWorker::spawn_with_session_factory(
+        session_id,
         move || factory(last_candle.clone()),
         REALTIME_POLL_INTERVAL,
         64,
@@ -1060,5 +1070,13 @@ mod historical_response_tests {
         assert!(is_current_historical_response(7, &btc, 7, &btc));
         assert!(!is_current_historical_response(6, &btc, 7, &btc));
         assert!(!is_current_historical_response(7, &btc, 7, &eth));
+    }
+
+    #[test]
+    fn realtime_session_identity_rejects_events_from_previous_session_even_for_same_symbol() {
+        let btc = Symbol::from_str("BTC/USDT").expect("valid symbol");
+        assert_eq!(btc, Symbol::from_str("BTC/USDT").expect("valid symbol"));
+        assert!(is_current_realtime_session(12, 12));
+        assert!(!is_current_realtime_session(11, 12));
     }
 }
