@@ -796,7 +796,7 @@ fn create_realtime_worker(
     };
     let factory = Arc::clone(factory);
     Some(RealtimeWorker::spawn_with_factory(
-        move || factory(last_candle),
+        move || factory(last_candle.clone()),
         REALTIME_POLL_INTERVAL,
         64,
     ))
