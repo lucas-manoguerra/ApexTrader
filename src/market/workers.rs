@@ -356,6 +356,7 @@ struct RealtimeQueue {
     closed_keys: VecDeque<(crate::market::symbol::Symbol, i64)>,
     latest_error: Option<MarketError>,
     statuses: VecDeque<RealtimeConnectionState>,
+    connection_state: Option<RealtimeConnectionState>,
     closed: bool,
 }
 #[derive(Clone)]
@@ -374,6 +375,7 @@ impl RealtimeMailbox {
                     closed_keys: VecDeque::new(),
                     latest_error: None,
                     statuses: VecDeque::new(),
+                    connection_state: None,
                     closed: false,
                 }),
                 Condvar::new(),
@@ -471,7 +473,8 @@ impl RealtimeMailbox {
     fn publish_status(&self, status: RealtimeConnectionState) {
         let (lock, wake) = &*self.inner;
         let mut queue = lock.lock().expect("realtime mailbox mutex poisoned");
-        if !queue.closed || status == RealtimeConnectionState::Disconnected {
+        if !queue.closed && queue.connection_state != Some(status) {
+            queue.connection_state = Some(status);
             queue.statuses.push_back(status);
             wake.notify_all();
         }
