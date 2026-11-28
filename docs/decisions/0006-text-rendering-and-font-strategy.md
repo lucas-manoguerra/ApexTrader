@@ -144,3 +144,18 @@ No se adopta una dependencia de fuentes hasta comparar el coste completo de depe
 Revisar la elección de egui/epaint para las etiquetas si profiling demuestra un cuello de botella de texto, si se requieren capacidades avanzadas de shaping/fallback no cubiertas por egui o si la densidad de etiquetas del chart exige un control de caché y atlas más especializado.
 
 Revisar Vello únicamente ante una decisión explícita de evolucionar el renderer vectorial de la escena completa, con una comparación de coste total, integración, portabilidad y rendimiento.
+
+
+## Estado de implementación (2026-11-28)
+
+La selección inicial descrita en la decisión se encuentra implementada en `main`:
+
+- `Cargo.toml` activa `eframe/default_fonts` manteniendo `default-features = false`.
+- `FontDefinitions::default()` registra Ubuntu Light para proporcional, Hack para monospace y los iconos de egui 0.37.
+- `src/presentation/desktop/fonts.rs::configure` aplica las definiciones centralmente durante la inicialización de `ApexTraderApp`.
+- `licenses/THIRD_PARTY_FONTS.md` contiene los notices y textos de licencia pertinentes; `cargo-deny.toml` permite explícitamente las licencias declaradas por los recursos embebidos.
+- CI tiene matrices Windows, macOS y Ubuntu. Esta cobertura de compilación/pruebas no equivale a una validación visual sobre instalaciones limpias.
+
+La prueba automatizada de cobertura de glifos de la Issue #27 se está incorporando separadamente: debe verificar las familias efectivamente instaladas en el contexto de egui y no limitarse a comprobar los nombres registrados en `FontDefinitions`. La aceptación final de la Issue sigue condicionada a evidencia visual en los tres sistemas y a confirmar que los textos de controles y los emitidos por `egui::Painter` usan el contexto configurado.
+
+La selección de fuentes por defecto es, por tanto, la implementación inicial adoptada, no una garantía universal de cobertura Unicode: si los glifos requeridos no están presentes, la solución deberá incorporar una fuente/fallback redistribuible adicional y sus avisos correspondientes.
