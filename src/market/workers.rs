@@ -473,7 +473,9 @@ impl RealtimeMailbox {
     fn publish_status(&self, status: RealtimeConnectionState) {
         let (lock, wake) = &*self.inner;
         let mut queue = lock.lock().expect("realtime mailbox mutex poisoned");
-        if !queue.closed && queue.connection_state != Some(status) {
+        if (!queue.closed || status == RealtimeConnectionState::Disconnected)
+            && queue.connection_state != Some(status)
+        {
             queue.connection_state = Some(status);
             queue.statuses.push_back(status);
             wake.notify_all();
@@ -569,7 +571,8 @@ impl RealtimeWorker {
                             Err(MarketError::Cancelled) => break,
                             Err(error) => {
                                 worker_mailbox.publish_error(error);
-                                worker_mailbox.publish_status(RealtimeConnectionState::Reconnecting);
+                                worker_mailbox
+                                    .publish_status(RealtimeConnectionState::Reconnecting);
                                 consecutive_errors = consecutive_errors.saturating_add(1);
                                 if !sleep_cancellable(
                                     retry_delay(interval, consecutive_errors),
@@ -1055,7 +1058,11 @@ mod realtime_tests {
         worker.shutdown();
         let final_batch = worker.drain();
         assert_eq!(final_batch.session_id, 91);
-        assert!(final_batch.statuses.contains(&RealtimeConnectionState::Disconnected));
+        assert!(
+            final_batch
+                .statuses
+                .contains(&RealtimeConnectionState::Disconnected)
+        );
     }
 
     #[test]
