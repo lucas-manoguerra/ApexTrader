@@ -272,7 +272,6 @@ impl eframe::App for ApexTraderApp {
                             self.load_state = LoadState::Loading;
                             self.realtime_provider = None;
                             self.realtime_error = None;
-                            self.realtime_connection_state = RealtimeConnectionState::Connecting;
                             self.pending_gap = None;
                             self.historical_worker.request(HistoricalRequest {
                                 generation_id: self.generation_id,
@@ -465,7 +464,12 @@ impl eframe::App for ApexTraderApp {
                     if self.realtime_provider.is_some() { "activo" } else { "inactivo" },
                     points.len()
                 ));
-                ui.label(format!("Conexión realtime: {:?}", self.realtime_connection_state));
+                ui.label(format!("Conexión realtime: {}", match self.realtime_connection_state {
+                    RealtimeConnectionState::Connecting => "conectando",
+                    RealtimeConnectionState::Connected => "conectado",
+                    RealtimeConnectionState::Reconnecting => "reconectando",
+                    RealtimeConnectionState::Disconnected => "desconectado",
+                }));
                 if let Some(error) = &self.realtime_error {
                     ui.colored_label(egui::Color32::RED, format!("Realtime: {error}"));
                 }
@@ -542,6 +546,11 @@ impl ApexTraderApp {
                                     response.generation_id,
                                     &self.realtime_provider_factory,
                                 );
+                                self.realtime_connection_state = if self.realtime_provider.is_some() {
+                                    RealtimeConnectionState::Connecting
+                                } else {
+                                    RealtimeConnectionState::Disconnected
+                                };
                                 self.fit_content_pending = true;
                             }
                         }
@@ -549,6 +558,7 @@ impl ApexTraderApp {
                             if initial_load {
                                 self.chart.clear();
                                 self.realtime_provider = None;
+                                self.realtime_connection_state = RealtimeConnectionState::Disconnected;
                                 self.load_state = LoadState::Error(error.to_string());
                             } else {
                                 self.realtime_error =
