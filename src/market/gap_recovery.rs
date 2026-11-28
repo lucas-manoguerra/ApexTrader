@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct HistoricalGap {
     pub from_ms: i64,
