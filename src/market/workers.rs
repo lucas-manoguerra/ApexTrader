@@ -37,7 +37,7 @@ where
             Condvar::new(),
         ));
         let worker_state = Arc::clone(&state);
-        let (result_tx, results) = mpsc::channel();
+        let (result_tx, results) = mpsc::sync_channel(1);
 
         let thread = thread::Builder::new()
             .name("apextrader-market-worker".to_owned())
@@ -61,7 +61,20 @@ where
 
                     let (request, cancellation) = request;
                     let response = execute(request, cancellation.clone());
-                    let _ = result_tx.send(response);
+                    let mut pending_response = Some(response);
+                    while let Some(response) = pending_response.take() {
+                        if cancellation.is_cancelled() {
+                            break;
+                        }
+                        match result_tx.try_send(response) {
+                            Ok(()) => break,
+                            Err(mpsc::TrySendError::Full(response)) => {
+                                pending_response = Some(response);
+                                thread::sleep(Duration::from_millis(5));
+                            }
+                            Err(mpsc::TrySendError::Disconnected(_)) => return,
+                        }
+                    }
 
                     let (lock, _) = &*worker_state;
                     let mut state = lock.lock().expect("market worker mutex poisoned");
