@@ -518,47 +518,52 @@ impl RealtimeWorker {
             .name("apextrader-realtime-worker".to_owned())
             .spawn(move || {
                 let mut consecutive_errors = 0_u32;
-                let mut provider = loop {
-                    if worker_cancellation.is_cancelled() {
-                        return;
-                    }
-                    match initialize() {
-                        Ok(provider) => {
-                            consecutive_errors = 0;
-                            break provider;
+                let mut provider = None;
+
+                while !worker_cancellation.is_cancelled() {
+                    if provider.is_none() {
+                        match initialize() {
+                            Ok(initialized) => provider = Some(initialized),
+                            Err(MarketError::Cancelled) => break,
+                            Err(error) => {
+                                worker_mailbox.publish_error(error);
+                                consecutive_errors = consecutive_errors.saturating_add(1);
+                                if !sleep_cancellable(
+                                    retry_delay(interval, consecutive_errors),
+                                    &worker_cancellation,
+                                ) {
+                                    break;
+                                }
+                                continue;
+                            }
                         }
+                    }
+
+                    let result = provider
+                        .as_mut()
+                        .expect("provider initialized")
+                        .next_update_cancellable(&worker_cancellation);
+                    match result {
+                        Ok(update) => {
+                            consecutive_errors = 0;
+                            if !worker_mailbox.publish(update, &worker_cancellation)
+                                || !sleep_cancellable(interval, &worker_cancellation)
+                            {
+                                break;
+                            }
+                        }
+                        Err(MarketError::Cancelled) => break,
                         Err(error) => {
                             worker_mailbox.publish_error(error);
+                            provider = None;
                             consecutive_errors = consecutive_errors.saturating_add(1);
                             if !sleep_cancellable(
                                 retry_delay(interval, consecutive_errors),
                                 &worker_cancellation,
                             ) {
-                                return;
-                            }
-                        }
-                    }
-                };
-
-                while !worker_cancellation.is_cancelled() {
-                    let delay = match provider.next_update_cancellable(&worker_cancellation) {
-                        Ok(update) => {
-                            consecutive_errors = 0;
-                            if !worker_mailbox.publish(update, &worker_cancellation) {
                                 break;
                             }
-                            interval
                         }
-                        Err(MarketError::Cancelled) => break,
-                        Err(error) => {
-                            worker_mailbox.publish_error(error);
-                            consecutive_errors = consecutive_errors.saturating_add(1);
-                            retry_delay(interval, consecutive_errors)
-                        }
-                    };
-
-                    if !sleep_cancellable(delay, &worker_cancellation) {
-                        break;
                     }
                 }
             })
@@ -836,6 +841,78 @@ mod realtime_tests {
         };
         assert_eq!(batch.session_id, 42);
         assert_eq!(batch.updates.len(), 1);
+    }
+
+    #[test]
+    fn polling_error_discards_provider_and_reinitializes_through_factory() {
+        struct FailsOnceProvider;
+
+        impl RealtimeMarketDataProvider for FailsOnceProvider {
+            fn name(&self) -> &str {
+                "fails-once-test-provider"
+            }
+
+            fn next_update(&mut self) -> Result<RealtimeMarketUpdate, MarketError> {
+                Err(MarketError::Network("poll connection lost".to_owned()))
+            }
+        }
+
+        struct WorkingProvider {
+            sent: Option<mpsc::Sender<()>>,
+        }
+
+        impl RealtimeMarketDataProvider for WorkingProvider {
+            fn name(&self) -> &str {
+                "reconnected-test-provider"
+            }
+
+            fn next_update(&mut self) -> Result<RealtimeMarketUpdate, MarketError> {
+                if let Some(sent) = self.sent.take() {
+                    let _ = sent.send(());
+                }
+                Ok(update(60_000, false, 102.0))
+            }
+        }
+
+        let attempts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let factory_attempts = Arc::clone(&attempts);
+        let (reconnected_tx, reconnected_rx) = mpsc::channel();
+        let worker = RealtimeWorker::spawn_with_session_factory(
+            73,
+            move || {
+                let attempt = factory_attempts.fetch_add(1, Ordering::SeqCst);
+                if attempt == 0 {
+                    Ok(Box::new(FailsOnceProvider) as Box<dyn RealtimeMarketDataProvider>)
+                } else {
+                    Ok(Box::new(WorkingProvider {
+                        sent: Some(reconnected_tx.clone()),
+                    }) as Box<dyn RealtimeMarketDataProvider>)
+                }
+            },
+            Duration::from_millis(5),
+            4,
+        );
+
+        reconnected_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("worker should create a fresh provider after polling fails");
+        assert!(attempts.load(Ordering::SeqCst) >= 2);
+
+        let deadline = std::time::Instant::now() + Duration::from_secs(1);
+        let batch = loop {
+            let batch = worker.drain();
+            if !batch.updates.is_empty() || std::time::Instant::now() >= deadline {
+                break batch;
+            }
+            thread::sleep(Duration::from_millis(1));
+        };
+        assert_eq!(batch.session_id, 73);
+        assert_eq!(batch.updates.len(), 1);
+        assert_eq!(batch.updates[0].candle.close, 102.0);
+        assert_eq!(
+            batch.latest_error,
+            Some(MarketError::Network("poll connection lost".to_owned()))
+        );
     }
 
     #[test]
