@@ -22,6 +22,7 @@ Cada decisión nueva usa un archivo numerado `NNNN-titulo.md` con:
 - [ADR-0004: Modelo temporal y biblioteca de fechas](0004-time-model-and-library.md)
 - [ADR-0005: Soporte desktop multiplataforma](0005-desktop-cross-platform-support.md)
 - [ADR-0006: Estrategia de tipografía y renderizado de texto](0006-text-rendering-and-font-strategy.md)
+- [ADR-0006: Estrategia de tipografía y renderizado de texto](0006-text-rendering-and-font-strategy.md)
 - [ADR-0007: Estrategia de integración de datos de mercado de Binance](0007-binance-market-data-integration.md)
 - [ADR-0008: Ejecución aislada para I/O de mercado](0008-market-io-worker-architecture.md)
 
