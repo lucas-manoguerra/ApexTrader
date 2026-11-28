@@ -583,21 +583,20 @@ impl ApexTraderApp {
                         update.candle.open_time_ms,
                         DEFAULT_INTERVAL_MS,
                     )
-                {
-                    if self.historical_worker.request(HistoricalRequest {
+                    && self.historical_worker.request(HistoricalRequest {
                         generation_id: self.generation_id,
                         symbol: self.active_symbol.clone(),
                         from_ms: gap.from_ms,
                         to_ms: gap.to_ms,
-                    }) {
-                        tracing::warn!(
-                            "Detectado gap histórico para {}: {}..={} ms",
-                            self.active_symbol,
-                            gap.from_ms,
-                            gap.to_ms
-                        );
-                        self.pending_gap = Some(gap);
-                    }
+                    })
+                {
+                    tracing::warn!(
+                        "Detectado gap histórico para {}: {}..={} ms",
+                        self.active_symbol,
+                        gap.from_ms,
+                        gap.to_ms
+                    );
+                    self.pending_gap = Some(gap);
                 }
                 let candle_closed = update.is_closed;
                 match update.candle.to_chart_data_point() {
