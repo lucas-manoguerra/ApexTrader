@@ -302,6 +302,27 @@ use crate::market::provider::{RealtimeMarketDataProvider, RealtimeMarketUpdate};
 use std::collections::VecDeque;
 use std::time::Duration;
 
+const MAX_REALTIME_RETRY_DELAY: Duration = Duration::from_secs(30);
+const CANCELLATION_SLEEP_SLICE: Duration = Duration::from_millis(20);
+
+fn retry_delay(base: Duration, consecutive_errors: u32) -> Duration {
+    let exponent = consecutive_errors.saturating_sub(1).min(16);
+    let multiplier = 1_u32 << exponent;
+    base.saturating_mul(multiplier).min(MAX_REALTIME_RETRY_DELAY)
+}
+
+fn sleep_cancellable(duration: Duration, cancellation: &CancellationToken) -> bool {
+    let deadline = std::time::Instant::now() + duration;
+    while !cancellation.is_cancelled() {
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        if remaining.is_zero() {
+            return true;
+        }
+        thread::sleep(remaining.min(CANCELLATION_SLEEP_SLICE));
+    }
+    false
+}
+
 #[derive(Debug)]
 pub struct RealtimeBatch {
     pub updates: Vec<RealtimeMarketUpdate>,
@@ -482,21 +503,27 @@ impl RealtimeWorker {
                     }
                 };
 
+                let mut consecutive_errors = 0_u32;
                 while !worker_cancellation.is_cancelled() {
-                    match provider.next_update_cancellable(&worker_cancellation) {
+                    let delay = match provider.next_update_cancellable(&worker_cancellation) {
                         Ok(update) => {
+                            consecutive_errors = 0;
                             if !worker_mailbox.publish(update, &worker_cancellation) {
                                 break;
                             }
+                            interval
                         }
                         Err(MarketError::Cancelled) => break,
-                        Err(error) => worker_mailbox.publish_error(error),
-                    }
+                        Err(error) => {
+                            worker_mailbox.publish_error(error);
+                            consecutive_errors = consecutive_errors.saturating_add(1);
+                            retry_delay(interval, consecutive_errors)
+                        }
+                    };
 
-                    if worker_cancellation.is_cancelled() {
+                    if !sleep_cancellable(delay, &worker_cancellation) {
                         break;
                     }
-                    thread::sleep(interval);
                 }
             })
             .expect("failed to spawn realtime worker");
@@ -554,6 +581,32 @@ mod realtime_tests {
             },
             is_closed,
         }
+    }
+
+    #[test]
+    fn realtime_retry_delay_grows_exponentially_and_is_capped() {
+        let base = Duration::from_millis(250);
+        assert_eq!(retry_delay(base, 1), Duration::from_millis(250));
+        assert_eq!(retry_delay(base, 2), Duration::from_millis(500));
+        assert_eq!(retry_delay(base, 3), Duration::from_secs(1));
+        assert_eq!(retry_delay(base, 8), Duration::from_secs(30));
+        assert_eq!(retry_delay(base, 20), MAX_REALTIME_RETRY_DELAY);
+    }
+
+    #[test]
+    fn successful_poll_resets_retry_sequence_to_base_interval() {
+        let base = Duration::from_millis(250);
+        let failures_before_success = 5;
+        let failures_after_success = 0;
+        assert_eq!(retry_delay(base, failures_before_success), Duration::from_secs(4));
+        assert_eq!(retry_delay(base, failures_after_success + 1), base);
+    }
+
+    #[test]
+    fn cancellable_sleep_returns_promptly_after_cancellation() {
+        let cancellation = CancellationToken::new();
+        cancellation.cancel();
+        assert!(!sleep_cancellable(Duration::from_secs(10), &cancellation));
     }
 
     #[test]
