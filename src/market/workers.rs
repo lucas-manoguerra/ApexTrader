@@ -302,7 +302,7 @@ impl RealtimeMailbox {
             });
             queue.closed_keys.push_back((closed_symbol, closed_time));
             while queue.closed_keys.len() > self.capacity.saturating_mul(2) {
-                drop(queue.closed_keys.pop_front());
+                let _ = queue.closed_keys.pop_front();
             }
             queue.updates.push_back(update);
             wake.notify_all();
@@ -331,7 +331,7 @@ impl RealtimeMailbox {
 
         if queue.updates.len() >= self.capacity {
             if let Some(open_position) = queue.updates.iter().position(|item| !item.is_closed) {
-                drop(queue.updates.remove(open_position));
+                let _ = queue.updates.remove(open_position);
             } else {
                 return true;
             }
