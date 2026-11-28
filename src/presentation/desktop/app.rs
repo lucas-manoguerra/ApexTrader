@@ -1,4 +1,5 @@
 use crate::application::commands::load_candles::{LoadCandles, LoadCandlesResult};
+#[cfg(test)]
 use crate::application::commands::load_historical_data::LoadHistoricalData;
 use crate::chart::layout::ChartLayout;
 use crate::domain::chart::chart_data::ChartDataPoint;
@@ -737,6 +738,7 @@ fn create_realtime_worker(
         64,
     ))
 }
+#[cfg(test)]
 fn load_symbol_into_chart(
     chart: &mut ChartState,
     provider: &dyn MarketDataProvider,
@@ -833,6 +835,7 @@ fn visible_price_range(points: &[ChartDataPoint], mode: PriceScaleMode) -> Optio
     range
 }
 
+#[cfg(test)]
 fn price_range_from_data_points(chart: &ChartState) -> Option<PriceRange> {
     let points = chart.data_points();
     if points.is_empty() {
