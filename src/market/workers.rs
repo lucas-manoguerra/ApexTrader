@@ -626,6 +626,65 @@ mod realtime_tests {
     }
 
     #[test]
+    fn dropping_realtime_worker_does_not_wait_for_provider_io() {
+        struct BlockingProvider {
+            started: Option<mpsc::Sender<()>>,
+            release: mpsc::Receiver<()>,
+            finished: Option<mpsc::Sender<()>>,
+        }
+
+        impl RealtimeMarketDataProvider for BlockingProvider {
+            fn name(&self) -> &str {
+                "blocking-test-provider"
+            }
+
+            fn next_update(&mut self) -> Result<RealtimeMarketUpdate, MarketError> {
+                if let Some(started) = self.started.take() {
+                    let _ = started.send(());
+                }
+                let _ = self.release.recv();
+                if let Some(finished) = self.finished.take() {
+                    let _ = finished.send(());
+                }
+                Ok(update(0, false, 101.0))
+            }
+        }
+
+        let (started_tx, started_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let (finished_tx, finished_rx) = mpsc::channel();
+        let worker = RealtimeWorker::spawn(
+            Box::new(BlockingProvider {
+                started: Some(started_tx),
+                release: release_rx,
+                finished: Some(finished_tx),
+            }),
+            Duration::from_millis(1),
+            1,
+        );
+
+        started_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("provider polling started");
+
+        let (drop_done_tx, drop_done_rx) = mpsc::channel();
+        thread::spawn(move || {
+            drop(worker);
+            let _ = drop_done_tx.send(());
+        });
+
+        drop_done_rx
+            .recv_timeout(Duration::from_millis(100))
+            .expect("dropping realtime worker must not wait for provider I/O");
+        assert!(finished_rx.try_recv().is_err());
+
+        release_tx.send(()).expect("release provider operation");
+        finished_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("provider operation eventually finishes");
+    }
+
+    #[test]
     fn mailbox_reports_the_latest_provider_error() {
         let mailbox = RealtimeMailbox::new(2);
         mailbox.publish_error(MarketError::Network("first".to_owned()));
