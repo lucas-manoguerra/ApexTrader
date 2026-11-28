@@ -70,6 +70,13 @@ where
                         match result_tx.try_send(response) {
                             Ok(()) => break,
                             Err(mpsc::TrySendError::Full(response)) => {
+                                let shutting_down = {
+                                    let (lock, _) = &*worker_state;
+                                    lock.lock().expect("market worker mutex poisoned").shutdown
+                                };
+                                if shutting_down {
+                                    return;
+                                }
                                 pending_response = Some(response);
                                 thread::sleep(Duration::from_millis(5));
                             }
@@ -125,7 +132,11 @@ where
             active.cancel();
         }
         wake.notify_all();
-        drop(self.thread.take());
+        let thread = self.thread.take();
+        drop(state);
+        if let Some(thread) = thread {
+            let _ = thread.join();
+        }
     }
 }
 
@@ -139,7 +150,11 @@ impl<Request, Response> Drop for LatestRequestWorker<Request, Response> {
             active.cancel();
         }
         wake.notify_all();
-        drop(self.thread.take());
+        let thread = self.thread.take();
+        drop(state);
+        if let Some(thread) = thread {
+            let _ = thread.join();
+        }
     }
 }
 
@@ -215,6 +230,24 @@ mod tests {
         assert!(responses.contains(&12));
         assert!(!responses.contains(&11));
         assert_eq!(executions.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn shutdown_cancels_and_joins_an_active_request() {
+        let (started_tx, started_rx) = mpsc::channel();
+        let worker = LatestRequestWorker::spawn(move |request: u32, cancellation| {
+            let _ = started_tx.send(());
+            while !cancellation.is_cancelled() {
+                thread::sleep(Duration::from_millis(1));
+            }
+            request
+        });
+
+        assert!(worker.request(1));
+        started_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("request started");
+        drop(worker);
     }
 
     #[test]
@@ -443,7 +476,9 @@ impl RealtimeWorker {
     pub fn shutdown(&mut self) {
         self.cancellation.cancel();
         self.mailbox.close();
-        drop(self.thread.take());
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
     }
 }
 
