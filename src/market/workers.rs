@@ -810,6 +810,46 @@ mod realtime_tests {
     }
 
     #[test]
+    fn provider_initialization_retry_stops_after_worker_cancellation() {
+        let attempts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let factory_attempts = Arc::clone(&attempts);
+        let (started_tx, started_rx) = mpsc::channel();
+        let worker = RealtimeWorker::spawn_with_factory(
+            move || {
+                factory_attempts.fetch_add(1, Ordering::SeqCst);
+                let _ = started_tx.send(());
+                Err(MarketError::Network(
+                    "temporary initialization failure".into(),
+                ))
+            },
+            Duration::from_secs(1),
+            2,
+        );
+
+        started_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("provider initialization attempt started");
+        drop(worker);
+        thread::sleep(Duration::from_millis(50));
+
+        assert_eq!(attempts.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn realtime_burst_coalesces_repeated_open_candle_updates() {
+        let mailbox = RealtimeMailbox::new(4);
+        let cancellation = CancellationToken::new();
+
+        for close in 100..200 {
+            assert!(mailbox.publish(update(0, false, f64::from(close)), &cancellation));
+        }
+
+        let batch = mailbox.drain();
+        assert_eq!(batch.updates.len(), 1);
+        assert_eq!(batch.updates[0].candle.close, 199.0);
+    }
+
+    #[test]
     fn mailbox_reports_the_latest_provider_error() {
         let mailbox = RealtimeMailbox::new(2);
         mailbox.publish_error(MarketError::Network("first".to_owned()));
