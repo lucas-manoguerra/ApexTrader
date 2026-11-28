@@ -272,6 +272,7 @@ impl eframe::App for ApexTraderApp {
                         }
                         Err(e) => {
                             self.generation_id = self.generation_id.wrapping_add(1);
+                            self.historical_worker.cancel();
                             self.realtime_provider = None;
                             self.load_state = reject_invalid_symbol(&mut self.chart, e);
                         }
