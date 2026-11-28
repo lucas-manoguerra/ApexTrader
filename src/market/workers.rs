@@ -325,16 +325,27 @@ fn sleep_cancellable(duration: Duration, cancellation: &CancellationToken) -> bo
 }
 
 #[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RealtimeConnectionState {
+    Connecting,
+    Connected,
+    Reconnecting,
+    Disconnected,
+}
+
 pub struct RealtimeBatch {
     pub session_id: u64,
     pub updates: Vec<RealtimeMarketUpdate>,
     pub latest_error: Option<MarketError>,
+    pub state_changes: Vec<RealtimeConnectionState>,
 }
 
 struct RealtimeQueue {
     updates: VecDeque<RealtimeMarketUpdate>,
     closed_keys: VecDeque<(crate::market::symbol::Symbol, i64)>,
     latest_error: Option<MarketError>,
+    state_changes: VecDeque<RealtimeConnectionState>,
+    connection_state: Option<RealtimeConnectionState>,
     closed: bool,
 }
 #[derive(Clone)]
@@ -352,6 +363,8 @@ impl RealtimeMailbox {
                     updates: VecDeque::new(),
                     closed_keys: VecDeque::new(),
                     latest_error: None,
+                    state_changes: VecDeque::new(),
+                    connection_state: None,
                     closed: false,
                 }),
                 Condvar::new(),
@@ -446,16 +459,28 @@ impl RealtimeMailbox {
         }
     }
 
+    fn publish_state(&self, state: RealtimeConnectionState) {
+        let (lock, wake) = &*self.inner;
+        let mut queue = lock.lock().expect("realtime mailbox mutex poisoned");
+        if !queue.closed && queue.connection_state != Some(state) {
+            queue.connection_state = Some(state);
+            queue.state_changes.push_back(state);
+            wake.notify_all();
+        }
+    }
+
     pub fn drain(&self) -> RealtimeBatch {
         let (lock, wake) = &*self.inner;
         let mut queue = lock.lock().expect("realtime mailbox mutex poisoned");
         let updates = queue.updates.drain(..).collect();
         let latest_error = queue.latest_error.take();
+        let state_changes = queue.state_changes.drain(..).collect();
         wake.notify_all();
         RealtimeBatch {
             session_id: 0,
             updates,
             latest_error,
+            state_changes,
         }
     }
 
@@ -519,6 +544,7 @@ impl RealtimeWorker {
             .spawn(move || {
                 let mut consecutive_errors = 0_u32;
                 let mut provider = None;
+                worker_mailbox.publish_state(RealtimeConnectionState::Connecting);
 
                 while !worker_cancellation.is_cancelled() {
                     if provider.is_none() {
@@ -527,6 +553,7 @@ impl RealtimeWorker {
                             Err(MarketError::Cancelled) => break,
                             Err(error) => {
                                 worker_mailbox.publish_error(error);
+                                worker_mailbox.publish_state(RealtimeConnectionState::Reconnecting);
                                 consecutive_errors = consecutive_errors.saturating_add(1);
                                 if !sleep_cancellable(
                                     retry_delay(interval, consecutive_errors),
@@ -546,6 +573,7 @@ impl RealtimeWorker {
                     match result {
                         Ok(update) => {
                             consecutive_errors = 0;
+                            worker_mailbox.publish_state(RealtimeConnectionState::Connected);
                             if !worker_mailbox.publish(update, &worker_cancellation)
                                 || !sleep_cancellable(interval, &worker_cancellation)
                             {
@@ -555,6 +583,7 @@ impl RealtimeWorker {
                         Err(MarketError::Cancelled) => break,
                         Err(error) => {
                             worker_mailbox.publish_error(error);
+                            worker_mailbox.publish_state(RealtimeConnectionState::Reconnecting);
                             provider = None;
                             consecutive_errors = consecutive_errors.saturating_add(1);
                             if !sleep_cancellable(
@@ -566,6 +595,7 @@ impl RealtimeWorker {
                         }
                     }
                 }
+                worker_mailbox.publish_state(RealtimeConnectionState::Disconnected);
             })
             .expect("failed to spawn realtime worker");
 
