@@ -10,8 +10,8 @@ use crate::domain::viewport::{PriceScaleMode, PriceScaleType, Viewport};
 use crate::market::candle::MarketCandle;
 use crate::market::errors::MarketError;
 use crate::market::provider::{MarketDataProvider, RealtimeMarketDataProvider};
-use crate::market::workers::{LatestRequestWorker, RealtimeWorker};
 use crate::market::symbol::Symbol;
+use crate::market::workers::{LatestRequestWorker, RealtimeWorker};
 use crate::presentation::input::egui::{self as input_egui, InputHandler};
 use crate::renderer::{
     ChartRenderer, ChartScene, InvalidationMask, InvalidationReason, create_renderer,
@@ -467,7 +467,8 @@ impl eframe::App for ApexTraderApp {
 impl ApexTraderApp {
     fn advance_historical(&mut self) {
         for response in self.historical_worker.drain() {
-            if response.generation_id != self.generation_id || response.symbol != self.active_symbol {
+            if response.generation_id != self.generation_id || response.symbol != self.active_symbol
+            {
                 continue;
             }
 
@@ -494,7 +495,9 @@ impl ApexTraderApp {
                     match self.chart.add_data_points(&result.data_points) {
                         Ok(()) => {
                             refresh_price_scale_type_for_data(&mut self.chart);
-                            self.load_state = LoadState::Loaded { count: self.chart.len() };
+                            self.load_state = LoadState::Loaded {
+                                count: self.chart.len(),
+                            };
                             self.realtime_provider = create_realtime_provider(
                                 &self.chart,
                                 response.symbol,
@@ -542,7 +545,9 @@ impl ApexTraderApp {
                     Ok(point) => {
                         let previous_count = self.chart.len();
                         if let Err(error) = self.chart.add_data_point(point) {
-                            tracing::error!("No se pudo aplicar la actualización realtime: {error}");
+                            tracing::error!(
+                                "No se pudo aplicar la actualización realtime: {error}"
+                            );
                         } else {
                             self.follow_latest_pending |= self.chart.len() > previous_count;
                             if candle_closed {
@@ -625,20 +630,21 @@ impl ApexTraderApp {
 
         let market_data_provider: Arc<dyn MarketDataProvider> = Arc::from(market_data_provider);
         let worker_provider = Arc::clone(&market_data_provider);
-        let historical_worker = LatestRequestWorker::spawn(move |request: HistoricalRequest, cancellation| {
-            let result = LoadCandles::execute_cancellable(
-                worker_provider.as_ref(),
-                request.symbol.clone(),
-                request.from_ms,
-                request.to_ms,
-                &cancellation,
-            );
-            HistoricalResponse {
-                generation_id: request.generation_id,
-                symbol: request.symbol,
-                result,
-            }
-        });
+        let historical_worker =
+            LatestRequestWorker::spawn(move |request: HistoricalRequest, cancellation| {
+                let result = LoadCandles::execute_cancellable(
+                    worker_provider.as_ref(),
+                    request.symbol.clone(),
+                    request.from_ms,
+                    request.to_ms,
+                    &cancellation,
+                );
+                HistoricalResponse {
+                    generation_id: request.generation_id,
+                    symbol: request.symbol,
+                    result,
+                }
+            });
         let active_symbol = symbol.clone();
         let generation_id = 1;
         historical_worker.request(HistoricalRequest {
