@@ -818,7 +818,9 @@ mod realtime_tests {
             move || {
                 factory_attempts.fetch_add(1, Ordering::SeqCst);
                 let _ = started_tx.send(());
-                Err(MarketError::Network("temporary initialization failure".into()))
+                Err(MarketError::Network(
+                    "temporary initialization failure".into(),
+                ))
             },
             Duration::from_secs(1),
             2,
