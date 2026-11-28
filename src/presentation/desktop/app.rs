@@ -69,6 +69,7 @@ pub(crate) struct ApexTraderApp {
     generation_id: u64,
     realtime_provider_factory: RealtimeProviderFactory,
     realtime_provider: Option<RealtimeWorker>,
+    realtime_error: Option<String>,
     follow_latest: bool,
     follow_latest_pending: bool,
     prev_rect: Option<egui::Rect>,
@@ -262,6 +263,7 @@ impl eframe::App for ApexTraderApp {
                             self.chart.clear();
                             self.load_state = LoadState::Loading;
                             self.realtime_provider = None;
+                            self.realtime_error = None;
                             self.historical_worker.request(HistoricalRequest {
                                 generation_id: self.generation_id,
                                 symbol,
@@ -274,6 +276,7 @@ impl eframe::App for ApexTraderApp {
                             self.generation_id = self.generation_id.wrapping_add(1);
                             self.historical_worker.cancel();
                             self.realtime_provider = None;
+                            self.realtime_error = None;
                             self.load_state = reject_invalid_symbol(&mut self.chart, e);
                         }
                     }
@@ -450,6 +453,9 @@ impl eframe::App for ApexTraderApp {
                     if self.realtime_provider.is_some() { "activo" } else { "inactivo" },
                     points.len()
                 ));
+                if let Some(error) = &self.realtime_error {
+                    ui.colored_label(egui::Color32::RED, format!("Realtime: {error}"));
+                }
             });
             ui.small(
                 "Rueda vertical: zoom temporal | Rueda horizontal: desplazar tiempo | Arrastrar: mover | Arrastrar escala derecha/inferior: ajustar | Doble clic en escala: restablecer",
@@ -520,7 +526,11 @@ impl ApexTraderApp {
         if let Some(provider) = self.realtime_provider.as_ref() {
             let batch = provider.drain();
             if let Some(error) = batch.latest_error {
+                self.realtime_error = Some(error.to_string());
                 tracing::error!("Error en proveedor realtime: {error}");
+            }
+            if !batch.updates.is_empty() {
+                self.realtime_error = None;
             }
             for update in batch.updates {
                 if let Err(error) = update.validate_symbol(&self.active_symbol) {
@@ -663,6 +673,7 @@ impl ApexTraderApp {
             generation_id,
             realtime_provider_factory,
             realtime_provider,
+            realtime_error: None,
             follow_latest: true,
             follow_latest_pending: false,
             prev_rect: None,
