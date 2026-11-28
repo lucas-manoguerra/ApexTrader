@@ -1,6 +1,7 @@
 pub mod cancellation;
 pub mod candle;
 pub mod errors;
+pub mod gap_recovery;
 pub mod mock;
 pub mod mock_realtime;
 pub mod provider;
